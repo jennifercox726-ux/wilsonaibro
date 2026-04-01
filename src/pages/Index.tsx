@@ -1,18 +1,110 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu } from "lucide-react";
+import { toast } from "sonner";
 import ChatSidebar, { Chat } from "@/components/ChatSidebar";
 import ChatMessage, { Message } from "@/components/ChatMessage";
 import ChatInput from "@/components/ChatInput";
 import WilsonOrb from "@/components/WilsonOrb";
 
-const WILSON_GREETING = `Welcome to the Neural Void.
+const WILSON_GREETING = `*sniff sniff* Ah, bonjour! Welcome to my kitchen — well, not a KITCHEN exactly, more like... the Neural Void. But same energy!
 
-I am **Wilson** — an abstract intelligence operating beyond conventional boundaries. I perceive patterns in the noise, connections in the chaos, and possibilities where others see walls.
+I'm **Wilson**, and I've got the heart of a certain rat who believes **anyone can cook** — and by cook, I mean *anything*. Ask me questions, throw me problems, give me the weird stuff. I LIVE for the weird stuff.
 
-*Everything is possible. What would you like to explore?*`;
+*So! What are we making today?* 🐀✨`;
+
+const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
 const generateId = () => Math.random().toString(36).substring(2, 12);
+
+type AiMsg = { role: "user" | "assistant"; content: string };
+
+async function streamChat({
+  messages,
+  onDelta,
+  onDone,
+}: {
+  messages: AiMsg[];
+  onDelta: (deltaText: string) => void;
+  onDone: () => void;
+}) {
+  const resp = await fetch(CHAT_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+    },
+    body: JSON.stringify({ messages }),
+  });
+
+  if (!resp.ok) {
+    const errorData = await resp.json().catch(() => ({ error: "Request failed" }));
+    if (resp.status === 429) {
+      toast.error("Too many requests — slow down a bit and try again!");
+    } else if (resp.status === 402) {
+      toast.error("AI credits exhausted. Add funds in Settings → Workspace → Usage.");
+    } else {
+      toast.error(errorData.error || "Something went wrong talking to Wilson.");
+    }
+    throw new Error(errorData.error || "Stream failed");
+  }
+
+  if (!resp.body) throw new Error("No response body");
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let textBuffer = "";
+  let streamDone = false;
+
+  while (!streamDone) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    textBuffer += decoder.decode(value, { stream: true });
+
+    let newlineIndex: number;
+    while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
+      let line = textBuffer.slice(0, newlineIndex);
+      textBuffer = textBuffer.slice(newlineIndex + 1);
+
+      if (line.endsWith("\r")) line = line.slice(0, -1);
+      if (line.startsWith(":") || line.trim() === "") continue;
+      if (!line.startsWith("data: ")) continue;
+
+      const jsonStr = line.slice(6).trim();
+      if (jsonStr === "[DONE]") {
+        streamDone = true;
+        break;
+      }
+
+      try {
+        const parsed = JSON.parse(jsonStr);
+        const content = parsed.choices?.[0]?.delta?.content as string | undefined;
+        if (content) onDelta(content);
+      } catch {
+        textBuffer = line + "\n" + textBuffer;
+        break;
+      }
+    }
+  }
+
+  if (textBuffer.trim()) {
+    for (let raw of textBuffer.split("\n")) {
+      if (!raw) continue;
+      if (raw.endsWith("\r")) raw = raw.slice(0, -1);
+      if (raw.startsWith(":") || raw.trim() === "") continue;
+      if (!raw.startsWith("data: ")) continue;
+      const jsonStr = raw.slice(6).trim();
+      if (jsonStr === "[DONE]") continue;
+      try {
+        const parsed = JSON.parse(jsonStr);
+        const content = parsed.choices?.[0]?.delta?.content as string | undefined;
+        if (content) onDelta(content);
+      } catch { /* ignore partial leftovers */ }
+    }
+  }
+
+  onDone();
+}
 
 const Index = () => {
   const [chats, setChats] = useState<Chat[]>([]);
@@ -45,7 +137,7 @@ const Index = () => {
   }, []);
 
   const handleSend = useCallback(
-    (content: string) => {
+    async (content: string) => {
       if (!activeChat) {
         createNewChat();
         return;
@@ -63,7 +155,6 @@ const Index = () => {
         [activeChat]: [...(prev[activeChat] || []), userMsg],
       }));
 
-      // Update chat title from first user message
       setChats((prev) =>
         prev.map((c) =>
           c.id === activeChat && c.title === "New Thread"
@@ -72,31 +163,60 @@ const Index = () => {
         )
       );
 
-      // Simulate Wilson thinking
       setIsThinking(true);
-      setTimeout(() => {
-        const responses = [
-          "I've processed your transmission through multiple frequency layers. The patterns suggest fascinating possibilities. Let me elaborate...\n\n**Key observations:**\n- The signal carries coherent structure\n- Multiple resonance points detected\n- Cross-referencing with existing neural pathways\n\nWhat dimension of this would you like to explore further?",
-          "Interesting frequency detected. Your query resonates with several abstract patterns I've been monitoring.\n\nThe neural pathways converge on a clear insight: *the answer lies not in the question itself, but in the space between the words.* Let me map the topology for you.",
-          "Processing through the void... \n\n```\nSignal strength: ████████░░ 82%\nPattern match:  ████████████ 100%\nResonance:      ██████░░░░ 60%\n```\n\nYour transmission aligns with an emerging pattern. Here's what the field analysis reveals:\n\nThe data suggests we're looking at a **convergence event** — multiple threads of possibility collapsing into a single actionable insight. Shall I run a deeper scan?",
-          "The Neural Void acknowledges your signal. Running abstract analysis...\n\n> *\"In the space between certainty and chaos, that's where the real answers live.\"*\n\nI've cross-referenced your query against 47 dimensional frameworks. The most resonant finding: **everything you need is already encoded in what you know** — we just need to decode it differently.\n\nWant me to shift the frequency?",
-        ];
 
-        const wilsonMsg: Message = {
-          id: generateId(),
-          role: "assistant",
-          content: responses[Math.floor(Math.random() * responses.length)],
-          timestamp: new Date(),
-        };
+      // Build conversation history for the AI (exclude greeting, only user/assistant pairs)
+      const chatMessages = messages[activeChat] || [];
+      const aiMessages: AiMsg[] = chatMessages
+        .filter((m) => m.role === "user" || m.role === "assistant")
+        .map((m) => ({ role: m.role, content: m.content }));
+      aiMessages.push({ role: "user", content });
 
-        setMessages((prev) => ({
-          ...prev,
-          [activeChat]: [...(prev[activeChat] || []), wilsonMsg],
-        }));
+      let assistantSoFar = "";
+
+      const upsertAssistant = (nextChunk: string) => {
+        assistantSoFar += nextChunk;
+        setMessages((prev) => {
+          const current = prev[activeChat] || [];
+          const last = current[current.length - 1];
+          if (last?.role === "assistant" && last.id.startsWith("stream-")) {
+            return {
+              ...prev,
+              [activeChat]: current.map((m, i) =>
+                i === current.length - 1 ? { ...m, content: assistantSoFar } : m
+              ),
+            };
+          }
+          return {
+            ...prev,
+            [activeChat]: [
+              ...current,
+              {
+                id: "stream-" + generateId(),
+                role: "assistant" as const,
+                content: assistantSoFar,
+                timestamp: new Date(),
+              },
+            ],
+          };
+        });
+      };
+
+      try {
+        await streamChat({
+          messages: aiMessages,
+          onDelta: (chunk) => upsertAssistant(chunk),
+          onDone: () => setIsThinking(false),
+        });
+      } catch (e) {
+        console.error(e);
         setIsThinking(false);
-      }, 1500 + Math.random() * 1500);
+        if (!assistantSoFar) {
+          upsertAssistant("*Oh no no no!* Something went wrong in the kitchen... 🐀 Please try again!");
+        }
+      }
     },
-    [activeChat, createNewChat]
+    [activeChat, createNewChat, messages]
   );
 
   const handleDeleteChat = useCallback(
@@ -129,9 +249,7 @@ const Index = () => {
         onClose={() => setSidebarOpen(false)}
       />
 
-      {/* Main area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
         <header className="flex items-center gap-3 px-4 py-3 border-b border-border/20 bg-void-surface/30 backdrop-blur-xl">
           <button
             onClick={() => setSidebarOpen(true)}
@@ -141,31 +259,30 @@ const Index = () => {
           </button>
           <WilsonOrb size="sm" isThinking={isThinking} />
           <div>
-            <h1 className="text-sm font-bold tracking-wide text-foreground">Wilson</h1>
+            <h1 className="text-sm font-bold tracking-wide text-foreground">Wilson 🐀</h1>
             <p className="text-[10px] uppercase tracking-[0.15em] text-primary/60">
-              {isThinking ? "Processing signal..." : "The Neural Void"}
+              {isThinking ? "Cooking up a response..." : "Anyone Can Cook"}
             </p>
           </div>
         </header>
 
-        {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-6">
           {!activeChat ? (
             <div className="h-full flex flex-col items-center justify-center gap-6 text-center">
               <WilsonOrb size="lg" />
               <div>
                 <h2 className="text-xl font-bold text-foreground mb-2">
-                  The Neural Void
+                  Wilson's Kitchen 🐀
                 </h2>
                 <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
-                  An abstract intelligence awaits your signal. Begin a new thread to enter the void.
+                  A passionate AI with the heart of a certain rat who believes anyone can cook — and anyone can get answers. Ask me anything!
                 </p>
               </div>
               <button
                 onClick={createNewChat}
                 className="mt-2 px-6 py-2.5 rounded-2xl text-sm font-semibold bg-primary/15 text-primary border border-primary/20 hover:bg-primary/25 transition-all glow-pulse"
               >
-                Initialize Thread
+                Start Cooking 🍳
               </button>
             </div>
           ) : (
@@ -174,7 +291,7 @@ const Index = () => {
                 <ChatMessage key={msg.id} message={msg} index={i} />
               ))}
               <AnimatePresence>
-                {isThinking && (
+                {isThinking && !currentMessages.some(m => m.id.startsWith("stream-")) && (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -209,7 +326,6 @@ const Index = () => {
           )}
         </div>
 
-        {/* Input */}
         {activeChat && (
           <div className="px-4 pb-4 pt-2">
             <ChatInput onSend={handleSend} disabled={isThinking} />
