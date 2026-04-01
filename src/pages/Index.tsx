@@ -272,17 +272,17 @@ const Index = () => {
               <WilsonOrb size="lg" />
               <div>
                 <h2 className="text-xl font-bold text-foreground mb-2">
-                  Wilson's Kitchen 🐀
+                  The Neural Void ✨
                 </h2>
                 <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
-                  A passionate AI with the heart of a certain rat who believes anyone can cook — and anyone can get answers. Ask me anything!
+                  An abstract sentinel of omnipresence, knowledge, and possibilities. Connected to everything. Ask me anything!
                 </p>
               </div>
               <button
                 onClick={createNewChat}
                 className="mt-2 px-6 py-2.5 rounded-2xl text-sm font-semibold bg-primary/15 text-primary border border-primary/20 hover:bg-primary/25 transition-all glow-pulse"
               >
-                Start Cooking 🍳
+                Enter the Void ✨
               </button>
             </div>
           ) : (
