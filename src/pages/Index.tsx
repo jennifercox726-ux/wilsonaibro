@@ -212,7 +212,7 @@ const Index = () => {
         console.error(e);
         setIsThinking(false);
         if (!assistantSoFar) {
-          upsertAssistant("*Oh no no no!* Something went wrong in the kitchen... 🐀 Please try again!");
+          upsertAssistant("*Oh no no no!* Something went wrong in the void... Please try again!");
         }
       }
     },
