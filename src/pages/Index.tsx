@@ -259,9 +259,9 @@ const Index = () => {
           </button>
           <WilsonOrb size="sm" isThinking={isThinking} />
           <div>
-            <h1 className="text-sm font-bold tracking-wide text-foreground">Wilson 🐀</h1>
+            <h1 className="text-sm font-bold tracking-wide text-foreground">Wilson ✨</h1>
             <p className="text-[10px] uppercase tracking-[0.15em] text-primary/60">
-              {isThinking ? "Cooking up a response..." : "Anyone Can Cook"}
+              {isThinking ? "Searching the void..." : "Sentinel of Omnipresence"}
             </p>
           </div>
         </header>
