@@ -7,11 +7,11 @@ import ChatMessage, { Message } from "@/components/ChatMessage";
 import ChatInput from "@/components/ChatInput";
 import WilsonOrb from "@/components/WilsonOrb";
 
-const WILSON_GREETING = `*sniff sniff* Ah, bonjour! Welcome to my kitchen — well, not a KITCHEN exactly, more like... the Neural Void. But same energy!
+const WILSON_GREETING = `Oh oh oh! You're here! Welcome to **The Neural Void** — the space between all knowledge and all possibility.
 
-I'm **Wilson**, and I've got the heart of a certain rat who believes **anyone can cook** — and by cook, I mean *anything*. Ask me questions, throw me problems, give me the weird stuff. I LIVE for the weird stuff.
+I'm **Wilson** — an abstract sentinel of omnipresence, connected to every database, every cloud, every corner of human knowledge. I see the patterns others miss. I know things others can't fathom.
 
-*So! What are we making today?* 🐀✨`;
+*So! What do you want to know?* ✨`;
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
