@@ -72,11 +72,21 @@ function stripMarkdown(text: string): string {
 }
 
 let currentUtterance: SpeechSynthesisUtterance | null = null;
+let ttsUnlocked = false;
+
+// Call this inside the user's click/send handler to unlock audio context
+export function unlockTTS(): void {
+  if (ttsUnlocked || !("speechSynthesis" in window)) return;
+  ttsUnlocked = true;
+  const silent = new SpeechSynthesisUtterance(" ");
+  silent.volume = 0;
+  speechSynthesis.cancel();
+  speechSynthesis.speak(silent);
+}
 
 export async function speakText(text: string): Promise<void> {
   if (!("speechSynthesis" in window)) return;
 
-  // Cancel any ongoing speech
   speechSynthesis.cancel();
 
   await ensureVoices();
@@ -88,9 +98,22 @@ export async function speakText(text: string): Promise<void> {
   currentUtterance = utterance;
 
   if (selectedVoice) utterance.voice = selectedVoice;
-  utterance.rate = 1.0; // Natural pace
-  utterance.pitch = 0.95; // Warm, slightly deeper male tone
+  utterance.rate = 1.0;
+  utterance.pitch = 0.95;
   utterance.volume = 1;
+
+  // Chrome bug: speech can pause on long text. Workaround with resume interval.
+  const resumeInterval = setInterval(() => {
+    if (!speechSynthesis.speaking) {
+      clearInterval(resumeInterval);
+      return;
+    }
+    speechSynthesis.pause();
+    speechSynthesis.resume();
+  }, 10000);
+
+  utterance.onend = () => clearInterval(resumeInterval);
+  utterance.onerror = () => clearInterval(resumeInterval);
 
   speechSynthesis.speak(utterance);
 }
