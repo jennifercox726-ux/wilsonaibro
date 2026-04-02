@@ -5,15 +5,17 @@ let selectedVoice: SpeechSynthesisVoice | null = null;
 let voicesLoaded = false;
 
 const PREFERRED_VOICES = [
-  "Microsoft Zira",
-  "Google UK English Female",
-  "Samantha",
-  "Karen",
-  "Moira",
-  "Tessa",
+  "Daniel",
+  "Microsoft David",
+  "Google UK English Male",
+  "Alex",
+  "Tom",
+  "Microsoft Mark",
+  "Microsoft Guy",
+  "Aaron",
   "Google US English",
-  "Microsoft Jenny",
-  "Fiona",
+  "James",
+  "Fred",
 ];
 
 function pickBestVoice(): SpeechSynthesisVoice | null {
@@ -86,8 +88,8 @@ export async function speakText(text: string): Promise<void> {
   currentUtterance = utterance;
 
   if (selectedVoice) utterance.voice = selectedVoice;
-  utterance.rate = 1.05; // Slightly upbeat
-  utterance.pitch = 1.1; // Warm and friendly
+  utterance.rate = 1.0; // Natural pace
+  utterance.pitch = 0.95; // Warm, slightly deeper male tone
   utterance.volume = 1;
 
   speechSynthesis.speak(utterance);
