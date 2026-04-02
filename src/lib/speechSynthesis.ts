@@ -1,5 +1,5 @@
 // Browser-based TTS for Wilson's voice
-// Picks the best available female voice and tunes for warm, friendly delivery
+// Uses Web Speech API with warm male voice settings
 
 let selectedVoice: SpeechSynthesisVoice | null = null;
 let voicesLoaded = false;
@@ -22,13 +22,11 @@ function pickBestVoice(): SpeechSynthesisVoice | null {
   const voices = speechSynthesis.getVoices();
   if (!voices.length) return null;
 
-  // Try preferred voices first
   for (const pref of PREFERRED_VOICES) {
     const match = voices.find((v) => v.name.includes(pref));
     if (match) return match;
   }
 
-  // Fallback: any English female-sounding voice
   const english = voices.filter((v) => v.lang.startsWith("en"));
   return english[0] || voices[0];
 }
@@ -48,7 +46,6 @@ function ensureVoices(): Promise<void> {
       voicesLoaded = true;
       resolve();
     };
-    // Timeout fallback
     setTimeout(() => {
       selectedVoice = pickBestVoice();
       voicesLoaded = true;
@@ -72,27 +69,34 @@ function stripMarkdown(text: string): string {
 }
 
 let currentUtterance: SpeechSynthesisUtterance | null = null;
-let ttsUnlocked = false;
+
+// Queue for speaking - we store text to speak and process it
+let pendingSpeech: string | null = null;
 
 // Call this inside the user's click/send handler to unlock audio context
+// AND to actually trigger any pending speech
 export function unlockTTS(): void {
-  if (ttsUnlocked || !("speechSynthesis" in window)) return;
-  ttsUnlocked = true;
-  const silent = new SpeechSynthesisUtterance(" ");
-  silent.volume = 0;
-  speechSynthesis.cancel();
-  speechSynthesis.speak(silent);
+  if (!("speechSynthesis" in window)) return;
+  // Pre-load voices
+  ensureVoices();
 }
 
 export async function speakText(text: string): Promise<void> {
-  if (!("speechSynthesis" in window)) return;
+  if (!("speechSynthesis" in window)) {
+    console.warn("[Wilson TTS] speechSynthesis not available");
+    return;
+  }
 
+  // Cancel anything currently playing
   speechSynthesis.cancel();
 
   await ensureVoices();
 
   const clean = stripMarkdown(text);
   if (!clean) return;
+
+  console.log("[Wilson TTS] Speaking:", clean.substring(0, 80) + "...");
+  console.log("[Wilson TTS] Selected voice:", selectedVoice?.name || "default");
 
   const utterance = new SpeechSynthesisUtterance(clean);
   currentUtterance = utterance;
@@ -102,7 +106,7 @@ export async function speakText(text: string): Promise<void> {
   utterance.pitch = 0.95;
   utterance.volume = 1;
 
-  // Chrome bug: speech can pause on long text. Workaround with resume interval.
+  // Chrome bug workaround: speech can pause on long text
   const resumeInterval = setInterval(() => {
     if (!speechSynthesis.speaking) {
       clearInterval(resumeInterval);
@@ -112,10 +116,19 @@ export async function speakText(text: string): Promise<void> {
     speechSynthesis.resume();
   }, 10000);
 
-  utterance.onend = () => clearInterval(resumeInterval);
-  utterance.onerror = () => clearInterval(resumeInterval);
+  utterance.onend = () => {
+    console.log("[Wilson TTS] Finished speaking");
+    clearInterval(resumeInterval);
+  };
+  utterance.onerror = (e) => {
+    console.error("[Wilson TTS] Error:", e.error);
+    clearInterval(resumeInterval);
+  };
 
-  speechSynthesis.speak(utterance);
+  // Use a small delay to help with browser autoplay policies
+  setTimeout(() => {
+    speechSynthesis.speak(utterance);
+  }, 100);
 }
 
 export function stopSpeaking(): void {

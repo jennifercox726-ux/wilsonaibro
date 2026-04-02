@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Send, Mic, MicOff } from "lucide-react";
 
@@ -7,10 +7,18 @@ interface ChatInputProps {
   disabled?: boolean;
 }
 
+// Check for Speech Recognition API
+const SpeechRecognition =
+  typeof window !== "undefined"
+    ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    : null;
+
 const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
   const [input, setInput] = useState("");
   const [isFocused, setIsFocused] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -31,6 +39,54 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
       handleSend();
     }
   };
+
+  const toggleListening = useCallback(() => {
+    if (!SpeechRecognition) {
+      console.warn("Speech Recognition not supported in this browser");
+      return;
+    }
+
+    if (isListening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+
+    recognition.onresult = (event: any) => {
+      let transcript = "";
+      for (let i = 0; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript;
+      }
+      setInput(transcript);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error("Speech recognition error:", event.error);
+      setIsListening(false);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsListening(true);
+  }, [isListening]);
+
+  // Clean up recognition on unmount
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, []);
 
   return (
     <motion.div
@@ -61,12 +117,19 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
           className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 resize-none outline-none font-sans min-h-[24px]"
         />
         <div className="flex items-center gap-1.5 flex-shrink-0 pb-0.5">
-          <button
-            className="p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-            title="Voice input (coming soon)"
-          >
-            <Mic className="w-4 h-4" />
-          </button>
+          {SpeechRecognition && (
+            <button
+              onClick={toggleListening}
+              className={`p-2 rounded-xl transition-colors ${
+                isListening
+                  ? "text-red-400 bg-red-400/20 animate-pulse"
+                  : "text-muted-foreground hover:text-primary hover:bg-primary/10"
+              }`}
+              title={isListening ? "Stop listening" : "Voice input"}
+            >
+              {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            </button>
+          )}
           <button
             onClick={handleSend}
             disabled={!input.trim() || disabled}
