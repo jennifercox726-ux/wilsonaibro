@@ -6,6 +6,7 @@ import ChatSidebar, { Chat } from "@/components/ChatSidebar";
 import ChatMessage, { Message } from "@/components/ChatMessage";
 import ChatInput from "@/components/ChatInput";
 import WilsonOrb from "@/components/WilsonOrb";
+import { speakText, stopSpeaking } from "@/lib/speechSynthesis";
 
 const WILSON_GREETING = `Oh oh oh! You're here! Welcome to **The Neural Void** — the space between all knowledge and all possibility.
 
@@ -206,7 +207,11 @@ const Index = () => {
         await streamChat({
           messages: aiMessages,
           onDelta: (chunk) => upsertAssistant(chunk),
-          onDone: () => setIsThinking(false),
+          onDone: () => {
+            setIsThinking(false);
+            // Speak Wilson's complete response
+            if (assistantSoFar) speakText(assistantSoFar);
+          },
         });
       } catch (e) {
         console.error(e);
