@@ -5,15 +5,17 @@ let selectedVoice: SpeechSynthesisVoice | null = null;
 let voicesLoaded = false;
 
 const PREFERRED_VOICES = [
-  "Microsoft Zira",
-  "Google UK English Female",
-  "Samantha",
-  "Karen",
-  "Moira",
-  "Tessa",
+  "Daniel",
+  "Microsoft David",
+  "Google UK English Male",
+  "Alex",
+  "Tom",
+  "Microsoft Mark",
+  "Microsoft Guy",
+  "Aaron",
   "Google US English",
-  "Microsoft Jenny",
-  "Fiona",
+  "James",
+  "Fred",
 ];
 
 function pickBestVoice(): SpeechSynthesisVoice | null {
