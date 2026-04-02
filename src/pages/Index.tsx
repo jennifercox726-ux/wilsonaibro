@@ -6,7 +6,7 @@ import ChatSidebar, { Chat } from "@/components/ChatSidebar";
 import ChatMessage, { Message } from "@/components/ChatMessage";
 import ChatInput from "@/components/ChatInput";
 import WilsonOrb from "@/components/WilsonOrb";
-import { speakText, stopSpeaking } from "@/lib/speechSynthesis";
+import { speakText, stopSpeaking, unlockTTS } from "@/lib/speechSynthesis";
 
 const WILSON_GREETING = `Oh oh oh! You're here! Welcome to **The Neural Void** — the space between all knowledge and all possibility.
 
