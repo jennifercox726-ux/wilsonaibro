@@ -139,6 +139,9 @@ const Index = () => {
 
   const handleSend = useCallback(
     async (content: string) => {
+      // Unlock browser TTS inside user gesture before any async work
+      unlockTTS();
+
       if (!activeChat) {
         createNewChat();
         return;
