@@ -207,7 +207,11 @@ const Index = () => {
         await streamChat({
           messages: aiMessages,
           onDelta: (chunk) => upsertAssistant(chunk),
-          onDone: () => setIsThinking(false),
+          onDone: () => {
+            setIsThinking(false);
+            // Speak Wilson's complete response
+            if (assistantSoFar) speakText(assistantSoFar);
+          },
         });
       } catch (e) {
         console.error(e);
