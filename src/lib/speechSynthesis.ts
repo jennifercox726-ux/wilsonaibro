@@ -13,7 +13,13 @@ function stripMarkdown(text: string): string {
     .replace(/#{1,6}\s/g, "")
     .replace(/`{1,3}[^`]*`{1,3}/g, "")
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/[✨🐀🔥💡⚡️🎯]/g, "")
+    // Remove all emoji and special unicode symbols
+    .replace(/[\u{1F000}-\u{1FFFF}]/gu, "")
+    .replace(/[\u{2600}-\u{27BF}]/gu, "")
+    .replace(/[\u{FE00}-\u{FE0F}]/gu, "")
+    .replace(/[\u{200D}]/gu, "")
+    // Remove any unpaired surrogates that cause ElevenLabs API errors
+    .replace(/[\uD800-\uDFFF]/g, "")
     .replace(/\n{2,}/g, ". ")
     .replace(/\n/g, " ")
     .trim();
