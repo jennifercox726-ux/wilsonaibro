@@ -125,9 +125,11 @@ function speakWithBrowser(text: string): void {
     "| Voices available:", window.speechSynthesis.getVoices().length,
     "| Unlocked:", ttsUnlocked);
 
+  // Cap at ~800 chars for browser voice — keeps it snappy, avoids long robotic monologues
+  const trimmed = text.length > 800 ? text.slice(0, 800).replace(/[^.!?]*$/, "") + "..." : text;
   // Chunk text to avoid Chrome's silent-failure on long utterances
-  const chunks = chunkText(text);
-  console.log("[Wilson TTS] Speaking", chunks.length, "chunk(s)");
+  const chunks = chunkText(trimmed);
+  console.log("[Wilson TTS] Speaking", chunks.length, "chunk(s), total chars:", trimmed.length);
 
   // Queue all chunks — speechSynthesis processes them sequentially
   for (let i = 0; i < chunks.length; i++) {
