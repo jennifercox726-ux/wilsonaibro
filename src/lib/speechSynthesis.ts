@@ -132,10 +132,11 @@ function speakWithBrowser(text: string): void {
   // Queue all chunks — speechSynthesis processes them sequentially
   for (let i = 0; i < chunks.length; i++) {
     const utterance = new SpeechSynthesisUtterance(chunks[i]);
-    utterance.rate = 1.05;
-    utterance.pitch = 0.85;
+    // Tuned for warm, natural-sounding speech (not robotic)
+    utterance.rate = 0.95;   // slightly slower = more natural cadence
+    utterance.pitch = 0.9;   // slightly lower = warmer, less tinny
     utterance.volume = 1.0;
-    utterance.lang = "en-US";
+    utterance.lang = "en-GB"; // British English matches Daniel/UK voices better
     if (voice) utterance.voice = voice;
 
     // Log errors for debugging
