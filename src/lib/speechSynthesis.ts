@@ -5,8 +5,10 @@ const GOOGLE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google
 
 let currentAudio: HTMLAudioElement | null = null;
 let ttsUnlocked = false;
+let htmlAudioUnlocked = false;
 
 const TTS_RETRY_COOLDOWN_MS = 30_000;
+const SILENT_AUDIO_DATA_URL = "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
 
 const providerState = {
   elevenLabsRetryAt: 0,
@@ -66,7 +68,36 @@ function pickVoice(): SpeechSynthesisVoice | null {
   );
 }
 
+function unlockHtmlAudio(): void {
+  if (typeof Audio === "undefined" || htmlAudioUnlocked) return;
+
+  const silentAudio = new Audio(SILENT_AUDIO_DATA_URL);
+  silentAudio.volume = 0.01;
+  silentAudio.preload = "auto";
+  silentAudio.setAttribute("playsinline", "true");
+
+  const playAttempt = silentAudio.play();
+
+  if (playAttempt && typeof playAttempt.then === "function") {
+    playAttempt
+      .then(() => {
+        silentAudio.pause();
+        silentAudio.currentTime = 0;
+        htmlAudioUnlocked = true;
+        console.log("[Wilson TTS] HTML audio unlocked via gesture");
+      })
+      .catch((error) => {
+        htmlAudioUnlocked = false;
+        console.warn("[Wilson TTS] HTML audio unlock failed:", error);
+      });
+    return;
+  }
+
+  htmlAudioUnlocked = true;
+}
+
 export function unlockTTS(): void {
+  unlockHtmlAudio();
   if (!window.speechSynthesis) return;
   if (ttsUnlocked) return;
   const silent = new SpeechSynthesisUtterance(" ");
@@ -132,6 +163,8 @@ async function tryCloudTTS(url: string, text: string, label: string): Promise<bo
 
     const audioUrl = URL.createObjectURL(audioBlob);
     const audio = new Audio(audioUrl);
+    audio.preload = "auto";
+    audio.setAttribute("playsinline", "true");
     currentAudio = audio;
 
     audio.onended = () => { URL.revokeObjectURL(audioUrl); currentAudio = null; };

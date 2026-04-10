@@ -26,8 +26,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Chris — warm, approachable, trustworthy with natural wit
-    const voiceId = "iP95p4xoKVk53GoZ742B";
+    // Liam — warmer, more grounded, relaxed charisma with a more human cadence
+    const voiceId = "TX3LPaxmHKxFdv7VOQHJ";
 
     const response = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
@@ -39,13 +39,13 @@ Deno.serve(async (req) => {
         },
         body: JSON.stringify({
           text: text.slice(0, 5000),
-          model_id: "eleven_turbo_v2_5",
+          model_id: "eleven_multilingual_v2",
           voice_settings: {
-            stability: 0.35,       // more expressive, lets sarcasm land
-            similarity_boost: 0.8,
-            style: 0.45,           // natural character without overdoing it
+            stability: 0.28,
+            similarity_boost: 0.82,
+            style: 0.6,
             use_speaker_boost: true,
-            speed: 1.0,
+            speed: 0.96,
           },
         }),
       }
