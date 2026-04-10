@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import ReactMarkdown from "react-markdown";
+import { markdownToHtml } from "@/lib/simpleMarkdown";
 import WilsonOrb from "./WilsonOrb";
 
 export interface Message {
