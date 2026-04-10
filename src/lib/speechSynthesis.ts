@@ -22,8 +22,41 @@ function stripMarkdown(text: string): string {
     .trim();
 }
 
+// Pre-created utterance holder — must be set in gesture context
+let pendingUtterance: SpeechSynthesisUtterance | null = null;
+
+/**
+ * Call this synchronously inside a user gesture handler (click/tap)
+ * BEFORE any async work. This "unlocks" browser speech synthesis
+ * so the fallback voice works on Chrome and Safari.
+ */
 export function unlockTTS(): void {
-  // No-op — kept for API compatibility
+  if (!window.speechSynthesis) return;
+
+  // Pre-create the utterance in gesture context
+  pendingUtterance = new SpeechSynthesisUtterance("");
+  pendingUtterance.volume = 0;
+
+  // Also prime the speech engine with a silent speak
+  window.speechSynthesis.speak(pendingUtterance);
+
+  // Now create the real one we'll reuse
+  pendingUtterance = new SpeechSynthesisUtterance("");
+  pendingUtterance.rate = 1.05;
+  pendingUtterance.pitch = 0.85;
+  pendingUtterance.volume = 1.0;
+
+  // Pre-select voice if available
+  const voices = window.speechSynthesis.getVoices();
+  const preferred =
+    voices.find((v) => v.name.includes("Daniel")) ||
+    voices.find((v) => v.name.includes("Google UK English Male")) ||
+    voices.find((v) => v.name.includes("Male") && v.lang.startsWith("en")) ||
+    voices.find((v) => v.lang.startsWith("en")) ||
+    voices[0];
+  if (preferred) {
+    pendingUtterance.voice = preferred;
+  }
 }
 
 function speakWithBrowser(text: string): void {
@@ -34,41 +67,47 @@ function speakWithBrowser(text: string): void {
 
   window.speechSynthesis.cancel();
 
-  const doSpeak = () => {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1.05;
-    utterance.pitch = 0.85;
-    utterance.volume = 1.0;
+  // Use the pre-created utterance if available (gesture-unlocked)
+  if (pendingUtterance) {
+    const utt = pendingUtterance;
+    pendingUtterance = null; // consume it
+    utt.text = text;
+    utt.volume = 1.0;
 
-    const voices = window.speechSynthesis.getVoices();
-    console.log("[Wilson TTS] Available voices:", voices.length);
-    const preferred =
-      voices.find((v) => v.name.includes("Daniel")) ||
-      voices.find((v) => v.name.includes("Google UK English Male")) ||
-      voices.find((v) => v.name.includes("Male") && v.lang.startsWith("en")) ||
-      voices.find((v) => v.lang.startsWith("en")) ||
-      voices[0];
-
-    if (preferred) {
-      console.log("[Wilson TTS] Using voice:", preferred.name);
-      utterance.voice = preferred;
+    // Ensure voice is set
+    if (!utt.voice) {
+      const voices = window.speechSynthesis.getVoices();
+      const preferred =
+        voices.find((v) => v.name.includes("Daniel")) ||
+        voices.find((v) => v.name.includes("Google UK English Male")) ||
+        voices.find((v) => v.name.includes("Male") && v.lang.startsWith("en")) ||
+        voices.find((v) => v.lang.startsWith("en")) ||
+        voices[0];
+      if (preferred) utt.voice = preferred;
     }
 
-    window.speechSynthesis.speak(utterance);
-  };
-
-  // Voices may not be loaded yet — wait for them
-  const voices = window.speechSynthesis.getVoices();
-  if (voices.length > 0) {
-    doSpeak();
-  } else {
-    window.speechSynthesis.onvoiceschanged = () => {
-      doSpeak();
-      window.speechSynthesis.onvoiceschanged = null;
-    };
-    // Fallback if onvoiceschanged never fires
-    setTimeout(doSpeak, 250);
+    console.log("[Wilson TTS] Speaking with pre-unlocked browser voice:", utt.voice?.name || "default");
+    window.speechSynthesis.speak(utt);
+    return;
   }
+
+  // Fallback: create fresh (may not work if outside gesture context)
+  console.log("[Wilson TTS] No pre-unlocked utterance, trying fresh creation");
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = 1.05;
+  utterance.pitch = 0.85;
+  utterance.volume = 1.0;
+
+  const voices = window.speechSynthesis.getVoices();
+  const preferred =
+    voices.find((v) => v.name.includes("Daniel")) ||
+    voices.find((v) => v.name.includes("Google UK English Male")) ||
+    voices.find((v) => v.name.includes("Male") && v.lang.startsWith("en")) ||
+    voices.find((v) => v.lang.startsWith("en")) ||
+    voices[0];
+  if (preferred) utterance.voice = preferred;
+
+  window.speechSynthesis.speak(utterance);
 }
 
 export async function speakText(text: string): Promise<void> {
