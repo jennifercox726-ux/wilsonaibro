@@ -38,7 +38,7 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
           </span>
         )}
         <div className={`wilson-prose text-sm ${isWilson ? "" : "text-foreground/90"}`}>
-          <ReactMarkdown>{message.content}</ReactMarkdown>
+          <div dangerouslySetInnerHTML={{ __html: markdownToHtml(message.content) }} />
         </div>
         <span className="text-[10px] text-muted-foreground mt-2 block">
           {message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
