@@ -27,29 +27,48 @@ export function unlockTTS(): void {
 }
 
 function speakWithBrowser(text: string): void {
-  if (!window.speechSynthesis) return;
+  if (!window.speechSynthesis) {
+    console.warn("[Wilson TTS] No browser speechSynthesis available");
+    return;
+  }
 
   window.speechSynthesis.cancel();
 
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 1.0;
-  utterance.pitch = 0.9;
-  utterance.volume = 1.0;
+  const doSpeak = () => {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.05;
+    utterance.pitch = 0.85;
+    utterance.volume = 1.0;
 
+    const voices = window.speechSynthesis.getVoices();
+    console.log("[Wilson TTS] Available voices:", voices.length);
+    const preferred =
+      voices.find((v) => v.name.includes("Daniel")) ||
+      voices.find((v) => v.name.includes("Google UK English Male")) ||
+      voices.find((v) => v.name.includes("Male") && v.lang.startsWith("en")) ||
+      voices.find((v) => v.lang.startsWith("en")) ||
+      voices[0];
+
+    if (preferred) {
+      console.log("[Wilson TTS] Using voice:", preferred.name);
+      utterance.voice = preferred;
+    }
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // Voices may not be loaded yet — wait for them
   const voices = window.speechSynthesis.getVoices();
-  const preferred =
-    voices.find(
-      (v) =>
-        v.name.includes("Daniel") ||
-        v.name.includes("Google UK English Male") ||
-        v.name.includes("Male")
-    ) ||
-    voices.find((v) => v.lang.startsWith("en")) ||
-    voices[0];
-
-  if (preferred) utterance.voice = preferred;
-
-  window.speechSynthesis.speak(utterance);
+  if (voices.length > 0) {
+    doSpeak();
+  } else {
+    window.speechSynthesis.onvoiceschanged = () => {
+      doSpeak();
+      window.speechSynthesis.onvoiceschanged = null;
+    };
+    // Fallback if onvoiceschanged never fires
+    setTimeout(doSpeak, 250);
+  }
 }
 
 export async function speakText(text: string): Promise<void> {
