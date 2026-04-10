@@ -52,16 +52,39 @@ function chunkText(text: string, maxLen = 180): string[] {
 }
 
 /**
- * Get a good English voice from the available voices.
+ * Get the best-sounding English voice available.
+ * Priority: premium/natural voices > standard voices > any English voice.
+ * Chrome has "Google UK English Male", Safari has "Daniel" and "Samantha",
+ * Edge has "Microsoft Guy Online" etc.
  */
 function pickVoice(): SpeechSynthesisVoice | null {
   const voices = window.speechSynthesis.getVoices();
   if (voices.length === 0) return null;
+
+  // Premium natural-sounding voices (ranked by quality for a warm male tone)
+  const preferredNames = [
+    "Daniel",                    // Safari - excellent British male
+    "Aaron",                     // Safari - natural US male  
+    "Google UK English Male",    // Chrome - decent British male
+    "Microsoft Guy Online",      // Edge - natural US male
+    "Microsoft Ryan Online",     // Edge - natural US male
+    "Google US English",         // Chrome - US male/female mix
+    "Rishi",                     // Safari - good male voice
+    "Tom",                       // Safari - US male
+    "Alex",                      // macOS - classic but decent
+  ];
+
+  // Try each preferred voice in order
+  for (const name of preferredNames) {
+    const match = voices.find(
+      (v) => v.name.includes(name) && v.lang.startsWith("en")
+    );
+    if (match) return match;
+  }
+
+  // Fallback: any English male-sounding voice, then any English voice
   return (
-    voices.find((v) => v.name.includes("Daniel") && v.lang.startsWith("en")) ||
-    voices.find((v) => v.name.includes("Google UK English Male")) ||
-    voices.find((v) => v.name.includes("Male") && v.lang.startsWith("en")) ||
-    voices.find((v) => v.lang.startsWith("en-") && !v.name.includes("Female")) ||
+    voices.find((v) => v.lang.startsWith("en-") && !v.name.toLowerCase().includes("female")) ||
     voices.find((v) => v.lang.startsWith("en")) ||
     voices[0]
   );
