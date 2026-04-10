@@ -26,7 +26,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    const voiceId = "onwK4e9ZLuTAKqWW03F9";
+    // Chris — warm, approachable, trustworthy with natural wit
+    const voiceId = "iP95p4xoKVk53GoZ742B";
 
     const response = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
@@ -40,9 +41,9 @@ Deno.serve(async (req) => {
           text: text.slice(0, 5000),
           model_id: "eleven_turbo_v2_5",
           voice_settings: {
-            stability: 0.45,
-            similarity_boost: 0.75,
-            style: 0.35,
+            stability: 0.35,       // more expressive, lets sarcasm land
+            similarity_boost: 0.8,
+            style: 0.45,           // natural character without overdoing it
             use_speaker_boost: true,
             speed: 1.0,
           },
