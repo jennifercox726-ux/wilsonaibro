@@ -74,7 +74,7 @@ function unlockHtmlAudio(): void {
   const silentAudio = new Audio(SILENT_AUDIO_DATA_URL);
   silentAudio.volume = 0.01;
   silentAudio.preload = "auto";
-  silentAudio.playsInline = true;
+  silentAudio.setAttribute("playsinline", "true");
 
   const playAttempt = silentAudio.play();
 
@@ -164,7 +164,7 @@ async function tryCloudTTS(url: string, text: string, label: string): Promise<bo
     const audioUrl = URL.createObjectURL(audioBlob);
     const audio = new Audio(audioUrl);
     audio.preload = "auto";
-    audio.playsInline = true;
+    audio.setAttribute("playsinline", "true");
     currentAudio = audio;
 
     audio.onended = () => { URL.revokeObjectURL(audioUrl); currentAudio = null; };
