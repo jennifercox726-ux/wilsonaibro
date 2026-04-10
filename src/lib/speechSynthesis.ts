@@ -1,8 +1,9 @@
-// Wilson TTS - ElevenLabs with browser speech fallback
+// Wilson TTS - ElevenLabs with automatic browser speech fallback
 
 const TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`;
 
 let currentAudio: HTMLAudioElement | null = null;
+let useElevenLabs = true; // switches to false for the session on quota/failure
 
 function stripMarkdown(text: string): string {
   return text
@@ -22,27 +23,32 @@ function stripMarkdown(text: string): string {
 }
 
 export function unlockTTS(): void {
-  // No-op
+  // No-op — kept for API compatibility
 }
 
 function speakWithBrowser(text: string): void {
   if (!window.speechSynthesis) return;
-  
+
   window.speechSynthesis.cancel();
-  
+
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.rate = 1.0;
   utterance.pitch = 0.9;
   utterance.volume = 1.0;
-  
-  // Try to pick a good male voice
+
   const voices = window.speechSynthesis.getVoices();
-  const preferred = voices.find(v => 
-    v.name.includes("Daniel") || v.name.includes("Google UK English Male") || v.name.includes("Male")
-  ) || voices.find(v => v.lang.startsWith("en")) || voices[0];
-  
+  const preferred =
+    voices.find(
+      (v) =>
+        v.name.includes("Daniel") ||
+        v.name.includes("Google UK English Male") ||
+        v.name.includes("Male")
+    ) ||
+    voices.find((v) => v.lang.startsWith("en")) ||
+    voices[0];
+
   if (preferred) utterance.voice = preferred;
-  
+
   window.speechSynthesis.speak(utterance);
 }
 
@@ -52,7 +58,13 @@ export async function speakText(text: string): Promise<void> {
   const clean = stripMarkdown(text);
   if (!clean) return;
 
-  // Try ElevenLabs first
+  // If ElevenLabs already failed this session, go straight to browser voice
+  if (!useElevenLabs) {
+    console.log("[Wilson TTS] Using browser voice (session fallback)");
+    speakWithBrowser(clean.slice(0, 3000));
+    return;
+  }
+
   try {
     const response = await fetch(TTS_URL, {
       method: "POST",
@@ -63,31 +75,48 @@ export async function speakText(text: string): Promise<void> {
       body: JSON.stringify({ text: clean }),
     });
 
-    if (response.ok) {
-      const audioBlob = await response.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-      currentAudio = audio;
+    // Check Content-Type to distinguish audio from JSON fallback signals
+    const contentType = response.headers.get("Content-Type") || "";
 
-      audio.onended = () => {
-        URL.revokeObjectURL(audioUrl);
-        currentAudio = null;
-      };
-      audio.onerror = () => {
-        URL.revokeObjectURL(audioUrl);
-        currentAudio = null;
-      };
-
-      await audio.play();
-      return;
+    if (contentType.includes("application/json")) {
+      const json = await response.json();
+      if (json?.fallback) {
+        console.warn("[Wilson TTS] ElevenLabs unavailable, switching to browser voice for session");
+        useElevenLabs = false;
+        speakWithBrowser(clean.slice(0, 3000));
+        return;
+      }
+      throw new Error(json?.error || "Unexpected JSON from TTS");
     }
+
+    if (!response.ok) {
+      throw new Error(`TTS request failed: ${response.status}`);
+    }
+
+    const audioBlob = await response.blob();
+    if (!audioBlob.type.includes("audio") && audioBlob.size < 100) {
+      throw new Error("Invalid audio response");
+    }
+
+    const audioUrl = URL.createObjectURL(audioBlob);
+    const audio = new Audio(audioUrl);
+    currentAudio = audio;
+
+    audio.onended = () => {
+      URL.revokeObjectURL(audioUrl);
+      currentAudio = null;
+    };
+    audio.onerror = () => {
+      URL.revokeObjectURL(audioUrl);
+      currentAudio = null;
+    };
+
+    await audio.play();
   } catch (err) {
     console.warn("[Wilson TTS] ElevenLabs failed, using browser voice:", err);
+    useElevenLabs = false;
+    speakWithBrowser(clean.slice(0, 3000));
   }
-
-  // Fallback to browser speech synthesis
-  console.log("[Wilson TTS] Using browser speech fallback");
-  speakWithBrowser(clean.slice(0, 3000));
 }
 
 export function stopSpeaking(): void {
