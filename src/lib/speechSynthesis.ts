@@ -52,16 +52,39 @@ function chunkText(text: string, maxLen = 180): string[] {
 }
 
 /**
- * Get a good English voice from the available voices.
+ * Get the best-sounding English voice available.
+ * Priority: premium/natural voices > standard voices > any English voice.
+ * Chrome has "Google UK English Male", Safari has "Daniel" and "Samantha",
+ * Edge has "Microsoft Guy Online" etc.
  */
 function pickVoice(): SpeechSynthesisVoice | null {
   const voices = window.speechSynthesis.getVoices();
   if (voices.length === 0) return null;
+
+  // Premium natural-sounding voices (ranked by quality for a warm male tone)
+  const preferredNames = [
+    "Daniel",                    // Safari - excellent British male
+    "Aaron",                     // Safari - natural US male  
+    "Google UK English Male",    // Chrome - decent British male
+    "Microsoft Guy Online",      // Edge - natural US male
+    "Microsoft Ryan Online",     // Edge - natural US male
+    "Google US English",         // Chrome - US male/female mix
+    "Rishi",                     // Safari - good male voice
+    "Tom",                       // Safari - US male
+    "Alex",                      // macOS - classic but decent
+  ];
+
+  // Try each preferred voice in order
+  for (const name of preferredNames) {
+    const match = voices.find(
+      (v) => v.name.includes(name) && v.lang.startsWith("en")
+    );
+    if (match) return match;
+  }
+
+  // Fallback: any English male-sounding voice, then any English voice
   return (
-    voices.find((v) => v.name.includes("Daniel") && v.lang.startsWith("en")) ||
-    voices.find((v) => v.name.includes("Google UK English Male")) ||
-    voices.find((v) => v.name.includes("Male") && v.lang.startsWith("en")) ||
-    voices.find((v) => v.lang.startsWith("en-") && !v.name.includes("Female")) ||
+    voices.find((v) => v.lang.startsWith("en-") && !v.name.toLowerCase().includes("female")) ||
     voices.find((v) => v.lang.startsWith("en")) ||
     voices[0]
   );
@@ -102,17 +125,20 @@ function speakWithBrowser(text: string): void {
     "| Voices available:", window.speechSynthesis.getVoices().length,
     "| Unlocked:", ttsUnlocked);
 
+  // Cap at ~800 chars for browser voice — keeps it snappy, avoids long robotic monologues
+  const trimmed = text.length > 800 ? text.slice(0, 800).replace(/[^.!?]*$/, "") + "..." : text;
   // Chunk text to avoid Chrome's silent-failure on long utterances
-  const chunks = chunkText(text);
-  console.log("[Wilson TTS] Speaking", chunks.length, "chunk(s)");
+  const chunks = chunkText(trimmed);
+  console.log("[Wilson TTS] Speaking", chunks.length, "chunk(s), total chars:", trimmed.length);
 
   // Queue all chunks — speechSynthesis processes them sequentially
   for (let i = 0; i < chunks.length; i++) {
     const utterance = new SpeechSynthesisUtterance(chunks[i]);
-    utterance.rate = 1.05;
-    utterance.pitch = 0.85;
+    // Tuned for warm, natural-sounding speech (not robotic)
+    utterance.rate = 0.95;   // slightly slower = more natural cadence
+    utterance.pitch = 0.9;   // slightly lower = warmer, less tinny
     utterance.volume = 1.0;
-    utterance.lang = "en-US";
+    utterance.lang = "en-GB"; // British English matches Daniel/UK voices better
     if (voice) utterance.voice = voice;
 
     // Log errors for debugging
