@@ -4,6 +4,7 @@ const TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tt
 
 let currentAudio: HTMLAudioElement | null = null;
 let useElevenLabs = true; // switches to false for the session on quota/failure
+let ttsUnlocked = false; // tracks whether speechSynthesis has been gesture-unlocked
 
 function stripMarkdown(text: string): string {
   return text
@@ -22,8 +23,49 @@ function stripMarkdown(text: string): string {
     .trim();
 }
 
-// Pre-created utterance holder — must be set in gesture context
-let pendingUtterance: SpeechSynthesisUtterance | null = null;
+/**
+ * Split text into chunks at sentence boundaries, each under maxLen chars.
+ * Chrome's speechSynthesis silently fails on text longer than ~200-300 chars.
+ */
+function chunkText(text: string, maxLen = 180): string[] {
+  if (text.length <= maxLen) return [text];
+
+  const chunks: string[] = [];
+  // Split on sentence-ending punctuation followed by space
+  const sentences = text.match(/[^.!?]+[.!?]+[\s]*/g) || [text];
+  let current = "";
+
+  for (const sentence of sentences) {
+    if (current.length + sentence.length > maxLen && current.length > 0) {
+      chunks.push(current.trim());
+      current = sentence;
+    } else {
+      current += sentence;
+    }
+  }
+  if (current.trim()) chunks.push(current.trim());
+
+  // If we only got one chunk (no sentence breaks found), force-split
+  if (chunks.length === 0) chunks.push(text.slice(0, maxLen));
+
+  return chunks;
+}
+
+/**
+ * Get a good English voice from the available voices.
+ */
+function pickVoice(): SpeechSynthesisVoice | null {
+  const voices = window.speechSynthesis.getVoices();
+  if (voices.length === 0) return null;
+  return (
+    voices.find((v) => v.name.includes("Daniel") && v.lang.startsWith("en")) ||
+    voices.find((v) => v.name.includes("Google UK English Male")) ||
+    voices.find((v) => v.name.includes("Male") && v.lang.startsWith("en")) ||
+    voices.find((v) => v.lang.startsWith("en-") && !v.name.includes("Female")) ||
+    voices.find((v) => v.lang.startsWith("en")) ||
+    voices[0]
+  );
+}
 
 /**
  * Call this synchronously inside a user gesture handler (click/tap)
@@ -32,31 +74,19 @@ let pendingUtterance: SpeechSynthesisUtterance | null = null;
  */
 export function unlockTTS(): void {
   if (!window.speechSynthesis) return;
+  if (ttsUnlocked) return; // only need to unlock once per page session
 
-  // Pre-create the utterance in gesture context
-  pendingUtterance = new SpeechSynthesisUtterance("");
-  pendingUtterance.volume = 0;
+  // Speak a silent utterance to unlock the engine
+  const silent = new SpeechSynthesisUtterance(" ");
+  silent.volume = 0.01; // near-silent but not zero (some browsers ignore volume=0)
+  silent.rate = 10; // fast so it finishes instantly
 
-  // Also prime the speech engine with a silent speak
-  window.speechSynthesis.speak(pendingUtterance);
+  // Pre-load voices
+  window.speechSynthesis.getVoices();
 
-  // Now create the real one we'll reuse
-  pendingUtterance = new SpeechSynthesisUtterance("");
-  pendingUtterance.rate = 1.05;
-  pendingUtterance.pitch = 0.85;
-  pendingUtterance.volume = 1.0;
-
-  // Pre-select voice if available
-  const voices = window.speechSynthesis.getVoices();
-  const preferred =
-    voices.find((v) => v.name.includes("Daniel")) ||
-    voices.find((v) => v.name.includes("Google UK English Male")) ||
-    voices.find((v) => v.name.includes("Male") && v.lang.startsWith("en")) ||
-    voices.find((v) => v.lang.startsWith("en")) ||
-    voices[0];
-  if (preferred) {
-    pendingUtterance.voice = preferred;
-  }
+  window.speechSynthesis.speak(silent);
+  ttsUnlocked = true;
+  console.log("[Wilson TTS] Speech engine unlocked via gesture");
 }
 
 function speakWithBrowser(text: string): void {
@@ -67,47 +97,41 @@ function speakWithBrowser(text: string): void {
 
   window.speechSynthesis.cancel();
 
-  // Use the pre-created utterance if available (gesture-unlocked)
-  if (pendingUtterance) {
-    const utt = pendingUtterance;
-    pendingUtterance = null; // consume it
-    utt.text = text;
-    utt.volume = 1.0;
+  const voice = pickVoice();
+  console.log("[Wilson TTS] Browser voice selected:", voice?.name || "none found",
+    "| Voices available:", window.speechSynthesis.getVoices().length,
+    "| Unlocked:", ttsUnlocked);
 
-    // Ensure voice is set
-    if (!utt.voice) {
-      const voices = window.speechSynthesis.getVoices();
-      const preferred =
-        voices.find((v) => v.name.includes("Daniel")) ||
-        voices.find((v) => v.name.includes("Google UK English Male")) ||
-        voices.find((v) => v.name.includes("Male") && v.lang.startsWith("en")) ||
-        voices.find((v) => v.lang.startsWith("en")) ||
-        voices[0];
-      if (preferred) utt.voice = preferred;
+  // Chunk text to avoid Chrome's silent-failure on long utterances
+  const chunks = chunkText(text);
+  console.log("[Wilson TTS] Speaking", chunks.length, "chunk(s)");
+
+  // Queue all chunks — speechSynthesis processes them sequentially
+  for (let i = 0; i < chunks.length; i++) {
+    const utterance = new SpeechSynthesisUtterance(chunks[i]);
+    utterance.rate = 1.05;
+    utterance.pitch = 0.85;
+    utterance.volume = 1.0;
+    utterance.lang = "en-US";
+    if (voice) utterance.voice = voice;
+
+    // Log errors for debugging
+    utterance.onerror = (e) => {
+      console.error("[Wilson TTS] Utterance error on chunk", i, ":", e.error);
+    };
+    if (i === 0) {
+      utterance.onstart = () => {
+        console.log("[Wilson TTS] Speech started");
+      };
+    }
+    if (i === chunks.length - 1) {
+      utterance.onend = () => {
+        console.log("[Wilson TTS] Speech finished");
+      };
     }
 
-    console.log("[Wilson TTS] Speaking with pre-unlocked browser voice:", utt.voice?.name || "default");
-    window.speechSynthesis.speak(utt);
-    return;
+    window.speechSynthesis.speak(utterance);
   }
-
-  // Fallback: create fresh (may not work if outside gesture context)
-  console.log("[Wilson TTS] No pre-unlocked utterance, trying fresh creation");
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 1.05;
-  utterance.pitch = 0.85;
-  utterance.volume = 1.0;
-
-  const voices = window.speechSynthesis.getVoices();
-  const preferred =
-    voices.find((v) => v.name.includes("Daniel")) ||
-    voices.find((v) => v.name.includes("Google UK English Male")) ||
-    voices.find((v) => v.name.includes("Male") && v.lang.startsWith("en")) ||
-    voices.find((v) => v.lang.startsWith("en")) ||
-    voices[0];
-  if (preferred) utterance.voice = preferred;
-
-  window.speechSynthesis.speak(utterance);
 }
 
 export async function speakText(text: string): Promise<void> {
@@ -164,9 +188,12 @@ export async function speakText(text: string): Promise<void> {
       URL.revokeObjectURL(audioUrl);
       currentAudio = null;
     };
-    audio.onerror = () => {
+    audio.onerror = (e) => {
+      console.error("[Wilson TTS] Audio playback error:", e);
       URL.revokeObjectURL(audioUrl);
       currentAudio = null;
+      // Fall back to browser voice if audio playback fails
+      speakWithBrowser(clean.slice(0, 3000));
     };
 
     await audio.play();
