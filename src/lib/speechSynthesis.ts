@@ -1,10 +1,12 @@
-// Wilson TTS - ElevenLabs with automatic browser speech fallback
+// Wilson TTS — 3-tier fallback: ElevenLabs → Google Cloud TTS → Browser voice
 
-const TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`;
+const ELEVENLABS_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`;
+const GOOGLE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-tts`;
 
 let currentAudio: HTMLAudioElement | null = null;
-let useElevenLabs = true; // switches to false for the session on quota/failure
-let ttsUnlocked = false; // tracks whether speechSynthesis has been gesture-unlocked
+let useElevenLabs = true;
+let useGoogleTTS = true;
+let ttsUnlocked = false;
 
 function stripMarkdown(text: string): string {
   return text
@@ -23,18 +25,11 @@ function stripMarkdown(text: string): string {
     .trim();
 }
 
-/**
- * Split text into chunks at sentence boundaries, each under maxLen chars.
- * Chrome's speechSynthesis silently fails on text longer than ~200-300 chars.
- */
 function chunkText(text: string, maxLen = 180): string[] {
   if (text.length <= maxLen) return [text];
-
   const chunks: string[] = [];
-  // Split on sentence-ending punctuation followed by space
   const sentences = text.match(/[^.!?]+[.!?]+[\s]*/g) || [text];
   let current = "";
-
   for (const sentence of sentences) {
     if (current.length + sentence.length > maxLen && current.length > 0) {
       chunks.push(current.trim());
@@ -44,45 +39,21 @@ function chunkText(text: string, maxLen = 180): string[] {
     }
   }
   if (current.trim()) chunks.push(current.trim());
-
-  // If we only got one chunk (no sentence breaks found), force-split
   if (chunks.length === 0) chunks.push(text.slice(0, maxLen));
-
   return chunks;
 }
 
-/**
- * Get the best-sounding English voice available.
- * Priority: premium/natural voices > standard voices > any English voice.
- * Chrome has "Google UK English Male", Safari has "Daniel" and "Samantha",
- * Edge has "Microsoft Guy Online" etc.
- */
 function pickVoice(): SpeechSynthesisVoice | null {
   const voices = window.speechSynthesis.getVoices();
   if (voices.length === 0) return null;
-
-  // Premium natural-sounding voices (ranked by quality for a warm male tone)
   const preferredNames = [
-    "Daniel",                    // Safari - excellent British male
-    "Aaron",                     // Safari - natural US male  
-    "Google UK English Male",    // Chrome - decent British male
-    "Microsoft Guy Online",      // Edge - natural US male
-    "Microsoft Ryan Online",     // Edge - natural US male
-    "Google US English",         // Chrome - US male/female mix
-    "Rishi",                     // Safari - good male voice
-    "Tom",                       // Safari - US male
-    "Alex",                      // macOS - classic but decent
+    "Daniel", "Aaron", "Google UK English Male", "Microsoft Guy Online",
+    "Microsoft Ryan Online", "Google US English", "Rishi", "Tom", "Alex",
   ];
-
-  // Try each preferred voice in order
   for (const name of preferredNames) {
-    const match = voices.find(
-      (v) => v.name.includes(name) && v.lang.startsWith("en")
-    );
+    const match = voices.find((v) => v.name.includes(name) && v.lang.startsWith("en"));
     if (match) return match;
   }
-
-  // Fallback: any English male-sounding voice, then any English voice
   return (
     voices.find((v) => v.lang.startsWith("en-") && !v.name.toLowerCase().includes("female")) ||
     voices.find((v) => v.lang.startsWith("en")) ||
@@ -90,23 +61,13 @@ function pickVoice(): SpeechSynthesisVoice | null {
   );
 }
 
-/**
- * Call this synchronously inside a user gesture handler (click/tap)
- * BEFORE any async work. This "unlocks" browser speech synthesis
- * so the fallback voice works on Chrome and Safari.
- */
 export function unlockTTS(): void {
   if (!window.speechSynthesis) return;
-  if (ttsUnlocked) return; // only need to unlock once per page session
-
-  // Speak a silent utterance to unlock the engine
+  if (ttsUnlocked) return;
   const silent = new SpeechSynthesisUtterance(" ");
-  silent.volume = 0.01; // near-silent but not zero (some browsers ignore volume=0)
-  silent.rate = 10; // fast so it finishes instantly
-
-  // Pre-load voices
+  silent.volume = 0.01;
+  silent.rate = 10;
   window.speechSynthesis.getVoices();
-
   window.speechSynthesis.speak(silent);
   ttsUnlocked = true;
   console.log("[Wilson TTS] Speech engine unlocked via gesture");
@@ -117,127 +78,96 @@ function speakWithBrowser(text: string): void {
     console.warn("[Wilson TTS] No browser speechSynthesis available");
     return;
   }
-
   window.speechSynthesis.cancel();
-
   const voice = pickVoice();
-  console.log("[Wilson TTS] Browser voice selected:", voice?.name || "none found",
-    "| Voices available:", window.speechSynthesis.getVoices().length,
-    "| Unlocked:", ttsUnlocked);
-
-  // Cap at ~800 chars for browser voice — keeps it snappy, avoids long robotic monologues
+  console.log("[Wilson TTS] Browser voice:", voice?.name || "none");
   const trimmed = text.length > 800 ? text.slice(0, 800).replace(/[^.!?]*$/, "") + "..." : text;
-  // Chunk text to avoid Chrome's silent-failure on long utterances
   const chunks = chunkText(trimmed);
-  console.log("[Wilson TTS] Speaking", chunks.length, "chunk(s), total chars:", trimmed.length);
-
-  // Queue all chunks — speechSynthesis processes them sequentially
   for (let i = 0; i < chunks.length; i++) {
     const utterance = new SpeechSynthesisUtterance(chunks[i]);
-    // Tuned for warm, natural-sounding speech (not robotic)
-    utterance.rate = 0.95;   // slightly slower = more natural cadence
-    utterance.pitch = 0.9;   // slightly lower = warmer, less tinny
+    utterance.rate = 0.95;
+    utterance.pitch = 0.9;
     utterance.volume = 1.0;
-    utterance.lang = "en-GB"; // British English matches Daniel/UK voices better
+    utterance.lang = "en-GB";
     if (voice) utterance.voice = voice;
-
-    // Log errors for debugging
-    utterance.onerror = (e) => {
-      console.error("[Wilson TTS] Utterance error on chunk", i, ":", e.error);
-    };
-    if (i === 0) {
-      utterance.onstart = () => {
-        console.log("[Wilson TTS] Speech started");
-      };
-    }
-    if (i === chunks.length - 1) {
-      utterance.onend = () => {
-        console.log("[Wilson TTS] Speech finished");
-      };
-    }
-
+    utterance.onerror = (e) => console.error("[Wilson TTS] Chunk", i, "error:", e.error);
     window.speechSynthesis.speak(utterance);
   }
 }
 
-export async function speakText(text: string): Promise<void> {
-  stopSpeaking();
-
-  const clean = stripMarkdown(text);
-  if (!clean) return;
-
-  // If ElevenLabs already failed this session, go straight to browser voice
-  if (!useElevenLabs) {
-    console.log("[Wilson TTS] Using browser voice (session fallback)");
-    speakWithBrowser(clean.slice(0, 3000));
-    return;
-  }
-
+/** Try to play audio from a TTS endpoint. Returns true on success. */
+async function tryCloudTTS(url: string, text: string, label: string): Promise<boolean> {
   try {
-    const response = await fetch(TTS_URL, {
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
       },
-      body: JSON.stringify({ text: clean }),
+      body: JSON.stringify({ text }),
     });
 
-    // Check Content-Type to distinguish audio from JSON fallback signals
     const contentType = response.headers.get("Content-Type") || "";
 
     if (contentType.includes("application/json")) {
       const json = await response.json();
       if (json?.fallback) {
-        console.warn("[Wilson TTS] ElevenLabs unavailable, switching to browser voice for session");
-        useElevenLabs = false;
-        speakWithBrowser(clean.slice(0, 3000));
-        return;
+        console.warn(`[Wilson TTS] ${label} unavailable, falling back`);
+        return false;
       }
-      throw new Error(json?.error || "Unexpected JSON from TTS");
+      throw new Error(json?.error || `Unexpected JSON from ${label}`);
     }
 
-    if (!response.ok) {
-      throw new Error(`TTS request failed: ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`${label} failed: ${response.status}`);
 
     const audioBlob = await response.blob();
     if (!audioBlob.type.includes("audio") && audioBlob.size < 100) {
-      throw new Error("Invalid audio response");
+      throw new Error(`Invalid audio from ${label}`);
     }
 
     const audioUrl = URL.createObjectURL(audioBlob);
     const audio = new Audio(audioUrl);
     currentAudio = audio;
 
-    audio.onended = () => {
-      URL.revokeObjectURL(audioUrl);
-      currentAudio = null;
-    };
-    audio.onerror = (e) => {
-      console.error("[Wilson TTS] Audio playback error:", e);
-      URL.revokeObjectURL(audioUrl);
-      currentAudio = null;
-      // Fall back to browser voice if audio playback fails
-      speakWithBrowser(clean.slice(0, 3000));
-    };
+    audio.onended = () => { URL.revokeObjectURL(audioUrl); currentAudio = null; };
+    audio.onerror = () => { URL.revokeObjectURL(audioUrl); currentAudio = null; };
 
     await audio.play();
+    console.log(`[Wilson TTS] Playing via ${label}`);
+    return true;
   } catch (err) {
-    console.warn("[Wilson TTS] ElevenLabs failed, using browser voice:", err);
-    useElevenLabs = false;
-    speakWithBrowser(clean.slice(0, 3000));
+    console.warn(`[Wilson TTS] ${label} failed:`, err);
+    return false;
   }
 }
 
+export async function speakText(text: string): Promise<void> {
+  stopSpeaking();
+  const clean = stripMarkdown(text);
+  if (!clean) return;
+
+  // Tier 1: ElevenLabs (premium)
+  if (useElevenLabs) {
+    const ok = await tryCloudTTS(ELEVENLABS_TTS_URL, clean, "ElevenLabs");
+    if (ok) return;
+    useElevenLabs = false; // skip for rest of session
+  }
+
+  // Tier 2: Google Cloud TTS (free tier, natural WaveNet voice)
+  if (useGoogleTTS) {
+    const ok = await tryCloudTTS(GOOGLE_TTS_URL, clean, "Google TTS");
+    if (ok) return;
+    useGoogleTTS = false; // skip for rest of session
+  }
+
+  // Tier 3: Browser voice (last resort)
+  console.log("[Wilson TTS] Using browser voice (last resort)");
+  speakWithBrowser(clean.slice(0, 3000));
+}
+
 export function stopSpeaking(): void {
-  if (currentAudio) {
-    currentAudio.pause();
-    currentAudio = null;
-  }
-  if (window.speechSynthesis) {
-    window.speechSynthesis.cancel();
-  }
+  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
 }
 
 export function isSpeaking(): boolean {
