@@ -4,9 +4,14 @@ const ELEVENLABS_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/el
 const GOOGLE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-tts`;
 
 let currentAudio: HTMLAudioElement | null = null;
-let useElevenLabs = true;
-let useGoogleTTS = true;
 let ttsUnlocked = false;
+
+const TTS_RETRY_COOLDOWN_MS = 30_000;
+
+const providerState = {
+  elevenLabsRetryAt: 0,
+  googleRetryAt: 0,
+};
 
 function stripMarkdown(text: string): string {
   return text
@@ -141,23 +146,51 @@ async function tryCloudTTS(url: string, text: string, label: string): Promise<bo
   }
 }
 
+function shouldTryProvider(retryAt: number): boolean {
+  return Date.now() >= retryAt;
+}
+
+function markProviderFailure(label: "ElevenLabs" | "Google TTS"): void {
+  const retryAt = Date.now() + TTS_RETRY_COOLDOWN_MS;
+
+  if (label === "ElevenLabs") {
+    providerState.elevenLabsRetryAt = retryAt;
+  } else {
+    providerState.googleRetryAt = retryAt;
+  }
+}
+
+function markProviderSuccess(label: "ElevenLabs" | "Google TTS"): void {
+  if (label === "ElevenLabs") {
+    providerState.elevenLabsRetryAt = 0;
+  } else {
+    providerState.googleRetryAt = 0;
+  }
+}
+
 export async function speakText(text: string): Promise<void> {
   stopSpeaking();
   const clean = stripMarkdown(text);
   if (!clean) return;
 
   // Tier 1: ElevenLabs (premium)
-  if (useElevenLabs) {
+  if (shouldTryProvider(providerState.elevenLabsRetryAt)) {
     const ok = await tryCloudTTS(ELEVENLABS_TTS_URL, clean, "ElevenLabs");
-    if (ok) return;
-    useElevenLabs = false; // skip for rest of session
+    if (ok) {
+      markProviderSuccess("ElevenLabs");
+      return;
+    }
+    markProviderFailure("ElevenLabs");
   }
 
   // Tier 2: Google Cloud TTS (free tier, natural WaveNet voice)
-  if (useGoogleTTS) {
+  if (shouldTryProvider(providerState.googleRetryAt)) {
     const ok = await tryCloudTTS(GOOGLE_TTS_URL, clean, "Google TTS");
-    if (ok) return;
-    useGoogleTTS = false; // skip for rest of session
+    if (ok) {
+      markProviderSuccess("Google TTS");
+      return;
+    }
+    markProviderFailure("Google TTS");
   }
 
   // Tier 3: Browser voice (last resort)
