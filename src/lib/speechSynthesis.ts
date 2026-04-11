@@ -10,6 +10,8 @@ let ttsUnlocked = false;
 let htmlAudioUnlocked = false;
 
 const TTS_RETRY_COOLDOWN_MS = 30_000;
+const PREMIUM_TTS_MAX_CHARS = 260;
+const BROWSER_FALLBACK_MAX_CHARS = 3000;
 const SILENT_AUDIO_DATA_URL = "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
 
 const providerState = {
@@ -68,6 +70,79 @@ function chunkText(text: string, maxLen = 180): string[] {
   if (current.trim()) chunks.push(current.trim());
   if (chunks.length === 0) chunks.push(text.slice(0, maxLen));
   return chunks;
+}
+
+function limitPremiumText(text: string, maxLen = PREMIUM_TTS_MAX_CHARS): string {
+  if (text.length <= maxLen) return text;
+
+  const clipped = text.slice(0, maxLen);
+  const lastSentenceBreak = Math.max(
+    clipped.lastIndexOf("."),
+    clipped.lastIndexOf("!"),
+    clipped.lastIndexOf("?")
+  );
+
+  if (lastSentenceBreak >= Math.floor(maxLen * 0.55)) {
+    return clipped.slice(0, lastSentenceBreak + 1).trim();
+  }
+
+  const lastSpace = clipped.lastIndexOf(" ");
+  if (lastSpace >= Math.floor(maxLen * 0.7)) {
+    return `${clipped.slice(0, lastSpace).trim()}...`;
+  }
+
+  return `${clipped.trim()}...`;
+}
+
+async function playAudioBlob(audioBlob: Blob): Promise<void> {
+  const audioUrl = URL.createObjectURL(audioBlob);
+  revokeCurrentAudioUrl();
+  currentAudioUrl = audioUrl;
+
+  const primaryAudio = getPlaybackAudio();
+  const primaryPlayback = async () => {
+    if (!primaryAudio) throw new Error("HTML audio playback is not available");
+
+    primaryAudio.pause();
+    primaryAudio.currentTime = 0;
+    primaryAudio.src = audioUrl;
+    primaryAudio.volume = 1;
+    currentAudio = primaryAudio;
+
+    primaryAudio.onended = () => {
+      revokeCurrentAudioUrl();
+      currentAudio = null;
+    };
+
+    primaryAudio.onerror = () => {
+      revokeCurrentAudioUrl();
+      currentAudio = null;
+    };
+
+    await primaryAudio.play();
+  };
+
+  try {
+    await primaryPlayback();
+    return;
+  } catch (primaryError) {
+    console.warn("[Wilson TTS] Persistent audio playback failed, retrying with fresh Audio:", primaryError);
+  }
+
+  const fallbackAudio = new Audio(audioUrl);
+  fallbackAudio.preload = "auto";
+  fallbackAudio.setAttribute("playsinline", "true");
+  fallbackAudio.onended = () => {
+    revokeCurrentAudioUrl();
+    currentAudio = null;
+  };
+  fallbackAudio.onerror = () => {
+    revokeCurrentAudioUrl();
+    currentAudio = null;
+  };
+
+  currentAudio = fallbackAudio;
+  await fallbackAudio.play();
 }
 
 function pickVoice(): SpeechSynthesisVoice | null {
@@ -189,32 +264,7 @@ async function tryCloudTTS(url: string, text: string, label: string): Promise<bo
       throw new Error(`Invalid audio from ${label}`);
     }
 
-    const audio = getPlaybackAudio();
-    if (!audio) {
-      throw new Error("HTML audio playback is not available");
-    }
-
-    const audioUrl = URL.createObjectURL(audioBlob);
-    revokeCurrentAudioUrl();
-
-    audio.pause();
-    audio.currentTime = 0;
-    audio.src = audioUrl;
-    audio.volume = 1;
-    currentAudio = audio;
-    currentAudioUrl = audioUrl;
-
-    audio.onended = () => {
-      revokeCurrentAudioUrl();
-      currentAudio = null;
-    };
-
-    audio.onerror = () => {
-      revokeCurrentAudioUrl();
-      currentAudio = null;
-    };
-
-    await audio.play();
+    await playAudioBlob(audioBlob);
     console.log(`[Wilson TTS] Playing via ${label}`);
     return true;
   } catch (err) {
@@ -249,10 +299,11 @@ export async function speakText(text: string): Promise<void> {
   stopSpeaking();
   const clean = stripMarkdown(text);
   if (!clean) return;
+  const premiumText = limitPremiumText(clean);
 
   // Tier 1: ElevenLabs (premium)
   if (shouldTryProvider(providerState.elevenLabsRetryAt)) {
-    const ok = await tryCloudTTS(ELEVENLABS_TTS_URL, clean, "ElevenLabs");
+    const ok = await tryCloudTTS(ELEVENLABS_TTS_URL, premiumText, "ElevenLabs");
     if (ok) {
       markProviderSuccess("ElevenLabs");
       return;
@@ -262,7 +313,7 @@ export async function speakText(text: string): Promise<void> {
 
   // Tier 2: Google Cloud TTS (free tier, natural WaveNet voice)
   if (shouldTryProvider(providerState.googleRetryAt)) {
-    const ok = await tryCloudTTS(GOOGLE_TTS_URL, clean, "Google TTS");
+    const ok = await tryCloudTTS(GOOGLE_TTS_URL, premiumText, "Google TTS");
     if (ok) {
       markProviderSuccess("Google TTS");
       return;
@@ -272,7 +323,7 @@ export async function speakText(text: string): Promise<void> {
 
   // Tier 3: Browser voice (last resort)
   console.log("[Wilson TTS] Using browser voice (last resort)");
-  speakWithBrowser(clean.slice(0, 3000));
+  speakWithBrowser(clean.slice(0, BROWSER_FALLBACK_MAX_CHARS));
 }
 
 export function stopSpeaking(): void {
