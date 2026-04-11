@@ -30,8 +30,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // George — deeper, warmer, and more conversational than the previous preset
-    const voiceId = "JBFqnCBsd6RMkjVDRZzb";
+    // Callum — warm, friendly British male; relaxed McConaughey-meets-London energy
+    const voiceId = "N2lVS1w4EtoT3dr4eOWO";
 
     const response = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
@@ -45,11 +45,11 @@ Deno.serve(async (req) => {
           text: text.slice(0, 5000),
           model_id: "eleven_multilingual_v2",
           voice_settings: {
-            stability: 0.42,
-            similarity_boost: 0.88,
-            style: 0.22,
+            stability: 0.35,
+            similarity_boost: 0.78,
+            style: 0.45,
             use_speaker_boost: true,
-            speed: 0.92,
+            speed: 0.94,
           },
         }),
       },
