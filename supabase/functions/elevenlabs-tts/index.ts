@@ -1,6 +1,7 @@
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 Deno.serve(async (req) => {
@@ -22,7 +23,10 @@ Deno.serve(async (req) => {
       console.error("ELEVENLABS_API_KEY is not configured");
       return new Response(
         JSON.stringify({ error: "ELEVENLABS_UNAVAILABLE", fallback: true }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
@@ -48,7 +52,7 @@ Deno.serve(async (req) => {
             speed: 0.92,
           },
         }),
-      }
+      },
     );
 
     if (!response.ok) {
@@ -58,7 +62,10 @@ Deno.serve(async (req) => {
       // Quota exceeded, billing issues, or server errors → signal fallback
       return new Response(
         JSON.stringify({ error: "ELEVENLABS_UNAVAILABLE", fallback: true }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
@@ -75,7 +82,10 @@ Deno.serve(async (req) => {
     console.error("TTS error:", error);
     return new Response(
       JSON.stringify({ error: "ELEVENLABS_FAILED", fallback: true }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 });
