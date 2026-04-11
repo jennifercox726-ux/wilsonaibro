@@ -4,6 +4,8 @@ const ELEVENLABS_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/el
 const GOOGLE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-tts`;
 
 let currentAudio: HTMLAudioElement | null = null;
+let currentAudioUrl: string | null = null;
+let playbackAudio: HTMLAudioElement | null = null;
 let ttsUnlocked = false;
 let htmlAudioUnlocked = false;
 
@@ -14,6 +16,24 @@ const providerState = {
   elevenLabsRetryAt: 0,
   googleRetryAt: 0,
 };
+
+function getPlaybackAudio(): HTMLAudioElement | null {
+  if (typeof Audio === "undefined") return null;
+
+  if (!playbackAudio) {
+    playbackAudio = new Audio();
+    playbackAudio.preload = "auto";
+    playbackAudio.setAttribute("playsinline", "true");
+  }
+
+  return playbackAudio;
+}
+
+function revokeCurrentAudioUrl(): void {
+  if (!currentAudioUrl) return;
+  URL.revokeObjectURL(currentAudioUrl);
+  currentAudioUrl = null;
+}
 
 function stripMarkdown(text: string): string {
   return text
@@ -69,20 +89,26 @@ function pickVoice(): SpeechSynthesisVoice | null {
 }
 
 function unlockHtmlAudio(): void {
-  if (typeof Audio === "undefined" || htmlAudioUnlocked) return;
+  const audio = getPlaybackAudio();
+  if (!audio || htmlAudioUnlocked) return;
 
-  const silentAudio = new Audio(SILENT_AUDIO_DATA_URL);
-  silentAudio.volume = 0.01;
-  silentAudio.preload = "auto";
-  silentAudio.setAttribute("playsinline", "true");
+  audio.src = SILENT_AUDIO_DATA_URL;
+  audio.volume = 0.01;
 
-  const playAttempt = silentAudio.play();
+  const playAttempt = audio.play();
+
+  const resetUnlockedAudio = () => {
+    audio.pause();
+    audio.currentTime = 0;
+    audio.removeAttribute("src");
+    audio.load();
+    audio.volume = 1;
+  };
 
   if (playAttempt && typeof playAttempt.then === "function") {
     playAttempt
       .then(() => {
-        silentAudio.pause();
-        silentAudio.currentTime = 0;
+        resetUnlockedAudio();
         htmlAudioUnlocked = true;
         console.log("[Wilson TTS] HTML audio unlocked via gesture");
       })
@@ -93,6 +119,7 @@ function unlockHtmlAudio(): void {
     return;
   }
 
+  resetUnlockedAudio();
   htmlAudioUnlocked = true;
 }
 
@@ -138,6 +165,7 @@ async function tryCloudTTS(url: string, text: string, label: string): Promise<bo
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
       },
       body: JSON.stringify({ text }),
@@ -161,14 +189,30 @@ async function tryCloudTTS(url: string, text: string, label: string): Promise<bo
       throw new Error(`Invalid audio from ${label}`);
     }
 
-    const audioUrl = URL.createObjectURL(audioBlob);
-    const audio = new Audio(audioUrl);
-    audio.preload = "auto";
-    audio.setAttribute("playsinline", "true");
-    currentAudio = audio;
+    const audio = getPlaybackAudio();
+    if (!audio) {
+      throw new Error("HTML audio playback is not available");
+    }
 
-    audio.onended = () => { URL.revokeObjectURL(audioUrl); currentAudio = null; };
-    audio.onerror = () => { URL.revokeObjectURL(audioUrl); currentAudio = null; };
+    const audioUrl = URL.createObjectURL(audioBlob);
+    revokeCurrentAudioUrl();
+
+    audio.pause();
+    audio.currentTime = 0;
+    audio.src = audioUrl;
+    audio.volume = 1;
+    currentAudio = audio;
+    currentAudioUrl = audioUrl;
+
+    audio.onended = () => {
+      revokeCurrentAudioUrl();
+      currentAudio = null;
+    };
+
+    audio.onerror = () => {
+      revokeCurrentAudioUrl();
+      currentAudio = null;
+    };
 
     await audio.play();
     console.log(`[Wilson TTS] Playing via ${label}`);
@@ -232,12 +276,21 @@ export async function speakText(text: string): Promise<void> {
 }
 
 export function stopSpeaking(): void {
-  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+  const audio = currentAudio ?? getPlaybackAudio();
+  if (audio) {
+    audio.pause();
+    audio.currentTime = 0;
+    audio.removeAttribute("src");
+    audio.load();
+  }
+  currentAudio = null;
+  revokeCurrentAudioUrl();
   if (window.speechSynthesis) window.speechSynthesis.cancel();
 }
 
 export function isSpeaking(): boolean {
-  if (currentAudio && !currentAudio.paused) return true;
+  const audio = currentAudio ?? playbackAudio;
+  if (audio && !audio.paused && !audio.ended) return true;
   if (window.speechSynthesis?.speaking) return true;
   return false;
 }
