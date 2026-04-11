@@ -1,6 +1,7 @@
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 Deno.serve(async (req) => {
@@ -22,12 +23,15 @@ Deno.serve(async (req) => {
       console.error("ELEVENLABS_API_KEY is not configured");
       return new Response(
         JSON.stringify({ error: "ELEVENLABS_UNAVAILABLE", fallback: true }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
-    // Liam — warmer, more grounded, relaxed charisma with a more human cadence
-    const voiceId = "TX3LPaxmHKxFdv7VOQHJ";
+    // George — deeper, warmer, and more conversational than the previous preset
+    const voiceId = "JBFqnCBsd6RMkjVDRZzb";
 
     const response = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
@@ -41,14 +45,14 @@ Deno.serve(async (req) => {
           text: text.slice(0, 5000),
           model_id: "eleven_multilingual_v2",
           voice_settings: {
-            stability: 0.28,
-            similarity_boost: 0.82,
-            style: 0.6,
+            stability: 0.42,
+            similarity_boost: 0.88,
+            style: 0.22,
             use_speaker_boost: true,
-            speed: 0.96,
+            speed: 0.92,
           },
         }),
-      }
+      },
     );
 
     if (!response.ok) {
@@ -58,7 +62,10 @@ Deno.serve(async (req) => {
       // Quota exceeded, billing issues, or server errors → signal fallback
       return new Response(
         JSON.stringify({ error: "ELEVENLABS_UNAVAILABLE", fallback: true }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
@@ -75,7 +82,10 @@ Deno.serve(async (req) => {
     console.error("TTS error:", error);
     return new Response(
       JSON.stringify({ error: "ELEVENLABS_FAILED", fallback: true }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 });
