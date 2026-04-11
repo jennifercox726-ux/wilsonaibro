@@ -30,8 +30,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Callum — warm, friendly British male; relaxed McConaughey-meets-London energy
-    const voiceId = "N2lVS1w4EtoT3dr4eOWO";
+    // Payload — user's custom ElevenLabs voice
+    const voiceId = "xhIKM1xfCeWaYYE84Lou";
 
     const response = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
