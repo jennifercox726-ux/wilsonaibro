@@ -330,6 +330,39 @@ const Index = ({ userId, displayName }: IndexProps) => {
             setIsThinking(false);
             const responseTimeMs = Date.now() - queryStart;
             if (assistantSoFar) {
+              // Parse vibe and dream tags from response
+              const vibeMatch = assistantSoFar.match(/\[VIBE:\s*(excited|calm|tired|dreaming|neutral)\]/i);
+              const dreamMatch = assistantSoFar.match(/\[DREAM_UPDATE:\s*(.+?)\]/i);
+              
+              if (vibeMatch) {
+                const newVibe = vibeMatch[1].toLowerCase() as WilsonVibe;
+                setCurrentVibe(newVibe);
+                supabase.from("profiles").update({ emotional_vibe: newVibe }).eq("user_id", userId).then();
+              }
+              if (dreamMatch) {
+                supabase.from("profiles").update({ core_dream: dreamMatch[1].trim() }).eq("user_id", userId).then();
+              }
+
+              // Strip tags from displayed content
+              const cleanContent = assistantSoFar
+                .replace(/\[VIBE:\s*\w+\]/gi, "")
+                .replace(/\[DREAM_UPDATE:\s*.+?\]/gi, "")
+                .trim();
+
+              // Update the displayed message with cleaned content
+              if (cleanContent !== assistantSoFar) {
+                setMessages((prev) => {
+                  const current = prev[activeChat] || [];
+                  return {
+                    ...prev,
+                    [activeChat]: current.map((m) =>
+                      m.id.startsWith("stream-") ? { ...m, content: cleanContent } : m
+                    ),
+                  };
+                });
+                assistantSoFar = cleanContent;
+              }
+
               speakText(assistantSoFar);
               supabase.from("messages").insert({
                 conversation_id: activeChat,
