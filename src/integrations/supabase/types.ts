@@ -100,6 +100,47 @@ export type Database = {
         }
         Relationships: []
       }
+      query_logs: {
+        Row: {
+          conversation_id: string | null
+          created_at: string
+          id: string
+          query_length: number
+          query_text: string
+          response_length: number | null
+          response_time_ms: number | null
+          user_id: string
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          query_length?: number
+          query_text: string
+          response_length?: number | null
+          response_time_ms?: number | null
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          query_length?: number
+          query_text?: string
+          response_length?: number | null
+          response_time_ms?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "query_logs_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
