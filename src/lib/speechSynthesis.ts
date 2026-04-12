@@ -376,34 +376,19 @@ export async function speakText(text: string): Promise<void> {
     }
   }
 
-  // Tier 2: Google TTS (WaveNet, natural sounding)
-  if (!playbackFailed && shouldTryProvider(providerState.googleTtsRetryAt)) {
-    const result = await tryCloudTTS(GOOGLE_TTS_URL, clean, "Google TTS");
-    if (result === "played") {
-      markProviderSuccess("Google TTS");
-      return;
-    }
-
-    if (result === "playback-failed") {
-      markProviderSuccess("Google TTS");
-      playbackFailed = true;
-    } else {
-      markProviderFailure("Google TTS");
-    }
-  }
-
-  // Tier 3: Edge TTS (free, neural voices)
+  // Tier 2: Edge TTS (client-side WebSocket, free neural voices)
   if (!playbackFailed && shouldTryProvider(providerState.edgeTtsRetryAt)) {
-    const result = await tryCloudTTS(EDGE_TTS_URL, clean, "Edge TTS");
-    if (result === "played") {
-      markProviderSuccess("Edge TTS");
-      return;
-    }
-
-    if (result === "playback-failed") {
-      markProviderSuccess("Edge TTS");
-      playbackFailed = true;
-    } else {
+    try {
+      const audioBlob = await edgeTTSSynthesize(clean.slice(0, 5000));
+      if (audioBlob && audioBlob.size > 100) {
+        await playAudioBlob(audioBlob);
+        console.log("[Wilson TTS] Playing via Edge TTS (client-side)");
+        markProviderSuccess("Edge TTS");
+        return;
+      }
+      markProviderFailure("Edge TTS");
+    } catch (err) {
+      console.warn("[Wilson TTS] Edge TTS client error:", err);
       markProviderFailure("Edge TTS");
     }
   }
