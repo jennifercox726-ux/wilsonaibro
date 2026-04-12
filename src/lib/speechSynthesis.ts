@@ -1,7 +1,8 @@
-// Wilson TTS — 3-tier fallback: ElevenLabs → Edge TTS (free) → Browser voice
+// Wilson TTS — 3-tier fallback: ElevenLabs → Edge TTS (client-side, free neural) → Browser voice
+
+import { edgeTTSSynthesize } from "./edgeTTS";
 
 const ELEVENLABS_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`;
-const EDGE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/edge-tts`;
 
 let currentAudio: HTMLAudioElement | null = null;
 let currentAudioUrl: string | null = null;
@@ -370,18 +371,19 @@ export async function speakText(text: string): Promise<void> {
     }
   }
 
-  // Tier 2: Edge TTS (free, no API key, neural voices)
+  // Tier 2: Edge TTS (client-side WebSocket, free neural voices)
   if (!playbackFailed && shouldTryProvider(providerState.edgeTtsRetryAt)) {
-    const result = await tryCloudTTS(EDGE_TTS_URL, clean, "Edge TTS");
-    if (result === "played") {
-      markProviderSuccess("Edge TTS");
-      return;
-    }
-
-    if (result === "playback-failed") {
-      markProviderSuccess("Edge TTS");
-      playbackFailed = true;
-    } else {
+    try {
+      const audioBlob = await edgeTTSSynthesize(clean.slice(0, 5000));
+      if (audioBlob && audioBlob.size > 100) {
+        await playAudioBlob(audioBlob);
+        console.log("[Wilson TTS] Playing via Edge TTS (client-side)");
+        markProviderSuccess("Edge TTS");
+        return;
+      }
+      markProviderFailure("Edge TTS");
+    } catch (err) {
+      console.warn("[Wilson TTS] Edge TTS client error:", err);
       markProviderFailure("Edge TTS");
     }
   }
@@ -391,7 +393,7 @@ export async function speakText(text: string): Promise<void> {
     return;
   }
 
-  // Tier 3: Browser voice (last resort)
+  // Tier 4: Browser voice (last resort)
   console.log("[Wilson TTS] Using browser voice (last resort)");
   speakWithBrowser(clean.slice(0, BROWSER_FALLBACK_MAX_CHARS));
 }
