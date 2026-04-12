@@ -133,6 +133,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [messages, setMessages] = useState<Record<string, Message[]>>({});
   const [isThinking, setIsThinking] = useState(false);
+  const [currentVibe, setCurrentVibe] = useState<WilsonVibe>("neutral");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
