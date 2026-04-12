@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import ChatSidebar, { Chat } from "@/components/ChatSidebar";
 import ChatMessage, { Message } from "@/components/ChatMessage";
 import ChatInput from "@/components/ChatInput";
-import WilsonOrb from "@/components/WilsonOrb";
+import WilsonOrb, { WilsonVibe } from "@/components/WilsonOrb";
 import { speakText, stopSpeaking, unlockTTS } from "@/lib/speechSynthesis";
 import { useReferral } from "@/hooks/useReferral";
 
