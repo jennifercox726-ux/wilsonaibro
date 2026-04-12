@@ -224,23 +224,78 @@
 .wilson-prose p {
   @apply mb-3 last:mb-0;
 }
+.wilson-prose .wilson-inline-code {
+  @apply font-mono text-xs px-1.5 py-0.5 rounded-md bg-muted text-primary border border-border/30;
+}
+.wilson-prose .wilson-code-block {
+  @apply font-mono text-xs p-4 rounded-xl bg-muted/80 border border-border/30 overflow-x-auto mb-3;
+}
+.wilson-prose .wilson-code-block code {
+  @apply bg-transparent p-0 border-none;
+}
+.wilson-prose .wilson-list {
+  @apply ml-5 mb-3 space-y-1;
+}
+.wilson-prose .wilson-ol {
+  @apply list-decimal;
+}
+.wilson-prose ul.wilson-list {
+  @apply list-disc;
+}
+.wilson-prose li {
+  @apply mb-1 text-foreground/90;
+}
+.wilson-prose strong {
+  @apply font-semibold text-primary;
+}
+.wilson-prose em {
+  @apply italic text-foreground/80;
+}
+.wilson-prose .wilson-h1 {
+  @apply text-lg font-bold mb-2 mt-4 first:mt-0 text-foreground;
+}
+.wilson-prose .wilson-h2 {
+  @apply text-base font-bold mb-2 mt-3 first:mt-0 text-foreground;
+}
+.wilson-prose .wilson-h3 {
+  @apply text-sm font-bold mb-2 mt-3 first:mt-0 text-primary;
+}
+.wilson-prose .wilson-h4 {
+  @apply text-sm font-semibold mb-1 mt-2 first:mt-0 text-primary/80;
+}
+.wilson-prose .wilson-link {
+  @apply text-primary underline underline-offset-2 hover:text-primary/80 transition-colors;
+}
+.wilson-prose .wilson-hr {
+  @apply my-4 border-border/30;
+}
+.wilson-prose .wilson-blockquote {
+  @apply border-l-2 border-primary/40 pl-3 py-1 my-2 text-foreground/70 italic;
+}
+.wilson-prose .wilson-table {
+  @apply w-full text-xs my-3 border-collapse;
+}
+.wilson-prose .wilson-table th {
+  @apply text-left px-3 py-2 border-b border-border/40 text-primary font-semibold uppercase tracking-wider text-[10px];
+}
+.wilson-prose .wilson-table td {
+  @apply px-3 py-1.5 border-b border-border/20 text-foreground/80;
+}
+.wilson-prose .wilson-table tr:hover td {
+  @apply bg-muted/30;
+}
+/* Legacy fallback for old format */
 .wilson-prose code {
-  @apply font-mono text-sm px-1.5 py-0.5 rounded bg-muted text-primary;
+  @apply font-mono text-xs px-1.5 py-0.5 rounded bg-muted text-primary;
 }
 .wilson-prose pre {
-  @apply font-mono text-sm p-4 rounded-lg bg-muted overflow-x-auto mb-3;
+  @apply font-mono text-xs p-4 rounded-lg bg-muted overflow-x-auto mb-3;
 }
 .wilson-prose pre code {
   @apply bg-transparent p-0;
 }
 .wilson-prose ul, .wilson-prose ol {
   @apply ml-4 mb-3;
-}
-.wilson-prose li {
-  @apply mb-1;
-}
-.wilson-prose strong {
-  @apply font-semibold text-primary;
 }
 .wilson-prose h1, .wilson-prose h2, .wilson-prose h3 {
   @apply font-bold mb-2 mt-4 first:mt-0;
