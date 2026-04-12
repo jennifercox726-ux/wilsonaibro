@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import ChatSidebar, { Chat } from "@/components/ChatSidebar";
 import ChatMessage, { Message } from "@/components/ChatMessage";
 import ChatInput from "@/components/ChatInput";
-import WilsonOrb from "@/components/WilsonOrb";
+import WilsonOrb, { WilsonVibe } from "@/components/WilsonOrb";
 import { speakText, stopSpeaking, unlockTTS } from "@/lib/speechSynthesis";
 import { useReferral } from "@/hooks/useReferral";
 
@@ -133,6 +133,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [messages, setMessages] = useState<Record<string, Message[]>>({});
   const [isThinking, setIsThinking] = useState(false);
+  const [currentVibe, setCurrentVibe] = useState<WilsonVibe>("neutral");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -185,15 +186,19 @@ const Index = ({ userId, displayName }: IndexProps) => {
         }
       }
 
-      // Upsert profile with referral
-      await supabase.from("profiles").upsert(
+      // Upsert profile with referral and load vibe
+      const { data: profileData } = await supabase.from("profiles").upsert(
         {
           user_id: userId,
           display_name: displayName || null,
           referral_source: referral.source,
         },
         { onConflict: "user_id" }
-      );
+      ).select("emotional_vibe").single();
+
+      if (profileData?.emotional_vibe) {
+        setCurrentVibe(profileData.emotional_vibe as WilsonVibe);
+      }
 
       setLoaded(true);
     }
@@ -329,6 +334,39 @@ const Index = ({ userId, displayName }: IndexProps) => {
             setIsThinking(false);
             const responseTimeMs = Date.now() - queryStart;
             if (assistantSoFar) {
+              // Parse vibe and dream tags from response
+              const vibeMatch = assistantSoFar.match(/\[VIBE:\s*(excited|calm|tired|dreaming|neutral)\]/i);
+              const dreamMatch = assistantSoFar.match(/\[DREAM_UPDATE:\s*(.+?)\]/i);
+              
+              if (vibeMatch) {
+                const newVibe = vibeMatch[1].toLowerCase() as WilsonVibe;
+                setCurrentVibe(newVibe);
+                supabase.from("profiles").update({ emotional_vibe: newVibe }).eq("user_id", userId).then();
+              }
+              if (dreamMatch) {
+                supabase.from("profiles").update({ core_dream: dreamMatch[1].trim() }).eq("user_id", userId).then();
+              }
+
+              // Strip tags from displayed content
+              const cleanContent = assistantSoFar
+                .replace(/\[VIBE:\s*\w+\]/gi, "")
+                .replace(/\[DREAM_UPDATE:\s*.+?\]/gi, "")
+                .trim();
+
+              // Update the displayed message with cleaned content
+              if (cleanContent !== assistantSoFar) {
+                setMessages((prev) => {
+                  const current = prev[activeChat] || [];
+                  return {
+                    ...prev,
+                    [activeChat]: current.map((m) =>
+                      m.id.startsWith("stream-") ? { ...m, content: cleanContent } : m
+                    ),
+                  };
+                });
+                assistantSoFar = cleanContent;
+              }
+
               speakText(assistantSoFar);
               supabase.from("messages").insert({
                 conversation_id: activeChat,
@@ -418,7 +456,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
           >
             <Menu className="w-5 h-5" />
           </button>
-          <WilsonOrb size="sm" isThinking={isThinking} />
+          <WilsonOrb size="sm" isThinking={isThinking} vibe={currentVibe} />
           <div className="flex-1">
             <h1 className="text-sm font-bold tracking-wide text-foreground">Wilson ✨</h1>
             <p className="text-[10px] uppercase tracking-[0.15em] text-primary/60">
@@ -437,7 +475,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
         <div className="flex-1 overflow-y-auto px-4 py-6">
           {!activeChat ? (
             <div className="h-full flex flex-col items-center justify-center gap-6 text-center">
-              <WilsonOrb size="lg" />
+              <WilsonOrb size="lg" vibe={currentVibe} />
               <div>
                 <h2 className="text-xl font-bold text-foreground mb-2">
                   The Neural Void ✨
@@ -466,7 +504,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
                     exit={{ opacity: 0 }}
                     className="flex items-center gap-3"
                   >
-                    <WilsonOrb size="sm" isThinking />
+                    <WilsonOrb size="sm" isThinking vibe={currentVibe} />
                     <div className="thought-block-wilson rounded-2xl px-4 py-3">
                       <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary/60 block mb-1">
                         Wilson
