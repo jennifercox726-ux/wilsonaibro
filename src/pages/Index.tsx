@@ -452,7 +452,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
           >
             <Menu className="w-5 h-5" />
           </button>
-          <WilsonOrb size="sm" isThinking={isThinking} />
+          <WilsonOrb size="sm" isThinking={isThinking} vibe={currentVibe} />
           <div className="flex-1">
             <h1 className="text-sm font-bold tracking-wide text-foreground">Wilson ✨</h1>
             <p className="text-[10px] uppercase tracking-[0.15em] text-primary/60">
@@ -471,7 +471,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
         <div className="flex-1 overflow-y-auto px-4 py-6">
           {!activeChat ? (
             <div className="h-full flex flex-col items-center justify-center gap-6 text-center">
-              <WilsonOrb size="lg" />
+              <WilsonOrb size="lg" vibe={currentVibe} />
               <div>
                 <h2 className="text-xl font-bold text-foreground mb-2">
                   The Neural Void ✨
@@ -500,7 +500,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
                     exit={{ opacity: 0 }}
                     className="flex items-center gap-3"
                   >
-                    <WilsonOrb size="sm" isThinking />
+                    <WilsonOrb size="sm" isThinking vibe={currentVibe} />
                     <div className="thought-block-wilson rounded-2xl px-4 py-3">
                       <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary/60 block mb-1">
                         Wilson
