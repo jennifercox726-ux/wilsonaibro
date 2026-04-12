@@ -6,7 +6,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// Wilson's voice profile — deep, warm, energetic male (like "Payload")
 const WILSON_VOICE = "en-US-AndrewNeural";
 
 Deno.serve(async (req) => {
@@ -23,13 +22,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    const tts = new EdgeTTS();
-    await tts.synthesize(text.slice(0, 5000), WILSON_VOICE, {
+    const tts = new EdgeTTS(text.slice(0, 5000), WILSON_VOICE, {
       rate: "+10%",
       pitch: "+2Hz",
     });
 
-    const audioBuffer = tts.toBuffer();
+    const result = await tts.synthesize();
+    const audioBuffer = result.toBuffer();
 
     return new Response(audioBuffer, {
       headers: {
