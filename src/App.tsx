@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import Index from "./pages/Index.tsx";
 import Auth from "./pages/Auth.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import Analytics from "./pages/Analytics.tsx";
 
 const queryClient = new QueryClient();
 
@@ -51,6 +52,16 @@ const App = () => {
                     userId={session.user.id}
                     displayName={session.user.user_metadata?.display_name}
                   />
+                ) : (
+                  <Auth onAuth={() => {}} />
+                )
+              }
+            />
+            <Route
+              path="/analytics"
+              element={
+                session ? (
+                  <Analytics userId={session.user.id} />
                 ) : (
                   <Auth onAuth={() => {}} />
                 )
