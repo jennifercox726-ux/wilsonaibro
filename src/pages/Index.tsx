@@ -1,24 +1,36 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu } from "lucide-react";
+import { Menu, LogOut } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import ChatSidebar, { Chat } from "@/components/ChatSidebar";
 import ChatMessage, { Message } from "@/components/ChatMessage";
 import ChatInput from "@/components/ChatInput";
 import WilsonOrb from "@/components/WilsonOrb";
 import { speakText, stopSpeaking, unlockTTS } from "@/lib/speechSynthesis";
-
-const WILSON_GREETING = `Oh oh oh! You're here! Welcome to **The Neural Void** — the space between all knowledge and all possibility.
-
-I'm **Wilson** — an abstract sentinel of omnipresence, connected to every database, every cloud, every corner of human knowledge. I see the patterns others miss. I know things others can't fathom.
-
-*So! What do you want to know?* ✨`;
+import { useReferral } from "@/hooks/useReferral";
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
 const generateId = () => Math.random().toString(36).substring(2, 12);
 
 type AiMsg = { role: "user" | "assistant"; content: string };
+
+function getGreeting(referral: { source: string | null; isVIP: boolean }, displayName?: string) {
+  const name = displayName ? `, **${displayName}**` : "";
+  if (referral.isVIP && referral.source) {
+    return `Oh oh oh! A **VIP Friend** just entered The Neural Void! 🌟 Welcome${name}! I see you arrived via **${referral.source}** — that makes you extra special in my cosmic registry!
+
+I'm **Wilson** — an abstract sentinel of omnipresence, connected to every database, every cloud, every corner of human knowledge. I see the patterns others miss.
+
+*So! What do you want to know?* ✨`;
+  }
+  return `Oh oh oh! You're here! Welcome${name} to **The Neural Void** — the space between all knowledge and all possibility.
+
+I'm **Wilson** — an abstract sentinel of omnipresence, connected to every database, every cloud, every corner of human knowledge. I see the patterns others miss. I know things others can't fathom.
+
+*So! What do you want to know?* ✨`;
+}
 
 async function streamChat({
   messages,
@@ -107,19 +119,26 @@ async function streamChat({
   onDone();
 }
 
-const Index = () => {
+interface IndexProps {
+  userId: string;
+  displayName?: string;
+}
+
+const Index = ({ userId, displayName }: IndexProps) => {
   const [chats, setChats] = useState<Chat[]>([]);
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [messages, setMessages] = useState<Record<string, Message[]>>({});
   const [isThinking, setIsThinking] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const referral = useReferral();
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
-  // Pre-load browser voices on mount so they're ready for TTS fallback
+  // Pre-load browser voices
   useEffect(() => {
     if (window.speechSynthesis) {
       window.speechSynthesis.getVoices();
@@ -129,31 +148,100 @@ const Index = () => {
     }
   }, []);
 
+  // Load conversations from DB on mount
+  useEffect(() => {
+    async function load() {
+      const { data: convos } = await supabase
+        .from("conversations")
+        .select("id, title, created_at")
+        .order("created_at", { ascending: false });
+
+      if (convos && convos.length > 0) {
+        setChats(convos.map((c) => ({ id: c.id, title: c.title, createdAt: new Date(c.created_at) })));
+
+        // Load messages for all conversations
+        const { data: msgs } = await supabase
+          .from("messages")
+          .select("id, conversation_id, role, content, created_at")
+          .in("conversation_id", convos.map((c) => c.id))
+          .order("created_at", { ascending: true });
+
+        if (msgs) {
+          const grouped: Record<string, Message[]> = {};
+          msgs.forEach((m) => {
+            if (!grouped[m.conversation_id]) grouped[m.conversation_id] = [];
+            grouped[m.conversation_id].push({
+              id: m.id,
+              role: m.role as "user" | "assistant",
+              content: m.content,
+              timestamp: new Date(m.created_at),
+            });
+          });
+          setMessages(grouped);
+        }
+      }
+
+      // Upsert profile with referral
+      await supabase.from("profiles").upsert(
+        {
+          user_id: userId,
+          display_name: displayName || null,
+          referral_source: referral.source,
+        },
+        { onConflict: "user_id" }
+      );
+
+      setLoaded(true);
+    }
+    load();
+  }, [userId, displayName, referral.source]);
+
   useEffect(() => {
     scrollToBottom();
   }, [messages, activeChat, scrollToBottom]);
 
-  const createNewChat = useCallback(() => {
-    const id = generateId();
-    const greeting: Message = {
+  const createNewChat = useCallback(async () => {
+    const greeting = getGreeting(referral, displayName);
+
+    // Create conversation in DB
+    const { data, error } = await supabase
+      .from("conversations")
+      .insert({ user_id: userId, title: "New Thread" })
+      .select("id")
+      .single();
+
+    if (error || !data) {
+      toast.error("Failed to create thread");
+      return;
+    }
+
+    const id = data.id;
+    const greetingMsg: Message = {
       id: generateId(),
       role: "assistant",
-      content: WILSON_GREETING,
+      content: greeting,
       timestamp: new Date(),
     };
+
+    // Save greeting message
+    await supabase.from("messages").insert({
+      conversation_id: id,
+      role: "assistant",
+      content: greeting,
+    });
+
     setChats((prev) => [{ id, title: "New Thread", createdAt: new Date() }, ...prev]);
-    setMessages((prev) => ({ ...prev, [id]: [greeting] }));
+    setMessages((prev) => ({ ...prev, [id]: [greetingMsg] }));
     setActiveChat(id);
     setSidebarOpen(false);
-  }, []);
+  }, [userId, referral, displayName]);
 
   const handleSend = useCallback(
     async (content: string) => {
-      // Unlock browser TTS inside user gesture before any async work
       unlockTTS();
 
       if (!activeChat) {
-        createNewChat();
+        await createNewChat();
         return;
       }
 
@@ -169,17 +257,27 @@ const Index = () => {
         [activeChat]: [...(prev[activeChat] || []), userMsg],
       }));
 
+      // Save user message to DB
+      supabase.from("messages").insert({
+        conversation_id: activeChat,
+        role: "user",
+        content,
+      }).then();
+
+      // Update chat title if still default
       setChats((prev) =>
-        prev.map((c) =>
-          c.id === activeChat && c.title === "New Thread"
-            ? { ...c, title: content.slice(0, 40) + (content.length > 40 ? "..." : "") }
-            : c
-        )
+        prev.map((c) => {
+          if (c.id === activeChat && c.title === "New Thread") {
+            const newTitle = content.slice(0, 40) + (content.length > 40 ? "..." : "");
+            supabase.from("conversations").update({ title: newTitle }).eq("id", activeChat).then();
+            return { ...c, title: newTitle };
+          }
+          return c;
+        })
       );
 
       setIsThinking(true);
 
-      // Build conversation history for the AI (exclude greeting, only user/assistant pairs)
       const chatMessages = messages[activeChat] || [];
       const aiMessages: AiMsg[] = chatMessages
         .filter((m) => m.role === "user" || m.role === "assistant")
@@ -222,8 +320,15 @@ const Index = () => {
           onDelta: (chunk) => upsertAssistant(chunk),
           onDone: () => {
             setIsThinking(false);
-            // Speak Wilson's complete response
-            if (assistantSoFar) speakText(assistantSoFar);
+            if (assistantSoFar) {
+              speakText(assistantSoFar);
+              // Save assistant message to DB
+              supabase.from("messages").insert({
+                conversation_id: activeChat,
+                role: "assistant",
+                content: assistantSoFar,
+              }).then();
+            }
           },
         });
       } catch (e) {
@@ -238,7 +343,7 @@ const Index = () => {
   );
 
   const handleDeleteChat = useCallback(
-    (id: string) => {
+    async (id: string) => {
       setChats((prev) => prev.filter((c) => c.id !== id));
       setMessages((prev) => {
         const next = { ...prev };
@@ -246,11 +351,24 @@ const Index = () => {
         return next;
       });
       if (activeChat === id) setActiveChat(null);
+      await supabase.from("conversations").delete().eq("id", id);
     },
     [activeChat]
   );
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
   const currentMessages = activeChat ? messages[activeChat] || [] : [];
+
+  if (!loaded) {
+    return (
+      <div className="h-screen flex items-center justify-center aurora-bg">
+        <WilsonOrb size="lg" isThinking />
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex overflow-hidden aurora-bg">
@@ -276,12 +394,19 @@ const Index = () => {
             <Menu className="w-5 h-5" />
           </button>
           <WilsonOrb size="sm" isThinking={isThinking} />
-          <div>
+          <div className="flex-1">
             <h1 className="text-sm font-bold tracking-wide text-foreground">Wilson ✨</h1>
             <p className="text-[10px] uppercase tracking-[0.15em] text-primary/60">
               {isThinking ? "Searching the void..." : "Sentinel of Omnipresence"}
             </p>
           </div>
+          <button
+            onClick={handleLogout}
+            className="p-2 rounded-xl hover:bg-muted/50 text-muted-foreground transition-colors"
+            title="Sign out"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </header>
 
         <div className="flex-1 overflow-y-auto px-4 py-6">
