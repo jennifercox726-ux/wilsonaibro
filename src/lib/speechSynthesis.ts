@@ -1,6 +1,7 @@
 // Wilson TTS — 3-tier fallback: ElevenLabs → Edge TTS (free) → Browser voice
 
 const ELEVENLABS_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`;
+const GOOGLE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-tts`;
 const EDGE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/edge-tts`;
 
 let currentAudio: HTMLAudioElement | null = null;
