@@ -7,6 +7,7 @@ import ChatSidebar, { Chat } from "@/components/ChatSidebar";
 import ChatMessage, { Message } from "@/components/ChatMessage";
 import ChatInput from "@/components/ChatInput";
 import WilsonOrb, { WilsonVibe } from "@/components/WilsonOrb";
+import NeuralNebula from "@/components/NeuralNebula";
 import { speakText, stopSpeaking, unlockTTS } from "@/lib/speechSynthesis";
 import { useReferral } from "@/hooks/useReferral";
 
@@ -504,28 +505,8 @@ const Index = ({ userId, displayName }: IndexProps) => {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
-                    className="flex items-center gap-3"
                   >
-                    <WilsonOrb size="sm" isThinking vibe={currentVibe} />
-                    <div className="thought-block-wilson rounded-2xl px-4 py-3">
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary/60 block mb-1">
-                        Wilson
-                      </span>
-                      <div className="flex gap-1.5">
-                        {[0, 1, 2].map((i) => (
-                          <motion.div
-                            key={i}
-                            className="w-1.5 h-1.5 rounded-full bg-primary/60"
-                            animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1.1, 0.8] }}
-                            transition={{
-                              duration: 1.2,
-                              repeat: Infinity,
-                              delay: i * 0.2,
-                            }}
-                          />
-                        ))}
-                      </div>
-                    </div>
+                    <NeuralNebula vibe={currentVibe} />
                   </motion.div>
                 )}
               </AnimatePresence>
