@@ -7,6 +7,7 @@ import ChatSidebar, { Chat } from "@/components/ChatSidebar";
 import ChatMessage, { Message } from "@/components/ChatMessage";
 import ChatInput from "@/components/ChatInput";
 import WilsonOrb, { WilsonVibe } from "@/components/WilsonOrb";
+import NeuralNebula from "@/components/NeuralNebula";
 import { speakText, stopSpeaking, unlockTTS } from "@/lib/speechSynthesis";
 import { useReferral } from "@/hooks/useReferral";
 
