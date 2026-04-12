@@ -17,7 +17,7 @@ const SILENT_AUDIO_DATA_URL = "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAA
 
 const providerState = {
   elevenLabsRetryAt: 0,
-  googleRetryAt: 0,
+  edgeTtsRetryAt: 0,
 };
 
 type CloudTTSResult = "played" | "provider-unavailable" | "playback-failed";
