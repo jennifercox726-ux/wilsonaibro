@@ -1,7 +1,7 @@
-// Wilson TTS — 3-tier fallback: ElevenLabs → Google Cloud TTS → Browser voice
+// Wilson TTS — 3-tier fallback: ElevenLabs → Edge TTS (free) → Browser voice
 
 const ELEVENLABS_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`;
-const GOOGLE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-tts`;
+const EDGE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/edge-tts`;
 
 let currentAudio: HTMLAudioElement | null = null;
 let currentAudioUrl: string | null = null;
@@ -17,7 +17,7 @@ const SILENT_AUDIO_DATA_URL = "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAA
 
 const providerState = {
   elevenLabsRetryAt: 0,
-  googleRetryAt: 0,
+  edgeTtsRetryAt: 0,
 };
 
 type CloudTTSResult = "played" | "provider-unavailable" | "playback-failed";
@@ -329,21 +329,21 @@ function shouldTryProvider(retryAt: number): boolean {
   return Date.now() >= retryAt;
 }
 
-function markProviderFailure(label: "ElevenLabs" | "Google TTS"): void {
+function markProviderFailure(label: "ElevenLabs" | "Edge TTS"): void {
   const retryAt = Date.now() + TTS_RETRY_COOLDOWN_MS;
 
   if (label === "ElevenLabs") {
     providerState.elevenLabsRetryAt = retryAt;
   } else {
-    providerState.googleRetryAt = retryAt;
+    providerState.edgeTtsRetryAt = retryAt;
   }
 }
 
-function markProviderSuccess(label: "ElevenLabs" | "Google TTS"): void {
+function markProviderSuccess(label: "ElevenLabs" | "Edge TTS"): void {
   if (label === "ElevenLabs") {
     providerState.elevenLabsRetryAt = 0;
   } else {
-    providerState.googleRetryAt = 0;
+    providerState.edgeTtsRetryAt = 0;
   }
 }
 
@@ -370,19 +370,19 @@ export async function speakText(text: string): Promise<void> {
     }
   }
 
-  // Tier 2: Google Cloud TTS (free tier, natural WaveNet voice)
-  if (!playbackFailed && shouldTryProvider(providerState.googleRetryAt)) {
-    const result = await tryCloudTTS(GOOGLE_TTS_URL, premiumText, "Google TTS");
+  // Tier 2: Edge TTS (free, no API key, neural voices)
+  if (!playbackFailed && shouldTryProvider(providerState.edgeTtsRetryAt)) {
+    const result = await tryCloudTTS(EDGE_TTS_URL, clean, "Edge TTS");
     if (result === "played") {
-      markProviderSuccess("Google TTS");
+      markProviderSuccess("Edge TTS");
       return;
     }
 
     if (result === "playback-failed") {
-      markProviderSuccess("Google TTS");
+      markProviderSuccess("Edge TTS");
       playbackFailed = true;
     } else {
-      markProviderFailure("Google TTS");
+      markProviderFailure("Edge TTS");
     }
   }
 
