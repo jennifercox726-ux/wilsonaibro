@@ -284,10 +284,12 @@ const Index = ({ userId, displayName }: IndexProps) => {
       const queryStart = Date.now();
 
       const chatMessages = messages[activeChat] || [];
-      const aiMessages: AiMsg[] = chatMessages
+      const allAiMessages: AiMsg[] = chatMessages
         .filter((m) => m.role === "user" || m.role === "assistant")
         .map((m) => ({ role: m.role, content: m.content }));
-      aiMessages.push({ role: "user", content });
+      allAiMessages.push({ role: "user", content });
+      // Context truncation: only send last 10 messages to save tokens
+      const aiMessages = allAiMessages.slice(-10);
 
       let assistantSoFar = "";
 

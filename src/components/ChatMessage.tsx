@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Copy, Check } from "lucide-react";
 import { markdownToHtml } from "@/lib/simpleMarkdown";
 import WilsonOrb from "./WilsonOrb";
+import WilsonChart from "./WilsonChart";
 
 export interface Message {
   id: string;
@@ -16,19 +17,74 @@ interface ChatMessageProps {
   index: number;
 }
 
+interface ChartBlock {
+  data: Record<string, unknown>[];
+  type?: "line" | "bar" | "area";
+  dataKey?: string;
+  xKey?: string;
+}
+
+function parseCharts(content: string): { segments: (string | ChartBlock)[]; cleanContent: string } {
+  const regex = /<WilsonChart\s+([\s\S]*?)\/>/g;
+  const segments: (string | ChartBlock)[] = [];
+  let lastIndex = 0;
+  let cleanContent = content;
+  let match;
+
+  while ((match = regex.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push(content.slice(lastIndex, match.index));
+    }
+    try {
+      const attrs = match[1];
+      // Extract data={...} - find balanced braces
+      const dataMatch = attrs.match(/data=\{(\[[\s\S]*?\])\}/);
+      const typeMatch = attrs.match(/type="(\w+)"/);
+      const dataKeyMatch = attrs.match(/dataKey="(\w+)"/);
+      const xKeyMatch = attrs.match(/xKey="(\w+)"/);
+
+      if (dataMatch) {
+        const data = JSON.parse(dataMatch[1]);
+        segments.push({
+          data,
+          type: (typeMatch?.[1] as "line" | "bar" | "area") || "line",
+          dataKey: dataKeyMatch?.[1],
+          xKey: xKeyMatch?.[1],
+        });
+      } else {
+        segments.push(match[0]);
+      }
+    } catch {
+      segments.push(match[0]);
+    }
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < content.length) {
+    segments.push(content.slice(lastIndex));
+  }
+
+  cleanContent = content.replace(regex, "").trim();
+  return { segments, cleanContent };
+}
+
 const ChatMessage = ({ message, index }: ChatMessageProps) => {
   const isWilson = message.role === "assistant";
   const [copied, setCopied] = useState(false);
 
+  const { segments, cleanContent } = useMemo(
+    () => (isWilson ? parseCharts(message.content) : { segments: [message.content], cleanContent: message.content }),
+    [message.content, isWilson]
+  );
+
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(message.content);
+      await navigator.clipboard.writeText(cleanContent);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // fallback
       const ta = document.createElement("textarea");
-      ta.value = message.content;
+      ta.value = cleanContent;
       document.body.appendChild(ta);
       ta.select();
       document.execCommand("copy");
@@ -57,7 +113,13 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
           </span>
         )}
         <div className={`wilson-prose text-sm ${isWilson ? "" : "text-foreground/90"}`}>
-          <div dangerouslySetInnerHTML={{ __html: markdownToHtml(message.content) }} />
+          {segments.map((seg, i) =>
+            typeof seg === "string" ? (
+              <div key={i} dangerouslySetInnerHTML={{ __html: markdownToHtml(seg) }} />
+            ) : (
+              <WilsonChart key={i} data={seg.data} type={seg.type} dataKey={seg.dataKey} xKey={seg.xKey} />
+            )
+          )}
         </div>
         <div className="flex items-center justify-between mt-2">
           <span className="text-[10px] text-muted-foreground">
