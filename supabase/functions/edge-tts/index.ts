@@ -28,9 +28,10 @@ Deno.serve(async (req) => {
     });
 
     const result = await tts.synthesize();
-    const audioBuffer = result.toBuffer();
+    // result.audio is a Blob
+    const arrayBuffer = await result.audio.arrayBuffer();
 
-    return new Response(audioBuffer, {
+    return new Response(arrayBuffer, {
       headers: {
         ...corsHeaders,
         "Content-Type": "audio/mpeg",
