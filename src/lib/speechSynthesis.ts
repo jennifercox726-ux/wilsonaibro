@@ -372,7 +372,7 @@ export async function speakText(text: string): Promise<void> {
 
   // Tier 2: Edge TTS (free, no API key, neural voices)
   if (!playbackFailed && shouldTryProvider(providerState.edgeTtsRetryAt)) {
-    const result = await tryCloudTTS(EDGE_TTS_URL, premiumText, "Edge TTS");
+    const result = await tryCloudTTS(EDGE_TTS_URL, clean, "Edge TTS");
     if (result === "played") {
       markProviderSuccess("Edge TTS");
       return;
