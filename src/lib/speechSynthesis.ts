@@ -18,6 +18,7 @@ const SILENT_AUDIO_DATA_URL = "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAA
 
 const providerState = {
   elevenLabsRetryAt: 0,
+  googleTtsRetryAt: 0,
   edgeTtsRetryAt: 0,
 };
 
