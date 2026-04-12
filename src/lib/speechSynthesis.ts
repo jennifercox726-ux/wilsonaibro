@@ -370,19 +370,19 @@ export async function speakText(text: string): Promise<void> {
     }
   }
 
-  // Tier 2: Google Cloud TTS (free tier, natural WaveNet voice)
-  if (!playbackFailed && shouldTryProvider(providerState.googleRetryAt)) {
-    const result = await tryCloudTTS(GOOGLE_TTS_URL, premiumText, "Google TTS");
+  // Tier 2: Edge TTS (free, no API key, neural voices)
+  if (!playbackFailed && shouldTryProvider(providerState.edgeTtsRetryAt)) {
+    const result = await tryCloudTTS(EDGE_TTS_URL, premiumText, "Edge TTS");
     if (result === "played") {
-      markProviderSuccess("Google TTS");
+      markProviderSuccess("Edge TTS");
       return;
     }
 
     if (result === "playback-failed") {
-      markProviderSuccess("Google TTS");
+      markProviderSuccess("Edge TTS");
       playbackFailed = true;
     } else {
-      markProviderFailure("Google TTS");
+      markProviderFailure("Edge TTS");
     }
   }
 
