@@ -330,23 +330,19 @@ function shouldTryProvider(retryAt: number): boolean {
   return Date.now() >= retryAt;
 }
 
-function markProviderFailure(label: "ElevenLabs" | "Google TTS" | "Edge TTS"): void {
+function markProviderFailure(label: "ElevenLabs" | "Edge TTS"): void {
   const retryAt = Date.now() + TTS_RETRY_COOLDOWN_MS;
 
   if (label === "ElevenLabs") {
     providerState.elevenLabsRetryAt = retryAt;
-  } else if (label === "Google TTS") {
-    providerState.googleTtsRetryAt = retryAt;
   } else {
     providerState.edgeTtsRetryAt = retryAt;
   }
 }
 
-function markProviderSuccess(label: "ElevenLabs" | "Google TTS" | "Edge TTS"): void {
+function markProviderSuccess(label: "ElevenLabs" | "Edge TTS"): void {
   if (label === "ElevenLabs") {
     providerState.elevenLabsRetryAt = 0;
-  } else if (label === "Google TTS") {
-    providerState.googleTtsRetryAt = 0;
   } else {
     providerState.edgeTtsRetryAt = 0;
   }
