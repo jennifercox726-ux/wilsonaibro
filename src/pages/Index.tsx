@@ -186,15 +186,19 @@ const Index = ({ userId, displayName }: IndexProps) => {
         }
       }
 
-      // Upsert profile with referral
-      await supabase.from("profiles").upsert(
+      // Upsert profile with referral and load vibe
+      const { data: profileData } = await supabase.from("profiles").upsert(
         {
           user_id: userId,
           display_name: displayName || null,
           referral_source: referral.source,
         },
         { onConflict: "user_id" }
-      );
+      ).select("emotional_vibe").single();
+
+      if (profileData?.emotional_vibe) {
+        setCurrentVibe(profileData.emotional_vibe as WilsonVibe);
+      }
 
       setLoaded(true);
     }
