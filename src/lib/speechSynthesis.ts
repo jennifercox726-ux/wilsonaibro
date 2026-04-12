@@ -355,24 +355,8 @@ export async function speakText(text: string): Promise<void> {
   const premiumText = limitPremiumText(clean);
   let playbackFailed = false;
 
-  // Tier 1: ElevenLabs (premium)
-  if (shouldTryProvider(providerState.elevenLabsRetryAt)) {
-    const result = await tryCloudTTS(ELEVENLABS_TTS_URL, premiumText, "ElevenLabs");
-    if (result === "played") {
-      markProviderSuccess("ElevenLabs");
-      return;
-    }
-
-    if (result === "playback-failed") {
-      markProviderSuccess("ElevenLabs");
-      playbackFailed = true;
-    } else {
-      markProviderFailure("ElevenLabs");
-    }
-  }
-
-  // Tier 2: Edge TTS (client-side WebSocket, free neural voices)
-  if (!playbackFailed && shouldTryProvider(providerState.edgeTtsRetryAt)) {
+  // Tier 1: Edge TTS (client-side, free neural voices — always try first for reliability)
+  if (shouldTryProvider(providerState.edgeTtsRetryAt)) {
     try {
       const audioBlob = await edgeTTSSynthesize(clean.slice(0, 5000));
       if (audioBlob && audioBlob.size > 100) {
@@ -388,14 +372,24 @@ export async function speakText(text: string): Promise<void> {
     }
   }
 
-  if (playbackFailed) {
-    console.warn("[Wilson TTS] Premium audio was generated but playback failed; skipping robotic browser fallback");
-    return;
+  // Tier 2: ElevenLabs (premium, quota-limited)
+  if (!playbackFailed && shouldTryProvider(providerState.elevenLabsRetryAt)) {
+    const result = await tryCloudTTS(ELEVENLABS_TTS_URL, premiumText, "ElevenLabs");
+    if (result === "played") {
+      markProviderSuccess("ElevenLabs");
+      return;
+    }
+
+    if (result === "playback-failed") {
+      markProviderSuccess("ElevenLabs");
+      playbackFailed = true;
+    } else {
+      markProviderFailure("ElevenLabs");
+    }
   }
 
-  // Tier 4: Browser voice (last resort)
-  console.log("[Wilson TTS] Using browser voice (last resort)");
-  speakWithBrowser(clean.slice(0, BROWSER_FALLBACK_MAX_CHARS));
+  // NO browser fallback — Wilson stays silent rather than sounding robotic
+  console.warn("[Wilson TTS] All natural voice providers unavailable; staying silent to preserve Wilson's identity");
 }
 
 export function stopSpeaking(): void {
