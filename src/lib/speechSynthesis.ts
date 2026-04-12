@@ -329,21 +329,21 @@ function shouldTryProvider(retryAt: number): boolean {
   return Date.now() >= retryAt;
 }
 
-function markProviderFailure(label: "ElevenLabs" | "Google TTS"): void {
+function markProviderFailure(label: "ElevenLabs" | "Edge TTS"): void {
   const retryAt = Date.now() + TTS_RETRY_COOLDOWN_MS;
 
   if (label === "ElevenLabs") {
     providerState.elevenLabsRetryAt = retryAt;
   } else {
-    providerState.googleRetryAt = retryAt;
+    providerState.edgeTtsRetryAt = retryAt;
   }
 }
 
-function markProviderSuccess(label: "ElevenLabs" | "Google TTS"): void {
+function markProviderSuccess(label: "ElevenLabs" | "Edge TTS"): void {
   if (label === "ElevenLabs") {
     providerState.elevenLabsRetryAt = 0;
   } else {
-    providerState.googleRetryAt = 0;
+    providerState.edgeTtsRetryAt = 0;
   }
 }
 
