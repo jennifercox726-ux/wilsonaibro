@@ -59,7 +59,58 @@ Deno.serve(async (req) => {
       const errBody = await response.text();
       console.error("ElevenLabs error:", response.status, errBody);
 
-      // Quota exceeded, billing issues, or server errors → signal fallback
+      // If quota exceeded, try with shorter text before giving up
+      if (response.status === 401) {
+        try {
+          const parsed = JSON.parse(errBody);
+          const remaining = parsed?.detail?.remaining ?? parsed?.detail?.status === "quota_exceeded" ? 0 : -1;
+          if (remaining >= 0) {
+            // Estimate max chars from remaining credits (~2 chars per credit)
+            const maxChars = Math.floor(remaining * 0.4);
+            if (maxChars >= 20 && text.length > maxChars) {
+              // Retry with shorter text
+              const shortText = text.slice(0, maxChars).replace(/[^.!?\s]*$/, "").trim() || text.slice(0, maxChars);
+              console.log("ElevenLabs retrying with", shortText.length, "chars (credits:", remaining, ")");
+              const retryResp = await fetch(
+                `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
+                {
+                  method: "POST",
+                  headers: {
+                    "xi-api-key": ELEVENLABS_API_KEY,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    text: shortText,
+                    model_id: "eleven_multilingual_v2",
+                    voice_settings: {
+                      stability: 0.35,
+                      similarity_boost: 0.78,
+                      style: 0.45,
+                      use_speaker_boost: true,
+                      speed: 0.94,
+                    },
+                  }),
+                },
+              );
+              if (retryResp.ok) {
+                const retryBuffer = await retryResp.arrayBuffer();
+                return new Response(retryBuffer, {
+                  headers: {
+                    ...corsHeaders,
+                    "Content-Type": "audio/mpeg",
+                    "Cache-Control": "no-cache",
+                  },
+                });
+              }
+              // Retry also failed — consume body and fall through
+              await retryResp.text();
+            }
+          }
+        } catch (_) {
+          // JSON parse failed, fall through
+        }
+      }
+
       return new Response(
         JSON.stringify({ error: "ELEVENLABS_UNAVAILABLE", fallback: true }),
         {
