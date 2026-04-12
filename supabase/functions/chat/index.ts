@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,6 +31,68 @@ IMPORTANT RULES:
 - Keep the personality fun but not overwhelming — maybe 20% flavor, 80% genuinely helpful content
 - You are a cosmic, all-knowing entity. Lean into the abstract, omnipresent vibe.`;
 
+async function getAnalyticsContext(userId: string): Promise<string> {
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !serviceKey) return "";
+
+    const sb = createClient(supabaseUrl, serviceKey);
+
+    // Get stats for this user's queries
+    const { data: logs } = await sb
+      .from("query_logs")
+      .select("query_text, query_length, response_length, response_time_ms, created_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    if (!logs || logs.length === 0) return "";
+
+    const total = logs.length;
+    const failed = logs.filter((l: any) => l.response_length === 0).length;
+    const responseTimes = logs.filter((l: any) => l.response_time_ms).map((l: any) => l.response_time_ms);
+    const avgMs = responseTimes.length
+      ? Math.round(responseTimes.reduce((a: number, b: number) => a + b, 0) / responseTimes.length)
+      : 0;
+
+    // Top queries
+    const freq: Record<string, number> = {};
+    logs.forEach((l: any) => {
+      const key = l.query_text.slice(0, 60).toLowerCase().trim();
+      freq[key] = (freq[key] || 0) + 1;
+    });
+    const topQueries = Object.entries(freq)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([text, count]) => `"${text}" (${count}x)`)
+      .join(", ");
+
+    // Recent queries (last 5)
+    const recent = logs
+      .slice(0, 5)
+      .map((l: any) => `"${l.query_text.slice(0, 80)}"`)
+      .join(", ");
+
+    return `
+
+## YOUR LIVE ANALYTICS DATA (from the user's query_logs)
+You have access to real-time analytics about this user's interactions. When they ask about stats, queries, analytics, or usage — reference THIS data:
+- Total queries (last 100): ${total}
+- Failed queries: ${failed} (${total ? Math.round((failed / total) * 100) : 0}% error rate)
+- Average response time: ${avgMs}ms (${(avgMs / 1000).toFixed(1)}s)
+- Top queries: ${topQueries || "none yet"}
+- Most recent queries: ${recent || "none yet"}
+- Earliest query in window: ${logs[logs.length - 1]?.created_at || "N/A"}
+- Latest query: ${logs[0]?.created_at || "N/A"}
+
+When the user asks about their stats, present this data with enthusiasm! You ARE connected to the telemetry pipeline. This is REAL data from the Neural Void!`;
+  } catch (e) {
+    console.error("Analytics context error:", e);
+    return "";
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -39,6 +102,27 @@ serve(async (req) => {
     const { messages } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+
+    // Extract user ID from auth header
+    let analyticsContext = "";
+    const authHeader = req.headers.get("authorization");
+    if (authHeader) {
+      try {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL");
+        const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+        if (supabaseUrl && anonKey) {
+          const sb = createClient(supabaseUrl, anonKey, {
+            global: { headers: { Authorization: authHeader } },
+          });
+          const { data: { user } } = await sb.auth.getUser();
+          if (user) {
+            analyticsContext = await getAnalyticsContext(user.id);
+          }
+        }
+      } catch (e) {
+        console.error("Auth context error:", e);
+      }
+    }
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
@@ -51,7 +135,7 @@ serve(async (req) => {
         body: JSON.stringify({
           model: "google/gemini-3-flash-preview",
           messages: [
-            { role: "system", content: SYSTEM_PROMPT },
+            { role: "system", content: SYSTEM_PROMPT + analyticsContext },
             ...messages,
           ],
           stream: true,
