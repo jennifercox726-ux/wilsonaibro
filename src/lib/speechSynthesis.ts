@@ -331,19 +331,23 @@ function shouldTryProvider(retryAt: number): boolean {
   return Date.now() >= retryAt;
 }
 
-function markProviderFailure(label: "ElevenLabs" | "Edge TTS"): void {
+function markProviderFailure(label: "ElevenLabs" | "Google TTS" | "Edge TTS"): void {
   const retryAt = Date.now() + TTS_RETRY_COOLDOWN_MS;
 
   if (label === "ElevenLabs") {
     providerState.elevenLabsRetryAt = retryAt;
+  } else if (label === "Google TTS") {
+    providerState.googleTtsRetryAt = retryAt;
   } else {
     providerState.edgeTtsRetryAt = retryAt;
   }
 }
 
-function markProviderSuccess(label: "ElevenLabs" | "Edge TTS"): void {
+function markProviderSuccess(label: "ElevenLabs" | "Google TTS" | "Edge TTS"): void {
   if (label === "ElevenLabs") {
     providerState.elevenLabsRetryAt = 0;
+  } else if (label === "Google TTS") {
+    providerState.googleTtsRetryAt = 0;
   } else {
     providerState.edgeTtsRetryAt = 0;
   }
@@ -372,7 +376,23 @@ export async function speakText(text: string): Promise<void> {
     }
   }
 
-  // Tier 2: Edge TTS (free, no API key, neural voices)
+  // Tier 2: Google TTS (WaveNet, natural sounding)
+  if (!playbackFailed && shouldTryProvider(providerState.googleTtsRetryAt)) {
+    const result = await tryCloudTTS(GOOGLE_TTS_URL, clean, "Google TTS");
+    if (result === "played") {
+      markProviderSuccess("Google TTS");
+      return;
+    }
+
+    if (result === "playback-failed") {
+      markProviderSuccess("Google TTS");
+      playbackFailed = true;
+    } else {
+      markProviderFailure("Google TTS");
+    }
+  }
+
+  // Tier 3: Edge TTS (free, neural voices)
   if (!playbackFailed && shouldTryProvider(providerState.edgeTtsRetryAt)) {
     const result = await tryCloudTTS(EDGE_TTS_URL, clean, "Edge TTS");
     if (result === "played") {
@@ -393,7 +413,7 @@ export async function speakText(text: string): Promise<void> {
     return;
   }
 
-  // Tier 3: Browser voice (last resort)
+  // Tier 4: Browser voice (last resort)
   console.log("[Wilson TTS] Using browser voice (last resort)");
   speakWithBrowser(clean.slice(0, BROWSER_FALLBACK_MAX_CHARS));
 }
