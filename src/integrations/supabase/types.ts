@@ -72,8 +72,10 @@ export type Database = {
       }
       profiles: {
         Row: {
+          core_dream: string | null
           created_at: string
           display_name: string | null
+          emotional_vibe: string | null
           first_seen_at: string
           id: string
           referral_source: string | null
@@ -81,8 +83,10 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          core_dream?: string | null
           created_at?: string
           display_name?: string | null
+          emotional_vibe?: string | null
           first_seen_at?: string
           id?: string
           referral_source?: string | null
@@ -90,8 +94,10 @@ export type Database = {
           user_id: string
         }
         Update: {
+          core_dream?: string | null
           created_at?: string
           display_name?: string | null
+          emotional_vibe?: string | null
           first_seen_at?: string
           id?: string
           referral_source?: string | null
