@@ -57,6 +57,16 @@ const App = () => {
                 )
               }
             />
+            <Route
+              path="/analytics"
+              element={
+                session ? (
+                  <Analytics userId={session.user.id} />
+                ) : (
+                  <Auth onAuth={() => {}} />
+                )
+              }
+            />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
