@@ -43,48 +43,52 @@ const vibeColors: Record<WilsonVibe, { glow: string; core: string; highlight: st
   },
 };
 
-const WilsonOrb = ({ isThinking = false, size = "md", vibe = "neutral" }: WilsonOrbProps) => {
-  const colors = vibeColors[vibe] || vibeColors.neutral;
+const WilsonOrb = React.forwardRef<HTMLDivElement, WilsonOrbProps>(
+  ({ isThinking = false, size = "md", vibe = "neutral" }, ref) => {
+    const colors = vibeColors[vibe] || vibeColors.neutral;
 
-  return (
-    <div className={`relative ${sizeMap[size]} flex-shrink-0`}>
-      {/* Outer glow */}
-      <motion.div
-        className="absolute inset-0 rounded-full"
-        style={{ background: colors.glow }}
-        animate={{
-          scale: isThinking ? [1, 1.4, 1] : [1, 1.15, 1],
-          opacity: isThinking ? [0.6, 1, 0.6] : [0.4, 0.7, 0.4],
-        }}
-        transition={{
-          duration: isThinking ? 1.2 : 4,
-          repeat: Infinity,
-          ease: "easeInOut",
-        }}
-      />
-      {/* Core orb */}
-      <motion.div
-        className="absolute inset-1.5 rounded-full"
-        style={{
-          background: colors.core,
-          boxShadow: "0 0 20px hsl(185 90% 55% / 0.5), inset 0 0 15px hsl(280 70% 60% / 0.3)",
-        }}
-        animate={{
-          rotate: [0, 360],
-          scale: isThinking ? [0.95, 1.05, 0.95] : 1,
-        }}
-        transition={{
-          rotate: { duration: 20, repeat: Infinity, ease: "linear" },
-          scale: { duration: 0.8, repeat: Infinity, ease: "easeInOut" },
-        }}
-      />
-      {/* Inner highlight */}
-      <div
-        className="absolute inset-3 rounded-full iridescent"
-        style={{ background: colors.highlight }}
-      />
-    </div>
-  );
-};
+    return (
+      <div ref={ref} className={`relative ${sizeMap[size]} flex-shrink-0`}>
+        {/* Outer glow */}
+        <motion.div
+          className="absolute inset-0 rounded-full"
+          style={{ background: colors.glow }}
+          animate={{
+            scale: isThinking ? [1, 1.4, 1] : [1, 1.15, 1],
+            opacity: isThinking ? [0.6, 1, 0.6] : [0.4, 0.7, 0.4],
+          }}
+          transition={{
+            duration: isThinking ? 1.2 : 4,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
+        {/* Core orb */}
+        <motion.div
+          className="absolute inset-1.5 rounded-full"
+          style={{
+            background: colors.core,
+            boxShadow: "0 0 20px hsl(185 90% 55% / 0.5), inset 0 0 15px hsl(280 70% 60% / 0.3)",
+          }}
+          animate={{
+            rotate: [0, 360],
+            scale: isThinking ? [0.95, 1.05, 0.95] : 1,
+          }}
+          transition={{
+            rotate: { duration: 20, repeat: Infinity, ease: "linear" },
+            scale: { duration: 0.8, repeat: Infinity, ease: "easeInOut" },
+          }}
+        />
+        {/* Inner highlight */}
+        <div
+          className="absolute inset-3 rounded-full iridescent"
+          style={{ background: colors.highlight }}
+        />
+      </div>
+    );
+  }
+);
+
+WilsonOrb.displayName = "WilsonOrb";
 
 export default WilsonOrb;
