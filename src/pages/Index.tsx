@@ -277,6 +277,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
       );
 
       setIsThinking(true);
+      const queryStart = Date.now();
 
       const chatMessages = messages[activeChat] || [];
       const aiMessages: AiMsg[] = chatMessages
@@ -320,15 +321,24 @@ const Index = ({ userId, displayName }: IndexProps) => {
           onDelta: (chunk) => upsertAssistant(chunk),
           onDone: () => {
             setIsThinking(false);
+            const responseTimeMs = Date.now() - queryStart;
             if (assistantSoFar) {
               speakText(assistantSoFar);
-              // Save assistant message to DB
               supabase.from("messages").insert({
                 conversation_id: activeChat,
                 role: "assistant",
                 content: assistantSoFar,
               }).then();
             }
+            // Log query analytics
+            supabase.from("query_logs").insert({
+              user_id: userId,
+              conversation_id: activeChat,
+              query_text: content,
+              query_length: content.length,
+              response_length: assistantSoFar.length,
+              response_time_ms: responseTimeMs,
+            }).then();
           },
         });
       } catch (e) {
@@ -337,6 +347,15 @@ const Index = ({ userId, displayName }: IndexProps) => {
         if (!assistantSoFar) {
           upsertAssistant("*Oh no no no!* Something went wrong in the void... Please try again!");
         }
+        // Log failed query too
+        supabase.from("query_logs").insert({
+          user_id: userId,
+          conversation_id: activeChat,
+          query_text: content,
+          query_length: content.length,
+          response_length: 0,
+          response_time_ms: Date.now() - queryStart,
+        }).then();
       }
     },
     [activeChat, createNewChat, messages]
