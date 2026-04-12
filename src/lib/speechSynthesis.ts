@@ -8,9 +8,10 @@ let currentAudioUrl: string | null = null;
 let playbackAudio: HTMLAudioElement | null = null;
 let ttsUnlocked = false;
 let htmlAudioUnlocked = false;
+let playbackSessionId = 0;
 
 const TTS_RETRY_COOLDOWN_MS = 30_000;
-const PREMIUM_TTS_MAX_CHARS = 260;
+const PREMIUM_TTS_MAX_CHARS = 1200;
 const BROWSER_FALLBACK_MAX_CHARS = 3000;
 const SILENT_AUDIO_DATA_URL = "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
 
@@ -18,6 +19,8 @@ const providerState = {
   elevenLabsRetryAt: 0,
   googleRetryAt: 0,
 };
+
+type CloudTTSResult = "played" | "provider-unavailable" | "playback-failed";
 
 function getPlaybackAudio(): HTMLAudioElement | null {
   if (typeof Audio === "undefined") return null;
@@ -35,6 +38,37 @@ function revokeCurrentAudioUrl(): void {
   if (!currentAudioUrl) return;
   URL.revokeObjectURL(currentAudioUrl);
   currentAudioUrl = null;
+}
+
+function revokeAudioUrl(audioUrl: string | null): void {
+  if (!audioUrl) return;
+  URL.revokeObjectURL(audioUrl);
+  if (currentAudioUrl === audioUrl) {
+    currentAudioUrl = null;
+  }
+}
+
+function resetAudioElement(audio: HTMLAudioElement | null): void {
+  if (!audio) return;
+  audio.onended = null;
+  audio.onerror = null;
+  audio.pause();
+  audio.currentTime = 0;
+  audio.removeAttribute("src");
+  audio.load();
+}
+
+function finalizePlayback(audio: HTMLAudioElement | null, audioUrl: string, sessionId: number): void {
+  if (audio) {
+    audio.onended = null;
+    audio.onerror = null;
+  }
+
+  if (sessionId === playbackSessionId && currentAudio === audio) {
+    currentAudio = null;
+  }
+
+  revokeAudioUrl(audioUrl);
 }
 
 function stripMarkdown(text: string): string {
@@ -96,28 +130,24 @@ function limitPremiumText(text: string, maxLen = PREMIUM_TTS_MAX_CHARS): string 
 
 async function playAudioBlob(audioBlob: Blob): Promise<void> {
   const audioUrl = URL.createObjectURL(audioBlob);
+  const sessionId = ++playbackSessionId;
   revokeCurrentAudioUrl();
   currentAudioUrl = audioUrl;
 
   const primaryAudio = getPlaybackAudio();
+  const bindPlaybackLifecycle = (audio: HTMLAudioElement) => {
+    audio.onended = () => finalizePlayback(audio, audioUrl, sessionId);
+    audio.onerror = () => finalizePlayback(audio, audioUrl, sessionId);
+  };
+
   const primaryPlayback = async () => {
     if (!primaryAudio) throw new Error("HTML audio playback is not available");
 
-    primaryAudio.pause();
-    primaryAudio.currentTime = 0;
+    resetAudioElement(primaryAudio);
     primaryAudio.src = audioUrl;
     primaryAudio.volume = 1;
     currentAudio = primaryAudio;
-
-    primaryAudio.onended = () => {
-      revokeCurrentAudioUrl();
-      currentAudio = null;
-    };
-
-    primaryAudio.onerror = () => {
-      revokeCurrentAudioUrl();
-      currentAudio = null;
-    };
+    bindPlaybackLifecycle(primaryAudio);
 
     await primaryAudio.play();
   };
@@ -126,23 +156,28 @@ async function playAudioBlob(audioBlob: Blob): Promise<void> {
     await primaryPlayback();
     return;
   } catch (primaryError) {
+    if (primaryAudio) {
+      primaryAudio.onended = null;
+      primaryAudio.onerror = null;
+    }
+    if (currentAudio === primaryAudio) {
+      currentAudio = null;
+    }
     console.warn("[Wilson TTS] Persistent audio playback failed, retrying with fresh Audio:", primaryError);
   }
 
   const fallbackAudio = new Audio(audioUrl);
   fallbackAudio.preload = "auto";
   fallbackAudio.setAttribute("playsinline", "true");
-  fallbackAudio.onended = () => {
-    revokeCurrentAudioUrl();
-    currentAudio = null;
-  };
-  fallbackAudio.onerror = () => {
-    revokeCurrentAudioUrl();
-    currentAudio = null;
-  };
+  bindPlaybackLifecycle(fallbackAudio);
 
   currentAudio = fallbackAudio;
-  await fallbackAudio.play();
+  try {
+    await fallbackAudio.play();
+  } catch (fallbackError) {
+    finalizePlayback(fallbackAudio, audioUrl, sessionId);
+    throw fallbackError;
+  }
 }
 
 function pickVoice(): SpeechSynthesisVoice | null {
@@ -234,9 +269,11 @@ function speakWithBrowser(text: string): void {
 }
 
 /** Try to play audio from a TTS endpoint. Returns true on success. */
-async function tryCloudTTS(url: string, text: string, label: string): Promise<boolean> {
+async function tryCloudTTS(url: string, text: string, label: string): Promise<CloudTTSResult> {
+  let response: Response;
+
   try {
-    const response = await fetch(url, {
+    response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -245,31 +282,46 @@ async function tryCloudTTS(url: string, text: string, label: string): Promise<bo
       },
       body: JSON.stringify({ text }),
     });
+  } catch (err) {
+    console.warn(`[Wilson TTS] ${label} request failed:`, err);
+    return "provider-unavailable";
+  }
 
-    const contentType = response.headers.get("Content-Type") || "";
+  const contentType = response.headers.get("Content-Type") || "";
 
-    if (contentType.includes("application/json")) {
+  if (contentType.includes("application/json")) {
+    try {
       const json = await response.json();
       if (json?.fallback) {
         console.warn(`[Wilson TTS] ${label} unavailable, falling back`);
-        return false;
+        return "provider-unavailable";
       }
-      throw new Error(json?.error || `Unexpected JSON from ${label}`);
+      console.warn(`[Wilson TTS] ${label} returned JSON instead of audio:`, json);
+      return "provider-unavailable";
+    } catch (err) {
+      console.warn(`[Wilson TTS] ${label} returned unreadable JSON:`, err);
+      return "provider-unavailable";
     }
+  }
 
-    if (!response.ok) throw new Error(`${label} failed: ${response.status}`);
+  if (!response.ok) {
+    console.warn(`[Wilson TTS] ${label} failed: ${response.status}`);
+    return "provider-unavailable";
+  }
 
+  try {
     const audioBlob = await response.blob();
     if (!audioBlob.type.includes("audio") && audioBlob.size < 100) {
-      throw new Error(`Invalid audio from ${label}`);
+      console.warn(`[Wilson TTS] Invalid audio from ${label}`);
+      return "provider-unavailable";
     }
 
     await playAudioBlob(audioBlob);
     console.log(`[Wilson TTS] Playing via ${label}`);
-    return true;
+    return "played";
   } catch (err) {
-    console.warn(`[Wilson TTS] ${label} failed:`, err);
-    return false;
+    console.warn(`[Wilson TTS] ${label} playback failed:`, err);
+    return "playback-failed";
   }
 }
 
@@ -300,25 +352,43 @@ export async function speakText(text: string): Promise<void> {
   const clean = stripMarkdown(text);
   if (!clean) return;
   const premiumText = limitPremiumText(clean);
+  let playbackFailed = false;
 
   // Tier 1: ElevenLabs (premium)
   if (shouldTryProvider(providerState.elevenLabsRetryAt)) {
-    const ok = await tryCloudTTS(ELEVENLABS_TTS_URL, premiumText, "ElevenLabs");
-    if (ok) {
+    const result = await tryCloudTTS(ELEVENLABS_TTS_URL, premiumText, "ElevenLabs");
+    if (result === "played") {
       markProviderSuccess("ElevenLabs");
       return;
     }
-    markProviderFailure("ElevenLabs");
+
+    if (result === "playback-failed") {
+      markProviderSuccess("ElevenLabs");
+      playbackFailed = true;
+    } else {
+      markProviderFailure("ElevenLabs");
+    }
   }
 
   // Tier 2: Google Cloud TTS (free tier, natural WaveNet voice)
-  if (shouldTryProvider(providerState.googleRetryAt)) {
-    const ok = await tryCloudTTS(GOOGLE_TTS_URL, premiumText, "Google TTS");
-    if (ok) {
+  if (!playbackFailed && shouldTryProvider(providerState.googleRetryAt)) {
+    const result = await tryCloudTTS(GOOGLE_TTS_URL, premiumText, "Google TTS");
+    if (result === "played") {
       markProviderSuccess("Google TTS");
       return;
     }
-    markProviderFailure("Google TTS");
+
+    if (result === "playback-failed") {
+      markProviderSuccess("Google TTS");
+      playbackFailed = true;
+    } else {
+      markProviderFailure("Google TTS");
+    }
+  }
+
+  if (playbackFailed) {
+    console.warn("[Wilson TTS] Premium audio was generated but playback failed; skipping robotic browser fallback");
+    return;
   }
 
   // Tier 3: Browser voice (last resort)
@@ -327,13 +397,12 @@ export async function speakText(text: string): Promise<void> {
 }
 
 export function stopSpeaking(): void {
-  const audio = currentAudio ?? getPlaybackAudio();
-  if (audio) {
-    audio.pause();
-    audio.currentTime = 0;
-    audio.removeAttribute("src");
-    audio.load();
+  playbackSessionId += 1;
+  const activeAudio = currentAudio;
+  if (activeAudio && activeAudio !== playbackAudio) {
+    resetAudioElement(activeAudio);
   }
+  resetAudioElement(getPlaybackAudio());
   currentAudio = null;
   revokeCurrentAudioUrl();
   if (window.speechSynthesis) window.speechSynthesis.cancel();
