@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Copy, Check } from "lucide-react";
 import { markdownToHtml } from "@/lib/simpleMarkdown";
 import WilsonOrb from "./WilsonOrb";
-import WilsonChart from "./WilsonChart";
+
 
 export interface Message {
   id: string;
