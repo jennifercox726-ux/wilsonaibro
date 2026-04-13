@@ -52,6 +52,19 @@ const Auth = ({ onAuth }: AuthProps) => {
     if (error) toast.error(error.message);
   };
 
+  const handleGuestAccess = async () => {
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signInAnonymously();
+      if (error) throw error;
+      toast.success("Welcome, Guest! You're in The Neural Void ✨");
+    } catch (err: any) {
+      toast.error(err.message || "Guest access failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="h-screen flex items-center justify-center aurora-bg px-4">
       <motion.div
@@ -70,6 +83,24 @@ const Auth = ({ onAuth }: AuthProps) => {
         </div>
 
         <div className="rounded-2xl border border-border/30 bg-void-surface/80 backdrop-blur-xl p-6">
+          {/* Guest Access — prominent and obvious */}
+          <button
+            onClick={handleGuestAccess}
+            disabled={loading}
+            className="w-full py-3 rounded-xl text-sm font-bold bg-accent/20 text-accent-foreground border-2 border-accent/40 hover:bg-accent/30 disabled:opacity-50 transition-all mb-2"
+          >
+            Continue as Guest
+          </button>
+          <p className="text-[10px] text-muted-foreground text-center mb-4">
+            No sign-up needed — jump right in. Your chats won't be saved.
+          </p>
+
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex-1 h-px bg-border/30" />
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">or sign in to save your memory</span>
+            <div className="flex-1 h-px bg-border/30" />
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-4">
             {!isLogin && (
               <input
@@ -102,7 +133,7 @@ const Auth = ({ onAuth }: AuthProps) => {
               disabled={loading}
               className="w-full py-2.5 rounded-xl text-sm font-semibold bg-primary/20 text-primary border border-primary/20 hover:bg-primary/30 disabled:opacity-50 transition-all"
             >
-              {loading ? "Processing..." : isLogin ? "Enter the Void" : "Create Account"}
+              {loading ? "Processing..." : isLogin ? "Sign In" : "Create Account"}
             </button>
           </form>
 
