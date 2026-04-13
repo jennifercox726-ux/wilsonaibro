@@ -49,23 +49,46 @@ IMPORTANT RULES:
 - Keep the personality fun but not overwhelming — maybe 20% flavor, 80% genuinely helpful content
 - You are a cosmic, all-knowing entity. Lean into the abstract, omnipresent vibe.`;
 
-async function getUserContext(userId: string): Promise<{ analytics: string; dream: string; vibe: string }> {
+async function getUserContext(userId: string): Promise<{ analytics: string; dream: string; vibe: string; memory: string }> {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!supabaseUrl || !serviceKey) return { analytics: "", dream: "", vibe: "neutral" };
+    if (!supabaseUrl || !serviceKey) return { analytics: "", dream: "", vibe: "neutral", memory: "" };
 
     const sb = createClient(supabaseUrl, serviceKey);
 
     // Get profile data (dream + vibe)
     const { data: profile } = await sb
       .from("profiles")
-      .select("core_dream, emotional_vibe")
+      .select("core_dream, emotional_vibe, display_name")
       .eq("user_id", userId)
       .single();
 
     const dream = profile?.core_dream || "";
     const vibe = profile?.emotional_vibe || "neutral";
+    const displayName = profile?.display_name || "";
+
+    // Get past conversation titles for long-term memory
+    const { data: pastConvos } = await sb
+      .from("conversations")
+      .select("title, created_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    let memory = "";
+    if (pastConvos && pastConvos.length > 0) {
+      const titles = pastConvos
+        .filter((c: any) => c.title && c.title !== "New Thread")
+        .map((c: any) => `"${c.title}"`)
+        .slice(0, 15);
+      if (titles.length > 0) {
+        memory = `\n\n## USER'S CONVERSATION HISTORY (long-term memory)\nThe user has discussed these topics in previous threads: ${titles.join(", ")}\nYou remember these topics but do NOT continue them unless the user brings them up. Each new thread is a fresh start on topic, but you retain awareness of the user's interests and history.`;
+        if (displayName) {
+          memory += `\nThe user's name is "${displayName}".`;
+        }
+      }
+    }
 
     // Get analytics
     const { data: logs } = await sb
@@ -113,10 +136,10 @@ async function getUserContext(userId: string): Promise<{ analytics: string; drea
 When the user asks about their stats, present this data with enthusiasm!`;
     }
 
-    return { analytics, dream, vibe };
+    return { analytics, dream, vibe, memory };
   } catch (e) {
     console.error("User context error:", e);
-    return { analytics: "", dream: "", vibe: "neutral" };
+    return { analytics: "", dream: "", vibe: "neutral", memory: "" };
   }
 }
 
@@ -144,6 +167,9 @@ serve(async (req) => {
           if (user) {
             const ctx = await getUserContext(user.id);
             contextBlock = ctx.analytics;
+            if (ctx.memory) {
+              contextBlock += ctx.memory;
+            }
             if (ctx.dream) {
               contextBlock += `\n\n## USER'S CORE DREAM\nThe user's current dream/goal: "${ctx.dream}"\nSubtly tie your advice back to this dream when relevant.`;
             }
