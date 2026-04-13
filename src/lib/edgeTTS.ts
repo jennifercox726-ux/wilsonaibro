@@ -1,7 +1,7 @@
-// Client-side Edge TTS using Microsoft's free neural voices via WebSocket
+// Client-side Edge TTS using Microsoft's neural voices via WebSocket
 // This runs in the browser where WebSocket connections to Bing are allowed
 
-const VOICE = "en-US-AndrewNeural";
+const VOICE = "en-GB-RyanNeural";
 const TRUSTED_TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4";
 
 function buildSSML(text: string): string {
@@ -9,9 +9,9 @@ function buildSSML(text: string): string {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
-  return `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
+  return `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-GB'>
 <voice name='${VOICE}'>
-<prosody rate='+10%' pitch='+2Hz'>${escaped}</prosody>
+<prosody rate='-2%' pitch='-1Hz'>${escaped}</prosody>
 </voice>
 </speak>`;
 }
@@ -70,7 +70,6 @@ export async function edgeTTSSynthesize(text: string): Promise<Blob> {
           return;
         }
         const view = new Uint8Array(buf);
-        // First 2 bytes = header length (big-endian)
         const headerLen = (view[0] << 8) | view[1];
         if (view.length > headerLen + 2) {
           audioChunks.push(view.slice(headerLen + 2));
