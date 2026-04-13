@@ -11,7 +11,7 @@ let playbackAudio: HTMLAudioElement | null = null;
 let htmlAudioUnlocked = false;
 let playbackSessionId = 0;
 
-const TTS_RETRY_COOLDOWN_MS = 10_000;
+const TTS_RETRY_COOLDOWN_MS = 3_000;
 const PREMIUM_TTS_MAX_CHARS = 500;
 const SILENT_AUDIO_DATA_URL = "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
 
@@ -282,11 +282,16 @@ function markProviderSuccess(label: "ElevenLabs" | "Edge TTS"): void {
 export async function speakText(text: string): Promise<void> {
   stopSpeaking();
   const clean = stripMarkdown(text);
-  if (!clean) return;
+  if (!clean) {
+    console.warn("[Wilson TTS] No clean text to speak");
+    return;
+  }
   const premiumText = limitPremiumText(clean);
   let playbackFailed = false;
 
+  // Tier 1: ElevenLabs (premium, always try first)
   if (!playbackFailed && shouldTryProvider(providerState.elevenLabsRetryAt)) {
+    console.log("[Wilson TTS] Trying ElevenLabs...");
     const result = await tryCloudTTS(ELEVENLABS_TTS_URL, premiumText, "ElevenLabs");
     if (result === "played") {
       markProviderSuccess("ElevenLabs");
@@ -301,30 +306,18 @@ export async function speakText(text: string): Promise<void> {
     }
   }
 
-  // Tier 2: Server-side Edge TTS function
-  if (shouldTryProvider(providerState.edgeTtsRetryAt)) {
-    const edgeServerResult = await tryCloudTTS(EDGE_TTS_URL, clean.slice(0, 5000), "Edge TTS Server");
-    if (edgeServerResult === "played") {
-      markProviderSuccess("Edge TTS");
-      return;
-    }
-    if (edgeServerResult === "playback-failed") {
-      markProviderSuccess("Edge TTS");
-      playbackFailed = true;
-    } else {
-      // Tier 3: Client-side Edge TTS WebSocket fallback
-      try {
-        const audioBlob = await edgeTTSSynthesize(clean.slice(0, 5000));
-        if (audioBlob && audioBlob.size > 100) {
-          await playAudioBlob(audioBlob);
-          console.log("[Wilson TTS] Playing via Edge TTS client (RyanNeural)");
-          markProviderSuccess("Edge TTS");
-          return;
-        }
-      } catch (err) {
-        console.warn("[Wilson TTS] Edge TTS client error:", err);
+  // Tier 2: Client-side Edge TTS WebSocket (browser connects directly to Bing)
+  if (!playbackFailed) {
+    try {
+      console.log("[Wilson TTS] Trying Edge TTS client WebSocket...");
+      const audioBlob = await edgeTTSSynthesize(clean.slice(0, 5000));
+      if (audioBlob && audioBlob.size > 100) {
+        await playAudioBlob(audioBlob);
+        console.log("[Wilson TTS] Playing via Edge TTS client (RyanNeural)");
+        return;
       }
-      markProviderFailure("Edge TTS");
+    } catch (err) {
+      console.warn("[Wilson TTS] Edge TTS client error:", err);
     }
   }
 

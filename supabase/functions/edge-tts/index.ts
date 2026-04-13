@@ -18,80 +18,43 @@ function buildSSML(text: string): string {
 </speak>`;
 }
 
-async function getToken(): Promise<string> {
-  const res = await fetch(
-    "https://dev.microsofttranslator.com/apps/endpoint?api-version=1.0",
-    {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-      },
-    }
-  );
-  if (!res.ok) {
-    // Fallback: try the Edge Read Aloud token endpoint
-    const res2 = await fetch(
-      "https://edge.microsoft.com/translate/auth",
-      { method: "GET" }
-    );
-    if (!res2.ok) throw new Error("Cannot obtain TTS token");
-    return await res2.text();
-  }
-  const data = await res.json();
-  return data.t || data.token || "";
-}
-
 async function synthesize(text: string): Promise<ArrayBuffer> {
-  // Use Azure's free TTS REST endpoint (same as Edge Read Aloud)
   const ssml = buildSSML(text);
 
-  // Try the eastus region free endpoint
-  const response = await fetch(
+  // Try multiple Azure free TTS endpoints
+  const endpoints = [
+    "https://eastus.tts.speech.microsoft.com/cognitiveservices/v1",
+    "https://westus.tts.speech.microsoft.com/cognitiveservices/v1",
     "https://eastus.api.speech.microsoft.com/cognitiveservices/v1",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/ssml+xml",
-        "X-Microsoft-OutputFormat": "audio-24khz-96kbitrate-mono-mp3",
-        "User-Agent": "Mozilla/5.0",
-      },
-      body: ssml,
-    }
-  );
+  ];
 
-  // If the free endpoint requires auth, try Bing Translator TTS
-  if (!response.ok) {
-    console.log("Azure direct failed, trying Bing Translator TTS...");
-    return await synthesizeViaBing(text);
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/ssml+xml",
+          "X-Microsoft-OutputFormat": "audio-24khz-96kbitrate-mono-mp3",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        },
+        body: ssml,
+      });
+
+      if (response.ok) {
+        const buf = await response.arrayBuffer();
+        if (buf.byteLength > 100) {
+          console.log(`Edge TTS success via ${endpoint}`);
+          return buf;
+        }
+      }
+      // consume body before trying next
+      await response.text().catch(() => {});
+    } catch (e) {
+      console.warn(`Endpoint ${endpoint} failed:`, e);
+    }
   }
 
-  return await response.arrayBuffer();
-}
-
-async function synthesizeViaBing(text: string): Promise<ArrayBuffer> {
-  // Bing Translator's Read Aloud endpoint (free, no auth)
-  const params = new URLSearchParams({
-    text: text.slice(0, 3000),
-    language: "en-US",
-    voiceName: VOICE,
-    outputFormat: "audio-24khz-96kbitrate-mono-mp3",
-  });
-
-  const response = await fetch(
-    `https://api.cognitive.microsofttranslator.com/cognitiveservices/v1?${params}`,
-    {
-      method: "GET",
-      headers: {
-        "User-Agent": "Mozilla/5.0",
-      },
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(`Bing TTS failed: ${response.status}`);
-  }
-
-  return await response.arrayBuffer();
+  throw new Error("All Edge TTS endpoints failed");
 }
 
 Deno.serve(async (req) => {
@@ -109,10 +72,6 @@ Deno.serve(async (req) => {
     }
 
     const audioBuffer = await synthesize(text.slice(0, 5000));
-
-    if (!audioBuffer || audioBuffer.byteLength < 100) {
-      throw new Error("Empty audio response");
-    }
 
     return new Response(audioBuffer, {
       headers: {
