@@ -17,63 +17,17 @@ interface ChatMessageProps {
   index: number;
 }
 
-interface ChartBlock {
-  data: Record<string, unknown>[];
-  type?: "line" | "bar" | "area";
-  dataKey?: string;
-  xKey?: string;
-}
-
-function parseCharts(content: string): { segments: (string | ChartBlock)[]; cleanContent: string } {
-  const regex = /<WilsonChart\s+([\s\S]*?)\/>/g;
-  const segments: (string | ChartBlock)[] = [];
-  let lastIndex = 0;
-  let cleanContent = content;
-  let match;
-
-  while ((match = regex.exec(content)) !== null) {
-    if (match.index > lastIndex) {
-      segments.push(content.slice(lastIndex, match.index));
-    }
-    try {
-      const attrs = match[1];
-      // Extract data={...} - find balanced braces
-      const dataMatch = attrs.match(/data=\{(\[[\s\S]*?\])\}/);
-      const typeMatch = attrs.match(/type="(\w+)"/);
-      const dataKeyMatch = attrs.match(/dataKey="(\w+)"/);
-      const xKeyMatch = attrs.match(/xKey="(\w+)"/);
-
-      if (dataMatch) {
-        const data = JSON.parse(dataMatch[1]);
-        segments.push({
-          data,
-          type: (typeMatch?.[1] as "line" | "bar" | "area") || "line",
-          dataKey: dataKeyMatch?.[1],
-          xKey: xKeyMatch?.[1],
-        });
-      } else {
-        segments.push(match[0]);
-      }
-    } catch {
-      segments.push(match[0]);
-    }
-    lastIndex = match.index + match[0].length;
-  }
-
-  if (lastIndex < content.length) {
-    segments.push(content.slice(lastIndex));
-  }
-
-  cleanContent = content.replace(regex, "").trim();
-  return { segments, cleanContent };
+// Strip any leftover chart tags from content
+function stripChartTags(content: string): string {
+  return content.replace(/<WilsonChart\s+[\s\S]*?\/>/g, "").trim();
 }
 
 const ChatMessage = ({ message, index }: ChatMessageProps) => {
   const isWilson = message.role === "assistant";
   const [copied, setCopied] = useState(false);
 
-  const { segments, cleanContent } = useMemo(
-    () => (isWilson ? parseCharts(message.content) : { segments: [message.content], cleanContent: message.content }),
+  const cleanContent = useMemo(
+    () => (isWilson ? stripChartTags(message.content) : message.content),
     [message.content, isWilson]
   );
 
@@ -113,13 +67,7 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
           </span>
         )}
         <div className={`wilson-prose text-sm ${isWilson ? "" : "text-foreground/90"}`}>
-          {segments.map((seg, i) =>
-            typeof seg === "string" ? (
-              <div key={i} dangerouslySetInnerHTML={{ __html: markdownToHtml(seg) }} />
-            ) : (
-              <WilsonChart key={i} data={seg.data} type={seg.type} dataKey={seg.dataKey} xKey={seg.xKey} />
-            )
-          )}
+          <div dangerouslySetInnerHTML={{ __html: markdownToHtml(cleanContent) }} />
         </div>
         <div className="flex items-center justify-between mt-2">
           <span className="text-[10px] text-muted-foreground">
