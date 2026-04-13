@@ -4,16 +4,16 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-const VOICE = "en-US-AndrewNeural";
+const VOICE = "en-GB-RyanNeural";
 
 function buildSSML(text: string): string {
   const escaped = text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
-  return `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
+  return `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-GB'>
 <voice name='${VOICE}'>
-<prosody rate='+10%' pitch='+2Hz'>${escaped}</prosody>
+<prosody rate='-2%' pitch='-1Hz'>${escaped}</prosody>
 </voice>
 </speak>`;
 }

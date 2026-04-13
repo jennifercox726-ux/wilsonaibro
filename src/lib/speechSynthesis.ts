@@ -3,6 +3,7 @@
 import { edgeTTSSynthesize } from "./edgeTTS";
 
 const ELEVENLABS_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`;
+const EDGE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/edge-tts`;
 
 let currentAudio: HTMLAudioElement | null = null;
 let currentAudioUrl: string | null = null;
@@ -300,18 +301,29 @@ export async function speakText(text: string): Promise<void> {
     }
   }
 
+  // Tier 2: Server-side Edge TTS function
   if (shouldTryProvider(providerState.edgeTtsRetryAt)) {
-    try {
-      const audioBlob = await edgeTTSSynthesize(clean.slice(0, 5000));
-      if (audioBlob && audioBlob.size > 100) {
-        await playAudioBlob(audioBlob);
-        console.log("[Wilson TTS] Playing via Edge TTS (RyanNeural)");
-        markProviderSuccess("Edge TTS");
-        return;
+    const edgeServerResult = await tryCloudTTS(EDGE_TTS_URL, clean.slice(0, 5000), "Edge TTS Server");
+    if (edgeServerResult === "played") {
+      markProviderSuccess("Edge TTS");
+      return;
+    }
+    if (edgeServerResult === "playback-failed") {
+      markProviderSuccess("Edge TTS");
+      playbackFailed = true;
+    } else {
+      // Tier 3: Client-side Edge TTS WebSocket fallback
+      try {
+        const audioBlob = await edgeTTSSynthesize(clean.slice(0, 5000));
+        if (audioBlob && audioBlob.size > 100) {
+          await playAudioBlob(audioBlob);
+          console.log("[Wilson TTS] Playing via Edge TTS client (RyanNeural)");
+          markProviderSuccess("Edge TTS");
+          return;
+        }
+      } catch (err) {
+        console.warn("[Wilson TTS] Edge TTS client error:", err);
       }
-      markProviderFailure("Edge TTS");
-    } catch (err) {
-      console.warn("[Wilson TTS] Edge TTS client error:", err);
       markProviderFailure("Edge TTS");
     }
   }
