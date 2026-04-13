@@ -1,4 +1,4 @@
-// Wilson TTS — 3-tier fallback: ElevenLabs → Edge TTS (client-side, free neural) → Browser voice
+// Wilson TTS — natural voices only: ElevenLabs → Edge TTS → silent
 
 import { edgeTTSSynthesize } from "./edgeTTS";
 
@@ -7,13 +7,11 @@ const ELEVENLABS_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/el
 let currentAudio: HTMLAudioElement | null = null;
 let currentAudioUrl: string | null = null;
 let playbackAudio: HTMLAudioElement | null = null;
-let ttsUnlocked = false;
 let htmlAudioUnlocked = false;
 let playbackSessionId = 0;
 
 const TTS_RETRY_COOLDOWN_MS = 10_000;
 const PREMIUM_TTS_MAX_CHARS = 500;
-const BROWSER_FALLBACK_MAX_CHARS = 3000;
 const SILENT_AUDIO_DATA_URL = "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
 
 const providerState = {
@@ -87,24 +85,6 @@ function stripMarkdown(text: string): string {
     .replace(/\n{2,}/g, ". ")
     .replace(/\n/g, " ")
     .trim();
-}
-
-function chunkText(text: string, maxLen = 180): string[] {
-  if (text.length <= maxLen) return [text];
-  const chunks: string[] = [];
-  const sentences = text.match(/[^.!?]+[.!?]+[\s]*/g) || [text];
-  let current = "";
-  for (const sentence of sentences) {
-    if (current.length + sentence.length > maxLen && current.length > 0) {
-      chunks.push(current.trim());
-      current = sentence;
-    } else {
-      current += sentence;
-    }
-  }
-  if (current.trim()) chunks.push(current.trim());
-  if (chunks.length === 0) chunks.push(text.slice(0, maxLen));
-  return chunks;
 }
 
 function limitPremiumText(text: string, maxLen = PREMIUM_TTS_MAX_CHARS): string {
@@ -181,24 +161,6 @@ async function playAudioBlob(audioBlob: Blob): Promise<void> {
   }
 }
 
-function pickVoice(): SpeechSynthesisVoice | null {
-  const voices = window.speechSynthesis.getVoices();
-  if (voices.length === 0) return null;
-  const preferredNames = [
-    "Daniel", "Aaron", "Google UK English Male", "Microsoft Guy Online",
-    "Microsoft Ryan Online", "Google US English", "Rishi", "Tom", "Alex",
-  ];
-  for (const name of preferredNames) {
-    const match = voices.find((v) => v.name.includes(name) && v.lang.startsWith("en"));
-    if (match) return match;
-  }
-  return (
-    voices.find((v) => v.lang.startsWith("en-") && !v.name.toLowerCase().includes("female")) ||
-    voices.find((v) => v.lang.startsWith("en")) ||
-    voices[0]
-  );
-}
-
 function unlockHtmlAudio(): void {
   const audio = getPlaybackAudio();
   if (!audio || htmlAudioUnlocked) return;
@@ -236,40 +198,8 @@ function unlockHtmlAudio(): void {
 
 export function unlockTTS(): void {
   unlockHtmlAudio();
-  if (!window.speechSynthesis) return;
-  if (ttsUnlocked) return;
-  const silent = new SpeechSynthesisUtterance(" ");
-  silent.volume = 0.01;
-  silent.rate = 10;
-  window.speechSynthesis.getVoices();
-  window.speechSynthesis.speak(silent);
-  ttsUnlocked = true;
-  console.log("[Wilson TTS] Speech engine unlocked via gesture");
 }
 
-function speakWithBrowser(text: string): void {
-  if (!window.speechSynthesis) {
-    console.warn("[Wilson TTS] No browser speechSynthesis available");
-    return;
-  }
-  window.speechSynthesis.cancel();
-  const voice = pickVoice();
-  console.log("[Wilson TTS] Browser voice:", voice?.name || "none");
-  const trimmed = text.length > 800 ? text.slice(0, 800).replace(/[^.!?]*$/, "") + "..." : text;
-  const chunks = chunkText(trimmed);
-  for (let i = 0; i < chunks.length; i++) {
-    const utterance = new SpeechSynthesisUtterance(chunks[i]);
-    utterance.rate = 0.95;
-    utterance.pitch = 0.9;
-    utterance.volume = 1.0;
-    utterance.lang = "en-GB";
-    if (voice) utterance.voice = voice;
-    utterance.onerror = (e) => console.error("[Wilson TTS] Chunk", i, "error:", e.error);
-    window.speechSynthesis.speak(utterance);
-  }
-}
-
-/** Try to play audio from a TTS endpoint. Returns true on success. */
 async function tryCloudTTS(url: string, text: string, label: string): Promise<CloudTTSResult> {
   let response: Response;
 
@@ -355,24 +285,6 @@ export async function speakText(text: string): Promise<void> {
   const premiumText = limitPremiumText(clean);
   let playbackFailed = false;
 
-  // Tier 1: Edge TTS (client-side, free neural voices — always try first for reliability)
-  if (shouldTryProvider(providerState.edgeTtsRetryAt)) {
-    try {
-      const audioBlob = await edgeTTSSynthesize(clean.slice(0, 5000));
-      if (audioBlob && audioBlob.size > 100) {
-        await playAudioBlob(audioBlob);
-        console.log("[Wilson TTS] Playing via Edge TTS (client-side)");
-        markProviderSuccess("Edge TTS");
-        return;
-      }
-      markProviderFailure("Edge TTS");
-    } catch (err) {
-      console.warn("[Wilson TTS] Edge TTS client error:", err);
-      markProviderFailure("Edge TTS");
-    }
-  }
-
-  // Tier 2: ElevenLabs (premium, quota-limited)
   if (!playbackFailed && shouldTryProvider(providerState.elevenLabsRetryAt)) {
     const result = await tryCloudTTS(ELEVENLABS_TTS_URL, premiumText, "ElevenLabs");
     if (result === "played") {
@@ -388,7 +300,22 @@ export async function speakText(text: string): Promise<void> {
     }
   }
 
-  // NO browser fallback — Wilson stays silent rather than sounding robotic
+  if (shouldTryProvider(providerState.edgeTtsRetryAt)) {
+    try {
+      const audioBlob = await edgeTTSSynthesize(clean.slice(0, 5000));
+      if (audioBlob && audioBlob.size > 100) {
+        await playAudioBlob(audioBlob);
+        console.log("[Wilson TTS] Playing via Edge TTS (RyanNeural)");
+        markProviderSuccess("Edge TTS");
+        return;
+      }
+      markProviderFailure("Edge TTS");
+    } catch (err) {
+      console.warn("[Wilson TTS] Edge TTS client error:", err);
+      markProviderFailure("Edge TTS");
+    }
+  }
+
   console.warn("[Wilson TTS] All natural voice providers unavailable; staying silent to preserve Wilson's identity");
 }
 
@@ -401,12 +328,10 @@ export function stopSpeaking(): void {
   resetAudioElement(getPlaybackAudio());
   currentAudio = null;
   revokeCurrentAudioUrl();
-  if (window.speechSynthesis) window.speechSynthesis.cancel();
 }
 
 export function isSpeaking(): boolean {
   const audio = currentAudio ?? playbackAudio;
-  if (audio && !audio.paused && !audio.ended) return true;
-  if (window.speechSynthesis?.speaking) return true;
-  return false;
+  return !!(audio && !audio.paused && !audio.ended);
 }
+
