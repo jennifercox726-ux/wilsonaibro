@@ -167,6 +167,9 @@ serve(async (req) => {
           if (user) {
             const ctx = await getUserContext(user.id);
             contextBlock = ctx.analytics;
+            if (ctx.memory) {
+              contextBlock += ctx.memory;
+            }
             if (ctx.dream) {
               contextBlock += `\n\n## USER'S CORE DREAM\nThe user's current dream/goal: "${ctx.dream}"\nSubtly tie your advice back to this dream when relevant.`;
             }
