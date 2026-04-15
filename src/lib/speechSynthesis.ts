@@ -321,7 +321,101 @@ export async function speakText(text: string): Promise<void> {
     }
   }
 
-  console.warn("[Wilson TTS] All natural voice providers unavailable; staying silent to preserve Wilson's identity");
+  // Tier 3: Web Speech API with premium system voices (FREE, no credits)
+  if (!playbackFailed && typeof window !== "undefined" && window.speechSynthesis) {
+    try {
+      console.log("[Wilson TTS] Trying Web Speech API with premium voice...");
+      await speakWithWebSpeechAPI(clean);
+      console.log("[Wilson TTS] Playing via Web Speech API");
+      return;
+    } catch (err) {
+      console.warn("[Wilson TTS] Web Speech API failed:", err);
+    }
+  }
+
+  console.warn("[Wilson TTS] All voice providers unavailable; staying silent to preserve Wilson's identity");
+}
+
+// --- Web Speech API: hunt for premium/natural system voices ---
+
+let cachedPremiumVoice: SpeechSynthesisVoice | null = null;
+
+function getPremiumVoice(): SpeechSynthesisVoice | null {
+  if (cachedPremiumVoice) return cachedPremiumVoice;
+
+  const voices = window.speechSynthesis.getVoices();
+  if (!voices.length) return null;
+
+  // Priority order: look for the best natural-sounding English voices
+  const preferencePatterns = [
+    /Google US English/i,
+    /Google UK English Male/i,
+    /Microsoft Ryan/i,
+    /Microsoft Guy/i,
+    /Microsoft Mark/i,
+    /Daniel/i,
+    /Aaron/i,
+    /Natural/i,
+    /Premium/i,
+    /Enhanced/i,
+  ];
+
+  for (const pattern of preferencePatterns) {
+    const match = voices.find(v => pattern.test(v.name) && v.lang.startsWith("en"));
+    if (match) {
+      cachedPremiumVoice = match;
+      console.log(`[Wilson TTS] Selected premium voice: ${match.name}`);
+      return match;
+    }
+  }
+
+  // Fallback: any English voice
+  const anyEnglish = voices.find(v => v.lang.startsWith("en"));
+  if (anyEnglish) {
+    cachedPremiumVoice = anyEnglish;
+    console.log(`[Wilson TTS] Using English fallback voice: ${anyEnglish.name}`);
+    return anyEnglish;
+  }
+
+  return null;
+}
+
+function speakWithWebSpeechAPI(text: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const synth = window.speechSynthesis;
+    synth.cancel(); // clear queue
+
+    const utterance = new SpeechSynthesisUtterance(text.slice(0, 3000));
+    const voice = getPremiumVoice();
+    if (voice) utterance.voice = voice;
+
+    utterance.pitch = 1.0;
+    utterance.rate = 0.92;
+    utterance.volume = 1.0;
+
+    utterance.onend = () => resolve();
+    utterance.onerror = (e) => reject(e);
+
+    // Chrome bug: voices may not be loaded yet
+    if (!voice && synth.getVoices().length === 0) {
+      synth.onvoiceschanged = () => {
+        const v = getPremiumVoice();
+        if (v) utterance.voice = v;
+        synth.speak(utterance);
+      };
+    } else {
+      synth.speak(utterance);
+    }
+
+    // Safety timeout
+    setTimeout(() => {
+      if (synth.speaking) {
+        // Still speaking, that's fine - let it finish
+      } else {
+        reject(new Error("Web Speech API did not start"));
+      }
+    }, 2000);
+  });
 }
 
 export function stopSpeaking(): void {
@@ -333,10 +427,16 @@ export function stopSpeaking(): void {
   resetAudioElement(getPlaybackAudio());
   currentAudio = null;
   revokeCurrentAudioUrl();
+  // Also stop Web Speech API
+  if (typeof window !== "undefined" && window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+  }
 }
 
 export function isSpeaking(): boolean {
   const audio = currentAudio ?? playbackAudio;
-  return !!(audio && !audio.paused && !audio.ended);
+  const audioPlaying = !!(audio && !audio.paused && !audio.ended);
+  const webSpeechPlaying = typeof window !== "undefined" && window.speechSynthesis?.speaking;
+  return audioPlaying || !!webSpeechPlaying;
 }
 
