@@ -11,7 +11,7 @@ let playbackAudio: HTMLAudioElement | null = null;
 let htmlAudioUnlocked = false;
 let playbackSessionId = 0;
 
-const TTS_RETRY_COOLDOWN_MS = 3_000;
+const TTS_RETRY_COOLDOWN_MS = 30_000;
 const PREMIUM_TTS_MAX_CHARS = 500;
 const SILENT_AUDIO_DATA_URL = "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
 
@@ -346,18 +346,23 @@ function getPremiumVoice(): SpeechSynthesisVoice | null {
   const voices = window.speechSynthesis.getVoices();
   if (!voices.length) return null;
 
-  // Priority order: look for the best natural-sounding English voices
+  // Priority order: hunt for the best natural-sounding English male voices
   const preferencePatterns = [
-    /Google US English/i,
-    /Google UK English Male/i,
-    /Microsoft Ryan/i,
-    /Microsoft Guy/i,
+    /Microsoft Ryan.*Natural/i,
+    /Microsoft Guy.*Natural/i,
     /Microsoft Mark/i,
+    /Google UK English Male/i,
+    /Google US English/i,
     /Daniel/i,
     /Aaron/i,
+    /James/i,
+    /Arthur/i,
+    /Thomas/i,
+    /Ryan/i,
     /Natural/i,
     /Premium/i,
     /Enhanced/i,
+    /Online/i,
   ];
 
   for (const pattern of preferencePatterns) {
@@ -389,9 +394,10 @@ function speakWithWebSpeechAPI(text: string): Promise<void> {
     const voice = getPremiumVoice();
     if (voice) utterance.voice = voice;
 
-    utterance.pitch = 1.0;
-    utterance.rate = 0.92;
+    utterance.pitch = 0.95;
+    utterance.rate = 0.88;
     utterance.volume = 1.0;
+    utterance.lang = "en-GB";
 
     utterance.onend = () => resolve();
     utterance.onerror = (e) => reject(e);
