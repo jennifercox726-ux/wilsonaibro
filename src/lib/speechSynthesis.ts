@@ -427,10 +427,16 @@ export function stopSpeaking(): void {
   resetAudioElement(getPlaybackAudio());
   currentAudio = null;
   revokeCurrentAudioUrl();
+  // Also stop Web Speech API
+  if (typeof window !== "undefined" && window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+  }
 }
 
 export function isSpeaking(): boolean {
   const audio = currentAudio ?? playbackAudio;
-  return !!(audio && !audio.paused && !audio.ended);
+  const audioPlaying = !!(audio && !audio.paused && !audio.ended);
+  const webSpeechPlaying = typeof window !== "undefined" && window.speechSynthesis?.speaking;
+  return audioPlaying || !!webSpeechPlaying;
 }
 
