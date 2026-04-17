@@ -1,8 +1,9 @@
-// Wilson TTS — natural voices only: ElevenLabs → Edge TTS → silent
+// Wilson TTS — natural voices only: ElevenLabs → Google TTS → Edge TTS → Web Speech
 
 import { edgeTTSSynthesize } from "./edgeTTS";
 
 const ELEVENLABS_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`;
+const GOOGLE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-tts`;
 const EDGE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/edge-tts`;
 
 let currentAudio: HTMLAudioElement | null = null;
@@ -306,7 +307,20 @@ export async function speakText(text: string): Promise<void> {
     }
   }
 
-  // Tier 2: Client-side Edge TTS WebSocket (browser connects directly to Bing)
+  // Tier 2: Google TTS cloud fallback (stable natural voice, no local voice dependency)
+  if (!playbackFailed) {
+    console.log("[Wilson TTS] Trying Google TTS...");
+    const result = await tryCloudTTS(GOOGLE_TTS_URL, premiumText, "Google TTS");
+    if (result === "played") {
+      return;
+    }
+
+    if (result === "playback-failed") {
+      playbackFailed = true;
+    }
+  }
+
+  // Tier 3: Client-side Edge TTS WebSocket (browser connects directly to Bing)
   if (!playbackFailed) {
     try {
       console.log("[Wilson TTS] Trying Edge TTS client WebSocket...");
@@ -321,7 +335,7 @@ export async function speakText(text: string): Promise<void> {
     }
   }
 
-  // Tier 3: Web Speech API with premium system voices (FREE, no credits)
+  // Tier 4: Web Speech API with premium system voices (FREE, no credits)
   if (!playbackFailed && typeof window !== "undefined" && window.speechSynthesis) {
     try {
       console.log("[Wilson TTS] Trying Web Speech API with premium voice...");
@@ -397,30 +411,53 @@ function speakWithWebSpeechAPI(text: string): Promise<void> {
     utterance.pitch = 0.95;
     utterance.rate = 0.88;
     utterance.volume = 1.0;
-    utterance.lang = "en-GB";
+    utterance.lang = voice?.lang || "en-GB";
 
-    utterance.onend = () => resolve();
-    utterance.onerror = (e) => reject(e);
+    let started = false;
+    let timeoutId: number | null = null;
+
+    utterance.onstart = () => {
+      started = true;
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+    utterance.onend = () => {
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+      resolve();
+    };
+    utterance.onerror = (e) => {
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+      reject(e);
+    };
+
+    const speakNow = () => {
+      synth.speak(utterance);
+      timeoutId = window.setTimeout(() => {
+        if (!started && !synth.speaking) {
+          reject(new Error("Web Speech API did not start"));
+        }
+      }, 2500);
+    };
 
     // Chrome bug: voices may not be loaded yet
     if (!voice && synth.getVoices().length === 0) {
       synth.onvoiceschanged = () => {
         const v = getPremiumVoice();
-        if (v) utterance.voice = v;
-        synth.speak(utterance);
+        if (v) {
+          utterance.voice = v;
+          utterance.lang = v.lang;
+        }
+        synth.onvoiceschanged = null;
+        speakNow();
       };
     } else {
-      synth.speak(utterance);
+      speakNow();
     }
-
-    // Safety timeout
-    setTimeout(() => {
-      if (synth.speaking) {
-        // Still speaking, that's fine - let it finish
-      } else {
-        reject(new Error("Web Speech API did not start"));
-      }
-    }, 2000);
   });
 }
 
