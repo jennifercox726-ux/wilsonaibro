@@ -258,18 +258,31 @@ async function trySpeakWebSpeech(text: string): Promise<boolean> {
   }
 }
 
-async function trySpeakEdgeTTS(text: string): Promise<boolean> {
+async function trySpeakEdgeTTSBrowser(text: string): Promise<boolean> {
   try {
     const audioBlob = await edgeTTSSynthesize(text.slice(0, 5000));
     if (audioBlob && audioBlob.size > 100) {
       await playAudioBlob(audioBlob);
-      console.log("[Wilson TTS] Played via Edge TTS");
+      console.log("[Wilson TTS] Played via Edge TTS (browser WS)");
       return true;
     }
   } catch (err) {
-    console.warn("[Wilson TTS] Edge TTS failed:", err);
+    console.warn("[Wilson TTS] Browser Edge TTS failed:", err);
   }
   return false;
+}
+
+async function trySpeakEdgeTTSServer(text: string): Promise<boolean> {
+  const blob = await fetchEdgeTTSFromServer(text.slice(0, 5000));
+  if (!blob) return false;
+  try {
+    await playAudioBlob(blob);
+    console.log("[Wilson TTS] Played via Edge TTS (server proxy)");
+    return true;
+  } catch (err) {
+    console.warn("[Wilson TTS] Server Edge TTS playback failed:", err);
+    return false;
+  }
 }
 
 export async function speakText(text: string): Promise<void> {
@@ -280,16 +293,15 @@ export async function speakText(text: string): Promise<void> {
     return;
   }
 
-  // iOS Safari: Web Speech API works natively and reliably; Edge TTS WebSocket
-  // is often blocked. Use Web Speech FIRST and synchronously to keep gesture.
-  if (isIOS()) {
-    if (await trySpeakWebSpeech(clean)) return;
-    if (await trySpeakEdgeTTS(clean)) return;
-  } else {
-    // Desktop / Android: Edge TTS gives the best neural voice
-    if (await trySpeakEdgeTTS(clean)) return;
-    if (await trySpeakWebSpeech(clean)) return;
-  }
+  // 1. Server-proxied Microsoft Edge TTS — natural neural voice, MP3 blob,
+  //    works on iOS Safari because there's no client WebSocket involved.
+  if (await trySpeakEdgeTTSServer(clean)) return;
+
+  // 2. Browser-direct Edge TTS WebSocket — desktop / Android fallback.
+  if (await trySpeakEdgeTTSBrowser(clean)) return;
+
+  // 3. Web Speech API — last resort, uses local system voice.
+  if (await trySpeakWebSpeech(clean)) return;
 
   console.warn("[Wilson TTS] All voice providers unavailable; staying silent");
 }
