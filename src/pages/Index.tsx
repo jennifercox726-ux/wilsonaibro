@@ -8,6 +8,7 @@ import ChatMessage, { Message } from "@/components/ChatMessage";
 import ChatInput from "@/components/ChatInput";
 import WilsonOrb, { WilsonVibe } from "@/components/WilsonOrb";
 import NeuralNebula from "@/components/NeuralNebula";
+import IOSIframeBanner from "@/components/IOSIframeBanner";
 import { speakText, stopSpeaking, unlockTTS } from "@/lib/speechSynthesis";
 import { useReferral } from "@/hooks/useReferral";
 
@@ -438,6 +439,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
 
   return (
     <div className="h-screen flex overflow-hidden aurora-bg">
+      <IOSIframeBanner />
       <ChatSidebar
         chats={chats}
         activeChat={activeChat}
