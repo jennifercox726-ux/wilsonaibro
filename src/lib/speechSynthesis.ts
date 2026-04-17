@@ -169,6 +169,38 @@ export function unlockTTS(): void {
   unlockHtmlAudio();
 }
 
+function isIOS(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  return /iPad|iPhone|iPod/.test(ua) || (ua.includes("Mac") && "ontouchend" in document);
+}
+
+async function trySpeakWebSpeech(text: string): Promise<boolean> {
+  if (typeof window === "undefined" || !window.speechSynthesis) return false;
+  try {
+    await speakWithWebSpeechAPI(text);
+    console.log("[Wilson TTS] Played via Web Speech API");
+    return true;
+  } catch (err) {
+    console.warn("[Wilson TTS] Web Speech API failed:", err);
+    return false;
+  }
+}
+
+async function trySpeakEdgeTTS(text: string): Promise<boolean> {
+  try {
+    const audioBlob = await edgeTTSSynthesize(text.slice(0, 5000));
+    if (audioBlob && audioBlob.size > 100) {
+      await playAudioBlob(audioBlob);
+      console.log("[Wilson TTS] Played via Edge TTS");
+      return true;
+    }
+  } catch (err) {
+    console.warn("[Wilson TTS] Edge TTS failed:", err);
+  }
+  return false;
+}
+
 export async function speakText(text: string): Promise<void> {
   stopSpeaking();
   const clean = stripMarkdown(text);
@@ -177,29 +209,15 @@ export async function speakText(text: string): Promise<void> {
     return;
   }
 
-  // Tier 1: Edge TTS WebSocket — en-US-GuyNeural (free, neural quality)
-  try {
-    console.log("[Wilson TTS] Trying Edge TTS (GuyNeural)...");
-    const audioBlob = await edgeTTSSynthesize(clean.slice(0, 5000));
-    if (audioBlob && audioBlob.size > 100) {
-      await playAudioBlob(audioBlob);
-      console.log("[Wilson TTS] Playing via Edge TTS");
-      return;
-    }
-  } catch (err) {
-    console.warn("[Wilson TTS] Edge TTS failed:", err);
-  }
-
-  // Tier 3: Web Speech API — best available system voice
-  if (typeof window !== "undefined" && window.speechSynthesis) {
-    try {
-      console.log("[Wilson TTS] Falling back to Web Speech API...");
-      await speakWithWebSpeechAPI(clean);
-      console.log("[Wilson TTS] Playing via Web Speech API");
-      return;
-    } catch (err) {
-      console.warn("[Wilson TTS] Web Speech API failed:", err);
-    }
+  // iOS Safari: Web Speech API works natively and reliably; Edge TTS WebSocket
+  // is often blocked. Use Web Speech FIRST and synchronously to keep gesture.
+  if (isIOS()) {
+    if (await trySpeakWebSpeech(clean)) return;
+    if (await trySpeakEdgeTTS(clean)) return;
+  } else {
+    // Desktop / Android: Edge TTS gives the best neural voice
+    if (await trySpeakEdgeTTS(clean)) return;
+    if (await trySpeakWebSpeech(clean)) return;
   }
 
   console.warn("[Wilson TTS] All voice providers unavailable; staying silent");
