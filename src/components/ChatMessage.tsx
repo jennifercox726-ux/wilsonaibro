@@ -26,6 +26,7 @@ function stripChartTags(content: string): string {
 const ChatMessage = ({ message, index }: ChatMessageProps) => {
   const isWilson = message.role === "assistant";
   const [copied, setCopied] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
 
   const cleanContent = useMemo(
     () => (isWilson ? stripChartTags(message.content) : message.content),
@@ -47,6 +48,19 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
+  };
+
+  const handleSpeak = () => {
+    // CRITICAL: stay synchronous in this click handler so iOS Safari
+    // keeps the user-gesture context required for audio playback.
+    if (speaking) {
+      stopSpeaking();
+      setSpeaking(false);
+      return;
+    }
+    unlockTTS();
+    setSpeaking(true);
+    speakText(cleanContent).finally(() => setSpeaking(false));
   };
 
   return (
