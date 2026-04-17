@@ -1,6 +1,39 @@
-// Wilson TTS — free only: Edge TTS (browser WebSocket → Microsoft Bing) → Web Speech fallback
+// Wilson TTS — Microsoft Edge neural voice via Supabase edge function (free, works on iOS)
+// Fallbacks: browser-direct Edge TTS WebSocket → Web Speech API
 
 import { edgeTTSSynthesize } from "./edgeTTS";
+import { supabase } from "@/integrations/supabase/client";
+
+const EDGE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/edge-tts`;
+
+async function fetchEdgeTTSFromServer(text: string): Promise<Blob | null> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    const resp = await fetch(EDGE_TTS_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      },
+      body: JSON.stringify({ text }),
+    });
+    if (!resp.ok) {
+      console.warn("[Wilson TTS] Server edge-tts non-OK:", resp.status);
+      return null;
+    }
+    const blob = await resp.blob();
+    if (blob.size < 200) {
+      console.warn("[Wilson TTS] Server edge-tts blob too small:", blob.size);
+      return null;
+    }
+    return blob;
+  } catch (err) {
+    console.warn("[Wilson TTS] Server edge-tts request failed:", err);
+    return null;
+  }
+}
 
 let currentAudio: HTMLAudioElement | null = null;
 let currentAudioUrl: string | null = null;
@@ -225,18 +258,31 @@ async function trySpeakWebSpeech(text: string): Promise<boolean> {
   }
 }
 
-async function trySpeakEdgeTTS(text: string): Promise<boolean> {
+async function trySpeakEdgeTTSBrowser(text: string): Promise<boolean> {
   try {
     const audioBlob = await edgeTTSSynthesize(text.slice(0, 5000));
     if (audioBlob && audioBlob.size > 100) {
       await playAudioBlob(audioBlob);
-      console.log("[Wilson TTS] Played via Edge TTS");
+      console.log("[Wilson TTS] Played via Edge TTS (browser WS)");
       return true;
     }
   } catch (err) {
-    console.warn("[Wilson TTS] Edge TTS failed:", err);
+    console.warn("[Wilson TTS] Browser Edge TTS failed:", err);
   }
   return false;
+}
+
+async function trySpeakEdgeTTSServer(text: string): Promise<boolean> {
+  const blob = await fetchEdgeTTSFromServer(text.slice(0, 5000));
+  if (!blob) return false;
+  try {
+    await playAudioBlob(blob);
+    console.log("[Wilson TTS] Played via Edge TTS (server proxy)");
+    return true;
+  } catch (err) {
+    console.warn("[Wilson TTS] Server Edge TTS playback failed:", err);
+    return false;
+  }
 }
 
 export async function speakText(text: string): Promise<void> {
@@ -247,16 +293,15 @@ export async function speakText(text: string): Promise<void> {
     return;
   }
 
-  // iOS Safari: Web Speech API works natively and reliably; Edge TTS WebSocket
-  // is often blocked. Use Web Speech FIRST and synchronously to keep gesture.
-  if (isIOS()) {
-    if (await trySpeakWebSpeech(clean)) return;
-    if (await trySpeakEdgeTTS(clean)) return;
-  } else {
-    // Desktop / Android: Edge TTS gives the best neural voice
-    if (await trySpeakEdgeTTS(clean)) return;
-    if (await trySpeakWebSpeech(clean)) return;
-  }
+  // 1. Server-proxied Microsoft Edge TTS — natural neural voice, MP3 blob,
+  //    works on iOS Safari because there's no client WebSocket involved.
+  if (await trySpeakEdgeTTSServer(clean)) return;
+
+  // 2. Browser-direct Edge TTS WebSocket — desktop / Android fallback.
+  if (await trySpeakEdgeTTSBrowser(clean)) return;
+
+  // 3. Web Speech API — last resort, uses local system voice.
+  if (await trySpeakWebSpeech(clean)) return;
 
   console.warn("[Wilson TTS] All voice providers unavailable; staying silent");
 }
