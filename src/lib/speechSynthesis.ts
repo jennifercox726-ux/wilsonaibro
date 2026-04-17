@@ -167,42 +167,43 @@ function unlockHtmlAudio(): void {
 
 export function unlockTTS(): void {
   unlockHtmlAudio();
-  // Also prime Web Speech on iOS — speaking an empty utterance inside a
-  // gesture unlocks future synth.speak() calls.
-  if (typeof window !== "undefined" && window.speechSynthesis) {
-    try {
-      const u = new SpeechSynthesisUtterance("");
-      u.volume = 0;
-      window.speechSynthesis.speak(u);
-    } catch { /* ignore */ }
-  }
 }
 
 // SYNCHRONOUS iOS-friendly speak: call this DIRECTLY inside a click handler.
-// Returns true if it kicked off synthesis. No awaits before synth.speak().
+// No awaits before synth.speak(). Voice is set only if already loaded;
+// otherwise we let the browser pick its default (still works on iOS).
 export function speakTextSync(text: string): boolean {
   if (typeof window === "undefined" || !window.speechSynthesis) return false;
   const synth = window.speechSynthesis;
-  synth.cancel();
 
   const clean = stripMarkdown(text).slice(0, 3000);
   if (!clean) return false;
 
+  // Build utterance FIRST while still in the gesture tick
   const utterance = new SpeechSynthesisUtterance(clean);
-  const voice = getPremiumVoice();
-  if (voice) {
-    utterance.voice = voice;
-    utterance.lang = voice.lang;
-  } else {
-    utterance.lang = "en-US";
-  }
-  utterance.pitch = 0.95;
-  utterance.rate = 0.9;
+  utterance.lang = "en-US";
+  utterance.pitch = 1.0;
+  utterance.rate = 1.0;
   utterance.volume = 1.0;
 
-  // CRITICAL: speak() must be called synchronously in the same tick as the click
+  // Try to assign a premium voice ONLY if voices are already loaded.
+  // On iOS first call, voices may be empty — that's fine, default voice works.
+  const voices = synth.getVoices();
+  if (voices.length > 0) {
+    const preferred =
+      voices.find(v => /Daniel/i.test(v.name) && v.lang.startsWith("en")) ||
+      voices.find(v => /Samantha/i.test(v.name) && v.lang.startsWith("en")) ||
+      voices.find(v => v.lang.startsWith("en"));
+    if (preferred) {
+      utterance.voice = preferred;
+      utterance.lang = preferred.lang;
+    }
+  }
+
+  // CRITICAL iOS sequence: cancel any pending, then speak in same tick
+  synth.cancel();
   synth.speak(utterance);
-  console.log("[Wilson TTS] speakTextSync invoked (Web Speech)");
+  console.log("[Wilson TTS] speakTextSync invoked, voices loaded:", voices.length);
   return true;
 }
 
