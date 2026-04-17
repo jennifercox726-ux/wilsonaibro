@@ -1,9 +1,6 @@
-// Wilson TTS — natural voices only: ElevenLabs → Edge TTS → Web Speech
+// Wilson TTS — free neural voice only: Edge TTS (en-GB-RyanNeural) → Web Speech fallback
 
 import { edgeTTSSynthesize } from "./edgeTTS";
-
-const ELEVENLABS_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`;
-const EDGE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/edge-tts`;
 
 let currentAudio: HTMLAudioElement | null = null;
 let currentAudioUrl: string | null = null;
