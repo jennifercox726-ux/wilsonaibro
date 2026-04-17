@@ -9,7 +9,8 @@ const corsHeaders = {
 };
 
 const TRUSTED_TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4";
-const VOICE = "en-US-GuyNeural";
+// Most natural free Microsoft neural voice — warm, conversational male
+const VOICE = "en-US-AndrewMultilingualNeural";
 
 function uuidNoDashes(): string {
   return crypto.randomUUID().replace(/-/g, "");
@@ -22,7 +23,7 @@ function buildSSML(text: string): string {
     .replace(/>/g, "&gt;");
   return `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
 <voice name='${VOICE}'>
-<prosody rate='-2%' pitch='-1Hz'>${escaped}</prosody>
+<prosody rate='+0%' pitch='+0Hz'>${escaped}</prosody>
 </voice>
 </speak>`;
 }
