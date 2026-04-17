@@ -1,25 +1,35 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Send, Mic, MicOff } from "lucide-react";
+import { toast } from "sonner";
+import { useSpeechToText } from "@/hooks/useSpeechToText";
 
 interface ChatInputProps {
   onSend: (message: string) => void;
   disabled?: boolean;
 }
 
-// Check for Speech Recognition API
-const SpeechRecognition =
-  typeof window !== "undefined"
-    ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    : null;
+const isSpeechSupported =
+  typeof window !== "undefined" &&
+  ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
 
 const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
   const [input, setInput] = useState("");
   const [isFocused, setIsFocused] = useState(false);
-  const [isListening, setIsListening] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const recognitionRef = useRef<any>(null);
+  const baseInputRef = useRef<string>("");
 
+  const {
+    isListening,
+    transcript,
+    finalTranscript,
+    error,
+    startListening,
+    stopListening,
+    resetTranscript,
+  } = useSpeechToText();
+
+  // Auto-grow textarea
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
@@ -27,10 +37,32 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
     }
   }, [input]);
 
+  // Live interim transcription mirrored into the input
+  useEffect(() => {
+    if (!isListening) return;
+    const combined = (baseInputRef.current + (baseInputRef.current ? " " : "") + transcript).trimStart();
+    setInput(combined);
+  }, [transcript, isListening]);
+
+  // Commit finalized chunks to the base input
+  useEffect(() => {
+    if (!finalTranscript) return;
+    baseInputRef.current = (baseInputRef.current + (baseInputRef.current ? " " : "") + finalTranscript).trim();
+    setInput(baseInputRef.current);
+  }, [finalTranscript]);
+
+  // Surface errors via toast
+  useEffect(() => {
+    if (error) toast.error(error);
+  }, [error]);
+
   const handleSend = () => {
     if (!input.trim() || disabled) return;
+    if (isListening) stopListening();
     onSend(input.trim());
     setInput("");
+    baseInputRef.current = "";
+    resetTranscript();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -40,53 +72,15 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
     }
   };
 
-  const toggleListening = useCallback(() => {
-    if (!SpeechRecognition) {
-      console.warn("Speech Recognition not supported in this browser");
-      return;
+  const toggleListening = () => {
+    if (isListening) {
+      stopListening();
+    } else {
+      // Seed the base with whatever the user has already typed
+      baseInputRef.current = input;
+      startListening();
     }
-
-    if (isListening && recognitionRef.current) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.lang = "en-US";
-
-    recognition.onresult = (event: any) => {
-      let transcript = "";
-      for (let i = 0; i < event.results.length; i++) {
-        transcript += event.results[i][0].transcript;
-      }
-      setInput(transcript);
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
-    recognition.onerror = (event: any) => {
-      console.error("Speech recognition error:", event.error);
-      setIsListening(false);
-    };
-
-    recognitionRef.current = recognition;
-    recognition.start();
-    setIsListening(true);
-  }, [isListening]);
-
-  // Clean up recognition on unmount
-  useEffect(() => {
-    return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-    };
-  }, []);
+  };
 
   return (
     <motion.div
@@ -107,17 +101,21 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
         <textarea
           ref={textareaRef}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => {
+            setInput(e.target.value);
+            // Manual edits become the new base for the next dictation
+            if (!isListening) baseInputRef.current = e.target.value;
+          }}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           onKeyDown={handleKeyDown}
-          placeholder="Transmit to Wilson..."
+          placeholder={isListening ? "Listening..." : "Transmit to Wilson..."}
           disabled={disabled}
           rows={1}
           className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 resize-none outline-none font-sans min-h-[24px]"
         />
         <div className="flex items-center gap-1.5 flex-shrink-0 pb-0.5">
-          {SpeechRecognition && (
+          {isSpeechSupported && (
             <button
               onClick={toggleListening}
               className={`p-2 rounded-xl transition-colors ${
@@ -126,6 +124,7 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
                   : "text-muted-foreground hover:text-primary hover:bg-primary/10"
               }`}
               title={isListening ? "Stop listening" : "Voice input"}
+              aria-label={isListening ? "Stop listening" : "Start voice input"}
             >
               {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
             </button>
@@ -134,6 +133,7 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
             onClick={handleSend}
             disabled={!input.trim() || disabled}
             className="p-2 rounded-xl bg-primary/20 text-primary hover:bg-primary/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            aria-label="Send message"
           >
             <Send className="w-4 h-4" />
           </button>
