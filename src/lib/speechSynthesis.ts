@@ -1,9 +1,8 @@
-// Wilson TTS — natural voices only: ElevenLabs → Google TTS → Edge TTS → Web Speech
+// Wilson TTS — natural voices only: ElevenLabs → Edge TTS → Web Speech
 
 import { edgeTTSSynthesize } from "./edgeTTS";
 
 const ELEVENLABS_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`;
-const GOOGLE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-tts`;
 const EDGE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/edge-tts`;
 
 let currentAudio: HTMLAudioElement | null = null;
@@ -307,20 +306,7 @@ export async function speakText(text: string): Promise<void> {
     }
   }
 
-  // Tier 2: Google TTS cloud fallback (stable natural voice, no local voice dependency)
-  if (!playbackFailed) {
-    console.log("[Wilson TTS] Trying Google TTS...");
-    const result = await tryCloudTTS(GOOGLE_TTS_URL, premiumText, "Google TTS");
-    if (result === "played") {
-      return;
-    }
-
-    if (result === "playback-failed") {
-      playbackFailed = true;
-    }
-  }
-
-  // Tier 3: Client-side Edge TTS WebSocket (browser connects directly to Bing)
+  // Tier 2: Client-side Edge TTS WebSocket (browser connects directly to Bing)
   if (!playbackFailed) {
     try {
       console.log("[Wilson TTS] Trying Edge TTS client WebSocket...");
