@@ -167,6 +167,43 @@ function unlockHtmlAudio(): void {
 
 export function unlockTTS(): void {
   unlockHtmlAudio();
+  // Also prime Web Speech on iOS — speaking an empty utterance inside a
+  // gesture unlocks future synth.speak() calls.
+  if (typeof window !== "undefined" && window.speechSynthesis) {
+    try {
+      const u = new SpeechSynthesisUtterance("");
+      u.volume = 0;
+      window.speechSynthesis.speak(u);
+    } catch { /* ignore */ }
+  }
+}
+
+// SYNCHRONOUS iOS-friendly speak: call this DIRECTLY inside a click handler.
+// Returns true if it kicked off synthesis. No awaits before synth.speak().
+export function speakTextSync(text: string): boolean {
+  if (typeof window === "undefined" || !window.speechSynthesis) return false;
+  const synth = window.speechSynthesis;
+  synth.cancel();
+
+  const clean = stripMarkdown(text).slice(0, 3000);
+  if (!clean) return false;
+
+  const utterance = new SpeechSynthesisUtterance(clean);
+  const voice = getPremiumVoice();
+  if (voice) {
+    utterance.voice = voice;
+    utterance.lang = voice.lang;
+  } else {
+    utterance.lang = "en-US";
+  }
+  utterance.pitch = 0.95;
+  utterance.rate = 0.9;
+  utterance.volume = 1.0;
+
+  // CRITICAL: speak() must be called synchronously in the same tick as the click
+  synth.speak(utterance);
+  console.log("[Wilson TTS] speakTextSync invoked (Web Speech)");
+  return true;
 }
 
 function isIOS(): boolean {
