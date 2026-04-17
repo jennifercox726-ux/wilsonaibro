@@ -1,6 +1,39 @@
-// Wilson TTS — free only: Edge TTS (browser WebSocket → Microsoft Bing) → Web Speech fallback
+// Wilson TTS — Microsoft Edge neural voice via Supabase edge function (free, works on iOS)
+// Fallbacks: browser-direct Edge TTS WebSocket → Web Speech API
 
 import { edgeTTSSynthesize } from "./edgeTTS";
+import { supabase } from "@/integrations/supabase/client";
+
+const EDGE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/edge-tts`;
+
+async function fetchEdgeTTSFromServer(text: string): Promise<Blob | null> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    const resp = await fetch(EDGE_TTS_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      },
+      body: JSON.stringify({ text }),
+    });
+    if (!resp.ok) {
+      console.warn("[Wilson TTS] Server edge-tts non-OK:", resp.status);
+      return null;
+    }
+    const blob = await resp.blob();
+    if (blob.size < 200) {
+      console.warn("[Wilson TTS] Server edge-tts blob too small:", blob.size);
+      return null;
+    }
+    return blob;
+  } catch (err) {
+    console.warn("[Wilson TTS] Server edge-tts request failed:", err);
+    return null;
+  }
+}
 
 let currentAudio: HTMLAudioElement | null = null;
 let currentAudioUrl: string | null = null;
