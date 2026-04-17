@@ -1,67 +1,95 @@
+// Free Microsoft Edge TTS proxy — converts text to MP3 using a neural voice.
+// Runs the WebSocket call server-side so iOS Safari just plays a plain MP3 blob.
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const VOICE = "en-GB-RyanNeural";
+const TRUSTED_TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4";
+const VOICE = "en-US-GuyNeural";
+
+function uuidNoDashes(): string {
+  return crypto.randomUUID().replace(/-/g, "");
+}
 
 function buildSSML(text: string): string {
   const escaped = text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
-  return `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-GB'>
+  return `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
 <voice name='${VOICE}'>
 <prosody rate='-2%' pitch='-1Hz'>${escaped}</prosody>
 </voice>
 </speak>`;
 }
 
-async function synthesize(text: string): Promise<ArrayBuffer> {
-  const ssml = buildSSML(text);
+async function synthesize(text: string): Promise<Uint8Array> {
+  const connId = uuidNoDashes();
+  const reqId = uuidNoDashes();
+  const wsUrl = `wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=${TRUSTED_TOKEN}&ConnectionId=${connId}`;
 
-  // Try multiple Azure free TTS endpoints
-  const endpoints = [
-    "https://eastus.tts.speech.microsoft.com/cognitiveservices/v1",
-    "https://westus.tts.speech.microsoft.com/cognitiveservices/v1",
-    "https://eastus.api.speech.microsoft.com/cognitiveservices/v1",
-  ];
+  const ws = new WebSocket(wsUrl);
+  ws.binaryType = "arraybuffer";
+  const chunks: Uint8Array[] = [];
 
-  for (const endpoint of endpoints) {
-    try {
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/ssml+xml",
-          "X-Microsoft-OutputFormat": "audio-24khz-96kbitrate-mono-mp3",
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        },
-        body: ssml,
-      });
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      try { ws.close(); } catch { /* noop */ }
+      reject(new Error("Edge TTS timeout"));
+    }, 20000);
 
-      if (response.ok) {
-        const buf = await response.arrayBuffer();
-        if (buf.byteLength > 100) {
-          console.log(`Edge TTS success via ${endpoint}`);
-          return buf;
+    ws.onopen = () => {
+      ws.send(
+        `Content-Type:application/json; charset=utf-8\r\nPath:speech.config\r\n\r\n{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"false"},"outputFormat":"audio-24khz-96kbitrate-mono-mp3"}}}}`
+      );
+      ws.send(
+        `X-RequestId:${reqId}\r\nContent-Type:application/ssml+xml\r\nPath:ssml\r\n\r\n${buildSSML(text)}`
+      );
+    };
+
+    ws.onmessage = (event) => {
+      if (typeof event.data === "string") {
+        if (event.data.includes("Path:turn.end")) {
+          clearTimeout(timeout);
+          try { ws.close(); } catch { /* noop */ }
+          const total = chunks.reduce((s, c) => s + c.length, 0);
+          const out = new Uint8Array(total);
+          let offset = 0;
+          for (const c of chunks) { out.set(c, offset); offset += c.length; }
+          resolve(out);
+        }
+      } else {
+        const buf = event.data as ArrayBuffer;
+        const view = new Uint8Array(buf);
+        const headerLen = (view[0] << 8) | view[1];
+        if (view.length > headerLen + 2) {
+          chunks.push(view.slice(headerLen + 2));
         }
       }
-      // consume body before trying next
-      await response.text().catch(() => {});
-    } catch (e) {
-      console.warn(`Endpoint ${endpoint} failed:`, e);
-    }
-  }
+    };
 
-  throw new Error("All Edge TTS endpoints failed");
+    ws.onerror = () => {
+      clearTimeout(timeout);
+      reject(new Error("Edge TTS WebSocket error"));
+    };
+
+    ws.onclose = (event) => {
+      if (chunks.length === 0 && !event.wasClean) {
+        clearTimeout(timeout);
+        reject(new Error("Edge TTS closed without audio"));
+      }
+    };
+  });
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
-
   try {
     const { text } = await req.json();
     if (!text || typeof text !== "string") {
@@ -70,24 +98,20 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const audioBuffer = await synthesize(text.slice(0, 5000));
-
-    return new Response(audioBuffer, {
+    const audio = await synthesize(text.slice(0, 5000));
+    return new Response(audio, {
+      status: 200,
       headers: {
         ...corsHeaders,
         "Content-Type": "audio/mpeg",
-        "Cache-Control": "no-cache",
+        "Cache-Control": "no-store",
       },
     });
-  } catch (error) {
-    console.error("Edge TTS error:", error);
-    return new Response(
-      JSON.stringify({ error: "EDGE_TTS_FAILED", fallback: true }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+  } catch (err) {
+    console.error("[edge-tts] error:", err);
+    return new Response(JSON.stringify({ error: String(err) }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
