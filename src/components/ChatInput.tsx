@@ -18,6 +18,8 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const baseInputRef = useRef<string>("");
+  const autoSendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<string>("");
 
   const {
     isListening,
@@ -44,12 +46,37 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
     setInput(combined);
   }, [transcript, isListening]);
 
-  // Commit finalized chunks to the base input
+  // Commit finalized chunks to the base input + arm hands-free auto-send
   useEffect(() => {
     if (!finalTranscript) return;
     baseInputRef.current = (baseInputRef.current + (baseInputRef.current ? " " : "") + finalTranscript).trim();
     setInput(baseInputRef.current);
-  }, [finalTranscript]);
+
+    // Hands-free: after 2s of silence following a final result, send it.
+    if (autoSendTimerRef.current) clearTimeout(autoSendTimerRef.current);
+    autoSendTimerRef.current = setTimeout(() => {
+      const text = inputRef.current.trim();
+      if (!text || disabled) return;
+      stopListening();
+      onSend(text);
+      setInput("");
+      baseInputRef.current = "";
+      resetTranscript();
+    }, 2000);
+  }, [finalTranscript, disabled, onSend, stopListening, resetTranscript]);
+
+  // Keep a live ref of input so the auto-send timer reads the latest value
+  useEffect(() => {
+    inputRef.current = input;
+  }, [input]);
+
+  // Cancel any pending auto-send when listening stops manually
+  useEffect(() => {
+    if (!isListening && autoSendTimerRef.current) {
+      clearTimeout(autoSendTimerRef.current);
+      autoSendTimerRef.current = null;
+    }
+  }, [isListening]);
 
   // Surface errors via toast
   useEffect(() => {
@@ -58,6 +85,10 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
 
   const handleSend = () => {
     if (!input.trim() || disabled) return;
+    if (autoSendTimerRef.current) {
+      clearTimeout(autoSendTimerRef.current);
+      autoSendTimerRef.current = null;
+    }
     if (isListening) stopListening();
     onSend(input.trim());
     setInput("");
