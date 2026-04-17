@@ -51,8 +51,7 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
   };
 
   const handleSpeak = () => {
-    // CRITICAL: stay synchronous in this click handler so iOS Safari
-    // keeps the user-gesture context required for audio playback.
+    // CRITICAL: stay synchronous so iOS Safari keeps the user-gesture context.
     if (speaking) {
       stopSpeaking();
       setSpeaking(false);
@@ -60,6 +59,22 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
     }
     unlockTTS();
     setSpeaking(true);
+
+    // First attempt: synchronous Web Speech (works reliably on iOS Safari)
+    const sync = speakTextSync(cleanContent);
+    if (sync) {
+      // Poll for end of speech so we can flip the button back
+      const synth = window.speechSynthesis;
+      const poll = window.setInterval(() => {
+        if (!synth.speaking && !synth.pending) {
+          window.clearInterval(poll);
+          setSpeaking(false);
+        }
+      }, 300);
+      return;
+    }
+
+    // Fallback (desktop / non-iOS): async path with Edge TTS
     speakText(cleanContent).finally(() => setSpeaking(false));
   };
 
