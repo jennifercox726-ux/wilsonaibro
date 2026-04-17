@@ -167,6 +167,75 @@ function unlockHtmlAudio(): void {
 
 export function unlockTTS(): void {
   unlockHtmlAudio();
+  // Also prime Web Speech on iOS — speaking an empty utterance inside a
+  // gesture unlocks future synth.speak() calls.
+  if (typeof window !== "undefined" && window.speechSynthesis) {
+    try {
+      const u = new SpeechSynthesisUtterance("");
+      u.volume = 0;
+      window.speechSynthesis.speak(u);
+    } catch { /* ignore */ }
+  }
+}
+
+// SYNCHRONOUS iOS-friendly speak: call this DIRECTLY inside a click handler.
+// Returns true if it kicked off synthesis. No awaits before synth.speak().
+export function speakTextSync(text: string): boolean {
+  if (typeof window === "undefined" || !window.speechSynthesis) return false;
+  const synth = window.speechSynthesis;
+  synth.cancel();
+
+  const clean = stripMarkdown(text).slice(0, 3000);
+  if (!clean) return false;
+
+  const utterance = new SpeechSynthesisUtterance(clean);
+  const voice = getPremiumVoice();
+  if (voice) {
+    utterance.voice = voice;
+    utterance.lang = voice.lang;
+  } else {
+    utterance.lang = "en-US";
+  }
+  utterance.pitch = 0.95;
+  utterance.rate = 0.9;
+  utterance.volume = 1.0;
+
+  // CRITICAL: speak() must be called synchronously in the same tick as the click
+  synth.speak(utterance);
+  console.log("[Wilson TTS] speakTextSync invoked (Web Speech)");
+  return true;
+}
+
+function isIOS(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  return /iPad|iPhone|iPod/.test(ua) || (ua.includes("Mac") && "ontouchend" in document);
+}
+
+async function trySpeakWebSpeech(text: string): Promise<boolean> {
+  if (typeof window === "undefined" || !window.speechSynthesis) return false;
+  try {
+    await speakWithWebSpeechAPI(text);
+    console.log("[Wilson TTS] Played via Web Speech API");
+    return true;
+  } catch (err) {
+    console.warn("[Wilson TTS] Web Speech API failed:", err);
+    return false;
+  }
+}
+
+async function trySpeakEdgeTTS(text: string): Promise<boolean> {
+  try {
+    const audioBlob = await edgeTTSSynthesize(text.slice(0, 5000));
+    if (audioBlob && audioBlob.size > 100) {
+      await playAudioBlob(audioBlob);
+      console.log("[Wilson TTS] Played via Edge TTS");
+      return true;
+    }
+  } catch (err) {
+    console.warn("[Wilson TTS] Edge TTS failed:", err);
+  }
+  return false;
 }
 
 export async function speakText(text: string): Promise<void> {
@@ -177,29 +246,15 @@ export async function speakText(text: string): Promise<void> {
     return;
   }
 
-  // Tier 1: Edge TTS WebSocket — en-US-GuyNeural (free, neural quality)
-  try {
-    console.log("[Wilson TTS] Trying Edge TTS (GuyNeural)...");
-    const audioBlob = await edgeTTSSynthesize(clean.slice(0, 5000));
-    if (audioBlob && audioBlob.size > 100) {
-      await playAudioBlob(audioBlob);
-      console.log("[Wilson TTS] Playing via Edge TTS");
-      return;
-    }
-  } catch (err) {
-    console.warn("[Wilson TTS] Edge TTS failed:", err);
-  }
-
-  // Tier 3: Web Speech API — best available system voice
-  if (typeof window !== "undefined" && window.speechSynthesis) {
-    try {
-      console.log("[Wilson TTS] Falling back to Web Speech API...");
-      await speakWithWebSpeechAPI(clean);
-      console.log("[Wilson TTS] Playing via Web Speech API");
-      return;
-    } catch (err) {
-      console.warn("[Wilson TTS] Web Speech API failed:", err);
-    }
+  // iOS Safari: Web Speech API works natively and reliably; Edge TTS WebSocket
+  // is often blocked. Use Web Speech FIRST and synchronously to keep gesture.
+  if (isIOS()) {
+    if (await trySpeakWebSpeech(clean)) return;
+    if (await trySpeakEdgeTTS(clean)) return;
+  } else {
+    // Desktop / Android: Edge TTS gives the best neural voice
+    if (await trySpeakEdgeTTS(clean)) return;
+    if (await trySpeakWebSpeech(clean)) return;
   }
 
   console.warn("[Wilson TTS] All voice providers unavailable; staying silent");
