@@ -8,14 +8,7 @@ let playbackAudio: HTMLAudioElement | null = null;
 let htmlAudioUnlocked = false;
 let playbackSessionId = 0;
 
-const TTS_RETRY_COOLDOWN_MS = 30_000;
-const PREMIUM_TTS_MAX_CHARS = 500;
 const SILENT_AUDIO_DATA_URL = "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
-
-const providerState = {
-  elevenLabsRetryAt: 0,
-  edgeTtsRetryAt: 0,
-};
 
 type CloudTTSResult = "played" | "provider-unavailable" | "playback-failed";
 
@@ -83,28 +76,6 @@ function stripMarkdown(text: string): string {
     .replace(/\n{2,}/g, ". ")
     .replace(/\n/g, " ")
     .trim();
-}
-
-function limitPremiumText(text: string, maxLen = PREMIUM_TTS_MAX_CHARS): string {
-  if (text.length <= maxLen) return text;
-
-  const clipped = text.slice(0, maxLen);
-  const lastSentenceBreak = Math.max(
-    clipped.lastIndexOf("."),
-    clipped.lastIndexOf("!"),
-    clipped.lastIndexOf("?")
-  );
-
-  if (lastSentenceBreak >= Math.floor(maxLen * 0.55)) {
-    return clipped.slice(0, lastSentenceBreak + 1).trim();
-  }
-
-  const lastSpace = clipped.lastIndexOf(" ");
-  if (lastSpace >= Math.floor(maxLen * 0.7)) {
-    return `${clipped.slice(0, lastSpace).trim()}...`;
-  }
-
-  return `${clipped.trim()}...`;
 }
 
 async function playAudioBlob(audioBlob: Blob): Promise<void> {
@@ -198,84 +169,6 @@ export function unlockTTS(): void {
   unlockHtmlAudio();
 }
 
-async function tryCloudTTS(url: string, text: string, label: string): Promise<CloudTTSResult> {
-  let response: Response;
-
-  try {
-    response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-      },
-      body: JSON.stringify({ text }),
-    });
-  } catch (err) {
-    console.warn(`[Wilson TTS] ${label} request failed:`, err);
-    return "provider-unavailable";
-  }
-
-  const contentType = response.headers.get("Content-Type") || "";
-
-  if (contentType.includes("application/json")) {
-    try {
-      const json = await response.json();
-      if (json?.fallback) {
-        console.warn(`[Wilson TTS] ${label} unavailable, falling back`);
-        return "provider-unavailable";
-      }
-      console.warn(`[Wilson TTS] ${label} returned JSON instead of audio:`, json);
-      return "provider-unavailable";
-    } catch (err) {
-      console.warn(`[Wilson TTS] ${label} returned unreadable JSON:`, err);
-      return "provider-unavailable";
-    }
-  }
-
-  if (!response.ok) {
-    console.warn(`[Wilson TTS] ${label} failed: ${response.status}`);
-    return "provider-unavailable";
-  }
-
-  try {
-    const audioBlob = await response.blob();
-    if (!audioBlob.type.includes("audio") && audioBlob.size < 100) {
-      console.warn(`[Wilson TTS] Invalid audio from ${label}`);
-      return "provider-unavailable";
-    }
-
-    await playAudioBlob(audioBlob);
-    console.log(`[Wilson TTS] Playing via ${label}`);
-    return "played";
-  } catch (err) {
-    console.warn(`[Wilson TTS] ${label} playback failed:`, err);
-    return "playback-failed";
-  }
-}
-
-function shouldTryProvider(retryAt: number): boolean {
-  return Date.now() >= retryAt;
-}
-
-function markProviderFailure(label: "ElevenLabs" | "Edge TTS"): void {
-  const retryAt = Date.now() + TTS_RETRY_COOLDOWN_MS;
-
-  if (label === "ElevenLabs") {
-    providerState.elevenLabsRetryAt = retryAt;
-  } else {
-    providerState.edgeTtsRetryAt = retryAt;
-  }
-}
-
-function markProviderSuccess(label: "ElevenLabs" | "Edge TTS"): void {
-  if (label === "ElevenLabs") {
-    providerState.elevenLabsRetryAt = 0;
-  } else {
-    providerState.edgeTtsRetryAt = 0;
-  }
-}
-
 export async function speakText(text: string): Promise<void> {
   stopSpeaking();
   const clean = stripMarkdown(text);
@@ -283,45 +176,24 @@ export async function speakText(text: string): Promise<void> {
     console.warn("[Wilson TTS] No clean text to speak");
     return;
   }
-  const premiumText = limitPremiumText(clean);
-  let playbackFailed = false;
 
-  // Tier 1: ElevenLabs (premium, always try first)
-  if (!playbackFailed && shouldTryProvider(providerState.elevenLabsRetryAt)) {
-    console.log("[Wilson TTS] Trying ElevenLabs...");
-    const result = await tryCloudTTS(ELEVENLABS_TTS_URL, premiumText, "ElevenLabs");
-    if (result === "played") {
-      markProviderSuccess("ElevenLabs");
+  // Tier 1: Edge TTS WebSocket — en-GB-RyanNeural (warm British male, free, neural quality)
+  try {
+    console.log("[Wilson TTS] Trying Edge TTS (RyanNeural)...");
+    const audioBlob = await edgeTTSSynthesize(clean.slice(0, 5000));
+    if (audioBlob && audioBlob.size > 100) {
+      await playAudioBlob(audioBlob);
+      console.log("[Wilson TTS] Playing via Edge TTS (RyanNeural)");
       return;
     }
-
-    if (result === "playback-failed") {
-      markProviderSuccess("ElevenLabs");
-      playbackFailed = true;
-    } else {
-      markProviderFailure("ElevenLabs");
-    }
+  } catch (err) {
+    console.warn("[Wilson TTS] Edge TTS failed:", err);
   }
 
-  // Tier 2: Client-side Edge TTS WebSocket (browser connects directly to Bing)
-  if (!playbackFailed) {
+  // Tier 2: Web Speech API — best available system voice
+  if (typeof window !== "undefined" && window.speechSynthesis) {
     try {
-      console.log("[Wilson TTS] Trying Edge TTS client WebSocket...");
-      const audioBlob = await edgeTTSSynthesize(clean.slice(0, 5000));
-      if (audioBlob && audioBlob.size > 100) {
-        await playAudioBlob(audioBlob);
-        console.log("[Wilson TTS] Playing via Edge TTS client (RyanNeural)");
-        return;
-      }
-    } catch (err) {
-      console.warn("[Wilson TTS] Edge TTS client error:", err);
-    }
-  }
-
-  // Tier 4: Web Speech API with premium system voices (FREE, no credits)
-  if (!playbackFailed && typeof window !== "undefined" && window.speechSynthesis) {
-    try {
-      console.log("[Wilson TTS] Trying Web Speech API with premium voice...");
+      console.log("[Wilson TTS] Falling back to Web Speech API...");
       await speakWithWebSpeechAPI(clean);
       console.log("[Wilson TTS] Playing via Web Speech API");
       return;
@@ -330,7 +202,7 @@ export async function speakText(text: string): Promise<void> {
     }
   }
 
-  console.warn("[Wilson TTS] All voice providers unavailable; staying silent to preserve Wilson's identity");
+  console.warn("[Wilson TTS] All voice providers unavailable; staying silent");
 }
 
 // --- Web Speech API: hunt for premium/natural system voices ---
@@ -343,7 +215,7 @@ function getPremiumVoice(): SpeechSynthesisVoice | null {
   const voices = window.speechSynthesis.getVoices();
   if (!voices.length) return null;
 
-  // Priority order: hunt for the best natural-sounding English male voices
+  // Priority: warm, natural, trustworthy English male voices
   const preferencePatterns = [
     /Microsoft Ryan.*Natural/i,
     /Microsoft Guy.*Natural/i,
@@ -371,7 +243,6 @@ function getPremiumVoice(): SpeechSynthesisVoice | null {
     }
   }
 
-  // Fallback: any English voice
   const anyEnglish = voices.find(v => v.lang.startsWith("en"));
   if (anyEnglish) {
     cachedPremiumVoice = anyEnglish;
@@ -385,7 +256,7 @@ function getPremiumVoice(): SpeechSynthesisVoice | null {
 function speakWithWebSpeechAPI(text: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const synth = window.speechSynthesis;
-    synth.cancel(); // clear queue
+    synth.cancel();
 
     const utterance = new SpeechSynthesisUtterance(text.slice(0, 3000));
     const voice = getPremiumVoice();
@@ -427,7 +298,6 @@ function speakWithWebSpeechAPI(text: string): Promise<void> {
       }, 2500);
     };
 
-    // Chrome bug: voices may not be loaded yet
     if (!voice && synth.getVoices().length === 0) {
       synth.onvoiceschanged = () => {
         const v = getPremiumVoice();
@@ -453,7 +323,6 @@ export function stopSpeaking(): void {
   resetAudioElement(getPlaybackAudio());
   currentAudio = null;
   revokeCurrentAudioUrl();
-  // Also stop Web Speech API
   if (typeof window !== "undefined" && window.speechSynthesis) {
     window.speechSynthesis.cancel();
   }
@@ -465,4 +334,3 @@ export function isSpeaking(): boolean {
   const webSpeechPlaying = typeof window !== "undefined" && window.speechSynthesis?.speaking;
   return audioPlaying || !!webSpeechPlaying;
 }
-
