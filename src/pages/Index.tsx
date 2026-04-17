@@ -371,7 +371,8 @@ const Index = ({ userId, displayName }: IndexProps) => {
                 assistantSoFar = cleanContent;
               }
 
-              speakText(assistantSoFar);
+              // Note: auto-speak removed — iOS Safari requires a fresh user gesture
+              // for audio playback. Users tap the speaker button on each Wilson reply.
               supabase.from("messages").insert({
                 conversation_id: activeChat,
                 role: "assistant",
