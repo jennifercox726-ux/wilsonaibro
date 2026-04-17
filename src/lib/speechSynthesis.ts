@@ -1,6 +1,36 @@
-// Wilson TTS — free neural voice only: Edge TTS (en-GB-RyanNeural) → Web Speech fallback
+// Wilson TTS — ElevenLabs (server) → Edge TTS (browser WS) → Web Speech (system)
 
 import { edgeTTSSynthesize } from "./edgeTTS";
+import { supabase } from "@/integrations/supabase/client";
+
+async function elevenLabsSynthesize(text: string): Promise<Blob | null> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      },
+      body: JSON.stringify({ text }),
+    });
+    if (!resp.ok) return null;
+    const ct = resp.headers.get("content-type") || "";
+    if (!ct.includes("audio")) {
+      // Server returned a JSON fallback signal
+      return null;
+    }
+    const buf = await resp.arrayBuffer();
+    if (buf.byteLength < 200) return null;
+    return new Blob([buf], { type: "audio/mpeg" });
+  } catch (err) {
+    console.warn("[Wilson TTS] ElevenLabs request failed:", err);
+    return null;
+  }
+}
 
 let currentAudio: HTMLAudioElement | null = null;
 let currentAudioUrl: string | null = null;
@@ -177,20 +207,33 @@ export async function speakText(text: string): Promise<void> {
     return;
   }
 
-  // Tier 1: Edge TTS WebSocket — en-GB-RyanNeural (warm British male, free, neural quality)
+  // Tier 1: ElevenLabs (server-side, real MP3 — works on iOS Safari, Chrome, Edge, Firefox)
   try {
-    console.log("[Wilson TTS] Trying Edge TTS (RyanNeural)...");
+    console.log("[Wilson TTS] Trying ElevenLabs...");
+    const elevenBlob = await elevenLabsSynthesize(clean.slice(0, 5000));
+    if (elevenBlob && elevenBlob.size > 200) {
+      await playAudioBlob(elevenBlob);
+      console.log("[Wilson TTS] Playing via ElevenLabs");
+      return;
+    }
+  } catch (err) {
+    console.warn("[Wilson TTS] ElevenLabs failed:", err);
+  }
+
+  // Tier 2: Edge TTS WebSocket — en-US-GuyNeural (browser → Bing, free)
+  try {
+    console.log("[Wilson TTS] Trying Edge TTS (GuyNeural)...");
     const audioBlob = await edgeTTSSynthesize(clean.slice(0, 5000));
     if (audioBlob && audioBlob.size > 100) {
       await playAudioBlob(audioBlob);
-      console.log("[Wilson TTS] Playing via Edge TTS (RyanNeural)");
+      console.log("[Wilson TTS] Playing via Edge TTS");
       return;
     }
   } catch (err) {
     console.warn("[Wilson TTS] Edge TTS failed:", err);
   }
 
-  // Tier 2: Web Speech API — best available system voice
+  // Tier 3: Web Speech API — best available system voice
   if (typeof window !== "undefined" && window.speechSynthesis) {
     try {
       console.log("[Wilson TTS] Falling back to Web Speech API...");
