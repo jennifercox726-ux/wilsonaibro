@@ -397,30 +397,53 @@ function speakWithWebSpeechAPI(text: string): Promise<void> {
     utterance.pitch = 0.95;
     utterance.rate = 0.88;
     utterance.volume = 1.0;
-    utterance.lang = "en-GB";
+    utterance.lang = voice?.lang || "en-GB";
 
-    utterance.onend = () => resolve();
-    utterance.onerror = (e) => reject(e);
+    let started = false;
+    let timeoutId: number | null = null;
+
+    utterance.onstart = () => {
+      started = true;
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+    utterance.onend = () => {
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+      resolve();
+    };
+    utterance.onerror = (e) => {
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+      reject(e);
+    };
+
+    const speakNow = () => {
+      synth.speak(utterance);
+      timeoutId = window.setTimeout(() => {
+        if (!started && !synth.speaking) {
+          reject(new Error("Web Speech API did not start"));
+        }
+      }, 2500);
+    };
 
     // Chrome bug: voices may not be loaded yet
     if (!voice && synth.getVoices().length === 0) {
       synth.onvoiceschanged = () => {
         const v = getPremiumVoice();
-        if (v) utterance.voice = v;
-        synth.speak(utterance);
+        if (v) {
+          utterance.voice = v;
+          utterance.lang = v.lang;
+        }
+        synth.onvoiceschanged = null;
+        speakNow();
       };
     } else {
-      synth.speak(utterance);
+      speakNow();
     }
-
-    // Safety timeout
-    setTimeout(() => {
-      if (synth.speaking) {
-        // Still speaking, that's fine - let it finish
-      } else {
-        reject(new Error("Web Speech API did not start"));
-      }
-    }, 2000);
   });
 }
 
