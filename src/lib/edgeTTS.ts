@@ -1,7 +1,7 @@
 // Client-side Edge TTS using Microsoft's neural voices via WebSocket
 // This runs in the browser where WebSocket connections to Bing are allowed
 
-const VOICE = "en-GB-RyanNeural";
+const VOICE = "en-US-GuyNeural";
 const TRUSTED_TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4";
 
 function buildSSML(text: string): string {
@@ -9,7 +9,7 @@ function buildSSML(text: string): string {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
-  return `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-GB'>
+  return `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
 <voice name='${VOICE}'>
 <prosody rate='-2%' pitch='-1Hz'>${escaped}</prosody>
 </voice>
