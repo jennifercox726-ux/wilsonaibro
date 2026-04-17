@@ -92,14 +92,20 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
             {isWilson && (
               <button
                 onClick={handleSpeak}
-                className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-1 rounded-lg hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                className="flex items-center gap-1 px-2 py-1 rounded-full bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-semibold uppercase tracking-wider transition-colors"
                 title={speaking ? "Stop" : "Play voice"}
                 aria-label={speaking ? "Stop voice" : "Play voice"}
               >
                 {speaking ? (
-                  <Square className="w-3.5 h-3.5 text-primary" />
+                  <>
+                    <Square className="w-3 h-3" />
+                    Stop
+                  </>
                 ) : (
-                  <Volume2 className="w-3.5 h-3.5" />
+                  <>
+                    <Volume2 className="w-3 h-3" />
+                    Play
+                  </>
                 )}
               </button>
             )}
