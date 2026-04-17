@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, Volume2, Square } from "lucide-react";
 import { markdownToHtml } from "@/lib/simpleMarkdown";
+import { speakText, stopSpeaking, unlockTTS } from "@/lib/speechSynthesis";
 import WilsonOrb from "./WilsonOrb";
 
 
@@ -25,6 +26,7 @@ function stripChartTags(content: string): string {
 const ChatMessage = ({ message, index }: ChatMessageProps) => {
   const isWilson = message.role === "assistant";
   const [copied, setCopied] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
 
   const cleanContent = useMemo(
     () => (isWilson ? stripChartTags(message.content) : message.content),
@@ -48,6 +50,19 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
     }
   };
 
+  const handleSpeak = () => {
+    // CRITICAL: stay synchronous in this click handler so iOS Safari
+    // keeps the user-gesture context required for audio playback.
+    if (speaking) {
+      stopSpeaking();
+      setSpeaking(false);
+      return;
+    }
+    unlockTTS();
+    setSpeaking(true);
+    speakText(cleanContent).finally(() => setSpeaking(false));
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -69,21 +84,37 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
         <div className={`wilson-prose text-sm ${isWilson ? "" : "text-foreground/90"}`}>
           <div dangerouslySetInnerHTML={{ __html: markdownToHtml(cleanContent) }} />
         </div>
-        <div className="flex items-center justify-between mt-2">
+        <div className="flex items-center justify-between mt-2 gap-2">
           <span className="text-[10px] text-muted-foreground">
             {message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </span>
-          <button
-            onClick={handleCopy}
-            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-lg hover:bg-muted/50 text-muted-foreground hover:text-foreground"
-            title="Copy message"
-          >
-            {copied ? (
-              <Check className="w-3.5 h-3.5 text-primary" />
-            ) : (
-              <Copy className="w-3.5 h-3.5" />
+          <div className="flex items-center gap-1">
+            {isWilson && (
+              <button
+                onClick={handleSpeak}
+                className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-1 rounded-lg hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                title={speaking ? "Stop" : "Play voice"}
+                aria-label={speaking ? "Stop voice" : "Play voice"}
+              >
+                {speaking ? (
+                  <Square className="w-3.5 h-3.5 text-primary" />
+                ) : (
+                  <Volume2 className="w-3.5 h-3.5" />
+                )}
+              </button>
             )}
-          </button>
+            <button
+              onClick={handleCopy}
+              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-lg hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+              title="Copy message"
+            >
+              {copied ? (
+                <Check className="w-3.5 h-3.5 text-primary" />
+              ) : (
+                <Copy className="w-3.5 h-3.5" />
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </motion.div>
