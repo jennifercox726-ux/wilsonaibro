@@ -9,9 +9,10 @@ const corsHeaders = {
 };
 
 const TRUSTED_TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4";
-// Davis — deep, grounded American male. With "chat" express-as he sounds
-// noticeably more human than the multilingual voices. Best free male option.
-const VOICE = "en-US-DavisNeural";
+// Andrew Multilingual — Microsoft's 2024 studio-grade neural voice.
+// Deepest, richest, most podcast-host-sounding free male voice available.
+// Same free Edge TTS endpoint, zero cost, zero API key.
+const VOICE = "en-US-AndrewMultilingualNeural";
 
 function uuidNoDashes(): string {
   return crypto.randomUUID().replace(/-/g, "");
