@@ -9,9 +9,9 @@ const corsHeaders = {
 };
 
 const TRUSTED_TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4";
-// Brian Multilingual — widely regarded as the most human-sounding free
-// Microsoft neural voice. Warm, casual, natural pacing.
-const VOICE = "en-US-BrianMultilingualNeural";
+// Davis — deep, grounded American male. With "chat" express-as he sounds
+// noticeably more human than the multilingual voices. Best free male option.
+const VOICE = "en-US-DavisNeural";
 
 function uuidNoDashes(): string {
   return crypto.randomUUID().replace(/-/g, "");
