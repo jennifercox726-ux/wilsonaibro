@@ -9,8 +9,9 @@ const corsHeaders = {
 };
 
 const TRUSTED_TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4";
-// Most natural free Microsoft neural voice — warm, conversational male
-const VOICE = "en-US-AndrewMultilingualNeural";
+// Brian Multilingual — widely regarded as the most human-sounding free
+// Microsoft neural voice. Warm, casual, natural pacing.
+const VOICE = "en-US-BrianMultilingualNeural";
 
 function uuidNoDashes(): string {
   return crypto.randomUUID().replace(/-/g, "");
@@ -21,9 +22,13 @@ function buildSSML(text: string): string {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
-  return `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
+  // Slightly slower rate + mstts express-as "chat" style makes Brian sound
+  // dramatically more conversational and human, less announcer-like.
+  return `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='https://www.w3.org/2001/mstts' xml:lang='en-US'>
 <voice name='${VOICE}'>
-<prosody rate='+0%' pitch='+0Hz'>${escaped}</prosody>
+<mstts:express-as style='chat' styledegree='1.5'>
+<prosody rate='-4%' pitch='-2Hz'>${escaped}</prosody>
+</mstts:express-as>
 </voice>
 </speak>`;
 }
