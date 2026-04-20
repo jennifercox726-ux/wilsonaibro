@@ -4,8 +4,21 @@ export function markdownToHtml(text: string): string {
   const codeBlocks: string[] = [];
   let processed = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
     const idx = codeBlocks.length;
+    const trimmed = code.trim();
+    const language = lang || "text";
+    // Encode raw code in a data attribute so the UI can copy it without HTML entities
+    const encoded = encodeURIComponent(trimmed);
     codeBlocks.push(
-      `<pre class="wilson-code-block"><code class="language-${lang || "text"}">${escapeHtml(code.trim())}</code></pre>`
+      `<div class="wilson-code-wrapper" data-code="${encoded}">` +
+        `<div class="wilson-code-header">` +
+          `<span class="wilson-code-lang">${language}</span>` +
+          `<button type="button" class="wilson-code-copy" data-copy-btn aria-label="Copy code">` +
+            `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>` +
+            `<span>Copy</span>` +
+          `</button>` +
+        `</div>` +
+        `<pre class="wilson-code-block"><code class="language-${language}">${escapeHtml(trimmed)}</code></pre>` +
+      `</div>`
     );
     return `\x00CB${idx}\x00`;
   });
