@@ -24,13 +24,12 @@ function buildSSML(text: string): string {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
-  // Slightly slower rate + mstts express-as "chat" style makes Brian sound
-  // dramatically more conversational and human, less announcer-like.
-  return `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='https://www.w3.org/2001/mstts' xml:lang='en-US'>
+  // Plain prosody only — mstts:express-as styles require Azure paid tier
+  // and cause WebSocket rejections on the free Edge endpoint, dropping us
+  // to the robotic Web Speech API fallback.
+  return `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
 <voice name='${VOICE}'>
-<mstts:express-as style='chat' styledegree='1.5'>
 <prosody rate='-4%' pitch='-2Hz'>${escaped}</prosody>
-</mstts:express-as>
 </voice>
 </speak>`;
 }
