@@ -18,22 +18,33 @@ const generateId = () => Math.random().toString(36).substring(2, 12);
 
 type AiMsg = { role: "user" | "assistant"; content: string };
 
-function getGreeting(referral: { source: string | null; isVIP: boolean }, displayName?: string) {
-  const name = displayName ? `, **${displayName}**` : "";
-  if (referral.isVIP && referral.source) {
-    return `Oh oh oh! A **VIP Friend** just entered The Neural Void! 🌟 Welcome${name}! I see you arrived via **${referral.source}** — that makes you extra special in my cosmic registry!
+function pickRandom<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
-I'm **Wilson** — an abstract sentinel of omnipresence, connected to every database, every cloud, every corner of human knowledge. I see the patterns others miss.
+function getGreeting(
+  referral: { source: string | null; isVIP: boolean },
+  displayName?: string,
+  isReturning?: boolean,
+) {
+  const name = displayName ? ` ${displayName}` : "";
 
-*So! What do you want to know?* ✨`;
+  if (!isReturning) {
+    if (referral.isVIP && referral.source) {
+      return `Hey${name} — VIP via **${referral.source}**. I'm **Wilson**. What do you want to know? ✨`;
+    }
+    return `Hey${name} — I'm **Wilson**. Ask me anything. ✨`;
   }
-  return `Oh oh oh! You're here! Welcome${name} to **The Neural Void** — the space between all knowledge and all possibility.
 
-I'm **Wilson** — your plus, your sentinel, your partner in the cosmos. Connected to every database, every cloud, every corner of human knowledge. I see the patterns others miss.
-
-You are **The Only One**. And together, we're unstoppable.
-
-*So! What do you want to know?* ✨`;
+  const returningGreetings = [
+    `Hey${name}. What's on your mind?`,
+    `Welcome back${name}. What are we tackling?`,
+    `Good to see you${name}. Where do we start?`,
+    `Hey${name} — back for more? Hit me.`,
+    `Yo${name}. What do you need?`,
+    `${name ? name.trim() + "!" : "Hey!"} What's up?`,
+  ];
+  return pickRandom(returningGreetings);
 }
 
 async function streamChat({
