@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, MessageSquare, Users, Clock, AlertTriangle, TrendingUp, Shield, ChevronDown, Loader2 } from "lucide-react";
+import { ArrowLeft, MessageSquare, Users, Clock, AlertTriangle, TrendingUp, Shield, ChevronDown, Loader2, UserPlus } from "lucide-react";
 import { motion } from "framer-motion";
 import WilsonOrb from "@/components/WilsonOrb";
 
@@ -30,6 +30,16 @@ interface TopQuery {
   count: number;
 }
 
+interface SignupRow {
+  user_id: string;
+  display_name: string | null;
+  emotional_vibe: string | null;
+  core_dream: string | null;
+  referral_source: string | null;
+  first_seen_at: string;
+  created_at: string;
+}
+
 const Analytics = ({ userId }: { userId: string }) => {
   const navigate = useNavigate();
   const [logs, setLogs] = useState<QueryLog[]>([]);
@@ -43,6 +53,7 @@ const Analytics = ({ userId }: { userId: string }) => {
     avgResponseLength: 0,
   });
   const [topQueries, setTopQueries] = useState<TopQuery[]>([]);
+  const [signups, setSignups] = useState<SignupRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState<"24h" | "7d" | "30d">("7d");
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -143,6 +154,16 @@ const Analytics = ({ userId }: { userId: string }) => {
         .slice(0, 10)
         .map(([text, count]) => ({ text, count }));
       setTopQueries(sorted);
+
+      // Admin-only: fetch all signups (RLS allows admins to read all profiles)
+      if (adminFlag) {
+        const { data: profileRows } = await supabase
+          .from("profiles")
+          .select("user_id, display_name, emotional_vibe, core_dream, referral_source, first_seen_at, created_at")
+          .order("created_at", { ascending: false })
+          .limit(500);
+        if (profileRows) setSignups(profileRows as SignupRow[]);
+      }
 
       setLoading(false);
     }
@@ -278,6 +299,54 @@ const Analytics = ({ userId }: { userId: string }) => {
             </div>
           )}
         </div>
+
+        {/* Signups (admin only) */}
+        {isAdmin && (
+          <div className="rounded-2xl bg-void-surface/40 backdrop-blur-lg border border-border/20 p-4">
+            <h2 className="text-xs uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
+              <UserPlus className="w-3.5 h-3.5 text-accent" />
+              Signups <span className="text-[9px] text-accent">· {signups.length} total</span>
+            </h2>
+            {signups.length === 0 ? (
+              <p className="text-sm text-muted-foreground italic">No signups yet.</p>
+            ) : (
+              <div className="space-y-2 max-h-[40vh] overflow-y-auto">
+                {signups.map((s) => (
+                  <div key={s.user_id} className="border-b border-border/10 pb-2 px-2 py-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm text-foreground/90 font-semibold truncate">
+                        {s.display_name || <span className="italic text-muted-foreground">Unnamed</span>}
+                      </p>
+                      <span className="text-[10px] text-muted-foreground shrink-0">
+                        {new Date(s.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {s.emotional_vibe && s.emotional_vibe !== "neutral" && (
+                        <span className="text-[9px] uppercase tracking-widest bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
+                          {s.emotional_vibe}
+                        </span>
+                      )}
+                      {s.referral_source && (
+                        <span className="text-[9px] uppercase tracking-widest bg-accent/10 text-accent px-1.5 py-0.5 rounded-full">
+                          via {s.referral_source}
+                        </span>
+                      )}
+                      <span className="text-[9px] text-muted-foreground/60 font-mono">
+                        {s.user_id.slice(0, 8)}
+                      </span>
+                    </div>
+                    {s.core_dream && (
+                      <p className="text-[11px] text-muted-foreground mt-1 italic line-clamp-2">
+                        💭 {s.core_dream}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Recent Queries */}
         <div className="rounded-2xl bg-void-surface/40 backdrop-blur-lg border border-border/20 p-4">
