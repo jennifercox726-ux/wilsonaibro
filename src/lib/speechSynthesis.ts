@@ -454,24 +454,35 @@ export async function speakText(text: string): Promise<void> {
     return;
   }
 
+  // PRIMARY: free open natural-sounding server TTS (podcast-style male voice)
+  const freeBlob = await fetchFreeTTS(clean.slice(0, 5000));
+  if (freeBlob) {
+    try {
+      await playAudioBlob(freeBlob);
+      console.log("[Wilson TTS] Played via free open natural TTS");
+      return;
+    } catch (err) {
+      console.warn("[Wilson TTS] Free TTS playback failed:", err);
+    }
+  }
+
+  // SECONDARY: neural Edge TTS (Australian male)
+  const neuralBlob = await fetchPreferredMaleTTS(clean.slice(0, 5000));
+  if (neuralBlob) {
+    try {
+      await playAudioBlob(neuralBlob);
+      console.log("[Wilson TTS] Played via neural male fallback");
+      return;
+    } catch (err) {
+      console.warn("[Wilson TTS] Neural male playback failed:", err);
+    }
+  }
+
+  // LAST RESORT: local browser voice
   try {
-    const spokeWithBrowserVoice = await speakWithBrowserMaleVoice(clean.slice(0, 5000));
-    if (spokeWithBrowserVoice) return;
+    await speakWithBrowserMaleVoice(clean.slice(0, 5000));
   } catch (error) {
-    console.warn("[Wilson TTS] Browser male voice failed:", error);
-  }
-
-  const blob = await fetchPreferredMaleTTS(clean.slice(0, 5000));
-  if (!blob) {
-    console.warn("[Wilson TTS] Natural male fallback unavailable; staying silent");
-    return;
-  }
-
-  try {
-    await playAudioBlob(blob);
-    console.log("[Wilson TTS] Played via natural neural male fallback voice");
-  } catch (err) {
-    console.warn("[Wilson TTS] Natural neural male playback failed:", err);
+    console.warn("[Wilson TTS] All TTS paths failed:", error);
   }
 }
 

@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Copy, Check, Volume2, Square } from "lucide-react";
 import { markdownToHtml } from "@/lib/simpleMarkdown";
-import { speakText, speakTextSync, stopSpeaking, unlockTTS } from "@/lib/speechSynthesis";
+import { speakText, stopSpeaking, unlockTTS } from "@/lib/speechSynthesis";
 import WilsonOrb from "./WilsonOrb";
 
 
@@ -51,7 +51,6 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
   };
 
   const handleSpeak = () => {
-    // CRITICAL: stay synchronous so iOS Safari keeps the user-gesture context.
     if (speaking) {
       stopSpeaking();
       setSpeaking(false);
@@ -59,21 +58,7 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
     }
     unlockTTS();
     setSpeaking(true);
-
-    // First attempt: synchronous Web Speech (works reliably on iOS Safari)
-    const sync = speakTextSync(cleanContent);
-    if (sync) {
-      const synth = window.speechSynthesis;
-      const poll = window.setInterval(() => {
-        if (!synth.speaking && !synth.pending) {
-          window.clearInterval(poll);
-          setSpeaking(false);
-        }
-      }, 300);
-      return;
-    }
-
-    // Fallback (desktop / no local voice): async neural male path
+    // Use the free open natural-sounding TTS (podcast-style male voice)
     speakText(cleanContent).finally(() => setSpeaking(false));
   };
 
