@@ -293,53 +293,82 @@ const Analytics = ({ userId }: { userId: string }) => {
             <div className="space-y-2 max-h-[60vh] overflow-y-auto">
               {logs.slice(0, 100).map((log) => {
                 const isOpen = expandedId === log.id;
+                const thread = log.conversation_id ? threadCache[log.conversation_id] : null;
+                const isLoadingThread = threadLoading === log.conversation_id;
                 return (
-                  <button
-                    key={log.id}
-                    type="button"
-                    onClick={() => setExpandedId(isOpen ? null : log.id)}
-                    className="w-full text-left flex items-start gap-3 text-sm border-b border-border/10 pb-2 hover:bg-muted/20 active:bg-muted/30 rounded-lg px-2 py-1.5 transition-colors"
-                  >
-                    <ChevronDown
-                      className={`w-3.5 h-3.5 mt-1 text-muted-foreground shrink-0 transition-transform ${isOpen ? "rotate-0" : "-rotate-90"}`}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-foreground/90 ${isOpen ? "whitespace-pre-wrap break-words" : "truncate"}`}>
-                        {log.query_text}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground mt-1">
-                        {new Date(log.created_at).toLocaleString()} ·{" "}
-                        {log.response_time_ms ? `${(log.response_time_ms / 1000).toFixed(1)}s` : "—"} ·{" "}
-                        {log.response_length ? `${log.response_length} chars` : "failed"}
-                        {isAdmin && (
-                          <span className="ml-1 text-accent/70">
-                            · user {log.user_id.slice(0, 8)}
-                          </span>
-                        )}
-                      </p>
-                      {isOpen && (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          <span className="text-[10px] text-muted-foreground/70">
-                            Query length: {log.query_length}
-                          </span>
-                          {log.conversation_id && (
-                            <span className="text-[10px] text-muted-foreground/70">
-                              · conv {log.conversation_id.slice(0, 8)}
+                  <div key={log.id} className="border-b border-border/10 pb-2">
+                    <button
+                      type="button"
+                      onClick={() => handleToggle(log)}
+                      className="w-full text-left flex items-start gap-3 text-sm hover:bg-muted/20 active:bg-muted/30 rounded-lg px-2 py-1.5 transition-colors"
+                    >
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 mt-1 text-muted-foreground shrink-0 transition-transform ${isOpen ? "rotate-0" : "-rotate-90"}`}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-foreground/90 ${isOpen ? "whitespace-pre-wrap break-words" : "truncate"}`}>
+                          {log.query_text}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          {new Date(log.created_at).toLocaleString()} ·{" "}
+                          {log.response_time_ms ? `${(log.response_time_ms / 1000).toFixed(1)}s` : "—"} ·{" "}
+                          {log.response_length ? `${log.response_length} chars` : "failed"}
+                          {isAdmin && (
+                            <span className="ml-1 text-accent/70">
+                              · user {log.user_id.slice(0, 8)}
                             </span>
                           )}
-                        </div>
-                      )}
-                    </div>
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 ${
-                        log.response_length && log.response_length > 0
-                          ? "bg-primary/10 text-primary"
-                          : "bg-destructive/10 text-destructive"
-                      }`}
-                    >
-                      {log.response_length && log.response_length > 0 ? "OK" : "ERR"}
-                    </span>
-                  </button>
+                        </p>
+                      </div>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 ${
+                          log.response_length && log.response_length > 0
+                            ? "bg-primary/10 text-primary"
+                            : "bg-destructive/10 text-destructive"
+                        }`}
+                      >
+                        {log.response_length && log.response_length > 0 ? "OK" : "ERR"}
+                      </span>
+                    </button>
+                    {isOpen && (
+                      <div className="mt-2 ml-6 mr-2 space-y-2">
+                        {!log.conversation_id ? (
+                          <p className="text-[11px] text-muted-foreground italic">No conversation linked to this query.</p>
+                        ) : isLoadingThread ? (
+                          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            Loading thread…
+                          </div>
+                        ) : thread && thread.length > 0 ? (
+                          <>
+                            <p className="text-[10px] uppercase tracking-widest text-muted-foreground/70">
+                              Full thread · {thread.length} message{thread.length === 1 ? "" : "s"}
+                            </p>
+                            {thread.map((m, idx) => (
+                              <div
+                                key={idx}
+                                className={`rounded-lg p-2.5 text-xs ${
+                                  m.role === "user"
+                                    ? "bg-primary/5 border border-primary/20"
+                                    : "bg-accent/5 border border-accent/20"
+                                }`}
+                              >
+                                <div className="text-[9px] uppercase tracking-widest font-bold mb-1 opacity-70">
+                                  {m.role === "user" ? "User" : "Wilson"} ·{" "}
+                                  {new Date(m.created_at).toLocaleTimeString()}
+                                </div>
+                                <div className="whitespace-pre-wrap break-words text-foreground/90">
+                                  {m.content}
+                                </div>
+                              </div>
+                            ))}
+                          </>
+                        ) : (
+                          <p className="text-[11px] text-muted-foreground italic">Thread is empty or was deleted.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
