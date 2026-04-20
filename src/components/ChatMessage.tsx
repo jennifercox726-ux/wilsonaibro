@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Copy, Check, Volume2, Square } from "lucide-react";
 import { markdownToHtml } from "@/lib/simpleMarkdown";
-import { speakText, speakTextSync, stopSpeaking, unlockTTS } from "@/lib/speechSynthesis";
+import { speakText, stopSpeaking, unlockTTS } from "@/lib/speechSynthesis";
 import WilsonOrb from "./WilsonOrb";
 
 
