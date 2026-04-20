@@ -52,10 +52,14 @@ Deno.serve(async (req) => {
 
     if (!response.ok) {
       const errBody = await response.text();
-      console.error("Google TTS error:", response.status, errBody);
+      console.error("Google TTS upstream error:", response.status, errBody);
       return new Response(
-        JSON.stringify({ error: "GOOGLE_TTS_UNAVAILABLE", fallback: true }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({
+          error: "GOOGLE_TTS_UPSTREAM_ERROR",
+          status: response.status,
+          details: errBody,
+        }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
