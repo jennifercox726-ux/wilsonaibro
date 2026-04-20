@@ -64,7 +64,7 @@ async function synthesizeChunk(text: string): Promise<Uint8Array> {
   const url = new URL(GOOGLE_TRANSLATE_TTS_URL);
   url.searchParams.set("ie", "UTF-8");
   url.searchParams.set("client", "tw-ob");
-  url.searchParams.set("tl", "en-GB");
+  url.searchParams.set("tl", "en-AU");
   url.searchParams.set("q", text);
 
   const response = await fetch(url.toString(), {
