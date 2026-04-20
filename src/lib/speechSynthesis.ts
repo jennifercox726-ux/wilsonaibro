@@ -202,16 +202,20 @@ function scoreAmericanMaleVoice(voice: SpeechSynthesisVoice): number {
 function selectPreferredAmericanMaleVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
   if (voices.length === 0) return null;
 
-  const rankedVoices = [...voices]
-    .filter((voice) => !isFemaleCodedVoice(voice))
-    .sort((a, b) => scoreAmericanMaleVoice(b) - scoreAmericanMaleVoice(a));
+  // Prefer non-female English voices, ranked. If none qualify strictly,
+  // fall back to the best non-female voice rather than going silent.
+  const nonFemale = voices.filter((v) => !isFemaleCodedVoice(v));
+  const pool = nonFemale.length > 0 ? nonFemale : voices;
 
-  const strictMaleVoice = rankedVoices.find(isRecognizedAmericanMaleVoice);
-  if (strictMaleVoice) return strictMaleVoice;
+  const ranked = [...pool].sort(
+    (a, b) => scoreAmericanMaleVoice(b) - scoreAmericanMaleVoice(a)
+  );
 
-  const bestVoice = rankedVoices[0];
+  const strict = ranked.find(isRecognizedAmericanMaleVoice);
+  if (strict) return strict;
 
-  return bestVoice && isRecognizedAmericanMaleVoice(bestVoice) ? bestVoice : null;
+  // Always return SOMETHING playable so the user actually hears Wilson.
+  return ranked[0] ?? voices[0] ?? null;
 }
 
 async function speakWithBrowserMaleVoice(text: string): Promise<boolean> {

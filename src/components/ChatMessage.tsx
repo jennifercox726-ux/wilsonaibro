@@ -63,7 +63,6 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
     // First attempt: synchronous Web Speech (works reliably on iOS Safari)
     const sync = speakTextSync(cleanContent);
     if (sync) {
-      // Poll for end of speech so we can flip the button back
       const synth = window.speechSynthesis;
       const poll = window.setInterval(() => {
         if (!synth.speaking && !synth.pending) {
@@ -74,7 +73,7 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
       return;
     }
 
-    // Fallback (desktop / non-iOS): async path with Edge TTS
+    // Fallback (desktop / no local voice): async neural male path
     speakText(cleanContent).finally(() => setSpeaking(false));
   };
 
