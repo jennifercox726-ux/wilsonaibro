@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, MessageSquare, Users, Clock, AlertTriangle, TrendingUp } from "lucide-react";
+import { ArrowLeft, MessageSquare, Users, Clock, AlertTriangle, TrendingUp, Shield } from "lucide-react";
 import { motion } from "framer-motion";
 import WilsonOrb from "@/components/WilsonOrb";
 
@@ -13,6 +13,7 @@ interface QueryLog {
   response_time_ms: number | null;
   created_at: string;
   conversation_id: string | null;
+  user_id: string;
 }
 
 interface Stats {
@@ -32,6 +33,7 @@ interface TopQuery {
 const Analytics = ({ userId }: { userId: string }) => {
   const navigate = useNavigate();
   const [logs, setLogs] = useState<QueryLog[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [stats, setStats] = useState<Stats>({
     totalQueries: 0,
     uniqueUsers: 0,
@@ -48,18 +50,30 @@ const Analytics = ({ userId }: { userId: string }) => {
     async function fetchData() {
       setLoading(true);
 
+      // Check admin status (RLS lets admins read all roles, normal users see only their own)
+      const { data: roleRows } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("role", "admin")
+        .maybeSingle();
+      const adminFlag = !!roleRows;
+      setIsAdmin(adminFlag);
+
       const now = new Date();
       const since = new Date();
       if (timeRange === "24h") since.setHours(now.getHours() - 24);
       else if (timeRange === "7d") since.setDate(now.getDate() - 7);
       else since.setDate(now.getDate() - 30);
 
+      // Admins see ALL query_logs via the new admin RLS policy. Regular users
+      // only see their own — RLS handles both cases automatically.
       const { data, error } = await supabase
         .from("query_logs")
         .select("*")
         .gte("created_at", since.toISOString())
         .order("created_at", { ascending: false })
-        .limit(500);
+        .limit(1000);
 
       if (error || !data) {
         setLoading(false);
@@ -84,16 +98,19 @@ const Analytics = ({ userId }: { userId: string }) => {
         ? Math.round(validResponses.reduce((a, b) => a + (b.response_length || 0), 0) / validResponses.length)
         : 0;
 
+      // Unique users — admins see real count across all queries; users always see 1 (themselves)
+      const uniqueUserIds = new Set(data.map((d) => d.user_id));
+
       setStats({
         totalQueries: total,
-        uniqueUsers: 1, // RLS scopes to current user
+        uniqueUsers: uniqueUserIds.size,
         avgResponseMs: avgMs,
         errorRate: total ? Math.round((failed / total) * 100 * 100) / 100 : 0,
         avgQueryLength: avgQL,
         avgResponseLength: avgRL,
       });
 
-      // Top queries by similarity (simple: group by first 50 chars)
+      // Top queries by similarity (group by first 60 chars)
       const freq: Record<string, number> = {};
       data.forEach((d) => {
         const key = d.query_text.slice(0, 60).toLowerCase().trim();
@@ -108,7 +125,7 @@ const Analytics = ({ userId }: { userId: string }) => {
       setLoading(false);
     }
     fetchData();
-  }, [timeRange]);
+  }, [timeRange, userId]);
 
   const statCards = [
     {
@@ -116,6 +133,12 @@ const Analytics = ({ userId }: { userId: string }) => {
       value: stats.totalQueries,
       icon: MessageSquare,
       color: "text-primary",
+    },
+    {
+      label: isAdmin ? "Unique Users" : "You",
+      value: stats.uniqueUsers,
+      icon: Users,
+      color: "text-accent",
     },
     {
       label: "Avg Response",
@@ -128,12 +151,6 @@ const Analytics = ({ userId }: { userId: string }) => {
       value: `${stats.errorRate}%`,
       icon: AlertTriangle,
       color: stats.errorRate > 5 ? "text-destructive" : "text-primary",
-    },
-    {
-      label: "Avg Query Length",
-      value: `${stats.avgQueryLength} chars`,
-      icon: TrendingUp,
-      color: "text-primary",
     },
   ];
 
@@ -156,9 +173,17 @@ const Analytics = ({ userId }: { userId: string }) => {
         </button>
         <WilsonOrb size="sm" />
         <div className="flex-1">
-          <h1 className="text-sm font-bold tracking-wide text-foreground">Wilson Analytics ✨</h1>
+          <h1 className="text-sm font-bold tracking-wide text-foreground flex items-center gap-2">
+            Wilson Analytics ✨
+            {isAdmin && (
+              <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest bg-accent/20 text-accent px-2 py-0.5 rounded-full border border-accent/30">
+                <Shield className="w-2.5 h-2.5" />
+                Admin
+              </span>
+            )}
+          </h1>
           <p className="text-[10px] uppercase tracking-[0.15em] text-primary/60">
-            Neural Void Telemetry
+            {isAdmin ? "All-user telemetry" : "Your private telemetry"}
           </p>
         </div>
       </header>
@@ -236,7 +261,7 @@ const Analytics = ({ userId }: { userId: string }) => {
         <div className="rounded-2xl bg-void-surface/40 backdrop-blur-lg border border-border/20 p-4">
           <h2 className="text-xs uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
             <MessageSquare className="w-3.5 h-3.5 text-primary" />
-            Recent Queries
+            Recent Queries {isAdmin && <span className="text-[9px] text-accent">· all users</span>}
           </h2>
           {logs.length === 0 ? (
             <p className="text-sm text-muted-foreground italic">
@@ -244,7 +269,7 @@ const Analytics = ({ userId }: { userId: string }) => {
             </p>
           ) : (
             <div className="space-y-2 max-h-80 overflow-y-auto">
-              {logs.slice(0, 20).map((log) => (
+              {logs.slice(0, 30).map((log) => (
                 <div
                   key={log.id}
                   className="flex items-start gap-3 text-sm border-b border-border/10 pb-2"
@@ -255,6 +280,11 @@ const Analytics = ({ userId }: { userId: string }) => {
                       {new Date(log.created_at).toLocaleString()} ·{" "}
                       {log.response_time_ms ? `${(log.response_time_ms / 1000).toFixed(1)}s` : "—"} ·{" "}
                       {log.response_length ? `${log.response_length} chars` : "failed"}
+                      {isAdmin && (
+                        <span className="ml-1 text-accent/70">
+                          · {log.user_id.slice(0, 8)}
+                        </span>
+                      )}
                     </p>
                   </div>
                   <span
