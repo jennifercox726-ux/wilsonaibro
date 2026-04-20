@@ -114,7 +114,7 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
             Wilson
           </span>
         )}
-        <div className={`wilson-prose text-sm ${isWilson ? "" : "text-foreground/90"}`}>
+        <div ref={proseRef} className={`wilson-prose text-sm ${isWilson ? "" : "text-foreground/90"}`}>
           <div dangerouslySetInnerHTML={{ __html: markdownToHtml(cleanContent) }} />
         </div>
         <div className="flex items-center justify-between mt-2 gap-2">
