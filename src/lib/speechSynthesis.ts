@@ -1,9 +1,37 @@
-// Wilson TTS — free Translate TTS via the edge-tts function.
-// No paid providers, no browser speech fallback. If it fails, Wilson stays silent.
+// Wilson TTS — prefer a local browser male American voice, then fall back to free server-side TTS.
 
 import { supabase } from "@/integrations/supabase/client";
 
 const FREE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/edge-tts`;
+const AMERICAN_MALE_VOICE_HINTS = [
+  "male",
+  "daniel",
+  "alex",
+  "aaron",
+  "nathan",
+  "fred",
+  "ralph",
+  "reed",
+  "guy",
+  "davis",
+  "jason",
+  "tom",
+  "matthew",
+  "steve",
+  "arthur",
+];
+const FEMALE_VOICE_HINTS = [
+  "female",
+  "samantha",
+  "victoria",
+  "allison",
+  "ava",
+  "zoe",
+  "karen",
+  "susan",
+  "kathy",
+  "princess",
+];
 
 async function fetchFreeTTS(text: string): Promise<Blob | null> {
   try {
@@ -43,6 +71,7 @@ async function fetchFreeTTS(text: string): Promise<Blob | null> {
 let currentAudio: HTMLAudioElement | null = null;
 let currentAudioUrl: string | null = null;
 let playbackAudio: HTMLAudioElement | null = null;
+let currentUtterance: SpeechSynthesisUtterance | null = null;
 let htmlAudioUnlocked = false;
 let playbackSessionId = 0;
 
@@ -58,6 +87,121 @@ function getPlaybackAudio(): HTMLAudioElement | null {
   }
 
   return playbackAudio;
+}
+
+function getSpeechSynthesisInstance(): SpeechSynthesis | null {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return null;
+  return window.speechSynthesis;
+}
+
+async function getAvailableVoices(timeoutMs = 1200): Promise<SpeechSynthesisVoice[]> {
+  const synth = getSpeechSynthesisInstance();
+  if (!synth) return [];
+
+  const immediateVoices = synth.getVoices();
+  if (immediateVoices.length > 0) {
+    return immediateVoices;
+  }
+
+  return await new Promise((resolve) => {
+    const handleVoicesChanged = () => {
+      cleanup();
+      resolve(synth.getVoices());
+    };
+
+    const cleanup = () => {
+      if (typeof synth.removeEventListener === "function") {
+        synth.removeEventListener("voiceschanged", handleVoicesChanged);
+      }
+      if (timeoutId !== null && typeof window !== "undefined") {
+        window.clearTimeout(timeoutId);
+      }
+    };
+
+    if (typeof synth.addEventListener === "function") {
+      synth.addEventListener("voiceschanged", handleVoicesChanged, { once: true });
+    }
+
+    const timeoutId = typeof window !== "undefined"
+      ? window.setTimeout(() => {
+          cleanup();
+          resolve(synth.getVoices());
+        }, timeoutMs)
+      : null;
+  });
+}
+
+function scoreAmericanMaleVoice(voice: SpeechSynthesisVoice): number {
+  const name = `${voice.name} ${voice.voiceURI}`.toLowerCase();
+  const lang = (voice.lang || "").toLowerCase();
+
+  let score = 0;
+
+  if (lang.startsWith("en-us")) score += 120;
+  else if (lang.startsWith("en")) score += 60;
+
+  if (voice.localService) score += 20;
+  if (name.includes("google us english")) score += 70;
+  if (name.includes("english (united states)")) score += 40;
+  if (AMERICAN_MALE_VOICE_HINTS.some((hint) => name.includes(hint))) score += 180;
+  if (FEMALE_VOICE_HINTS.some((hint) => name.includes(hint))) score -= 260;
+
+  return score;
+}
+
+function selectPreferredAmericanMaleVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
+  if (voices.length === 0) return null;
+
+  const rankedVoices = [...voices].sort((a, b) => scoreAmericanMaleVoice(b) - scoreAmericanMaleVoice(a));
+  const bestVoice = rankedVoices[0];
+
+  return scoreAmericanMaleVoice(bestVoice) > 0 ? bestVoice : null;
+}
+
+async function speakWithBrowserMaleVoice(text: string): Promise<boolean> {
+  const synth = getSpeechSynthesisInstance();
+  if (!synth) return false;
+
+  const voice = selectPreferredAmericanMaleVoice(await getAvailableVoices());
+  if (!voice) {
+    console.warn("[Wilson TTS] No male American browser voice available");
+    return false;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const utterance = new SpeechSynthesisUtterance(text);
+    currentUtterance = utterance;
+    utterance.voice = voice;
+    utterance.lang = voice.lang || "en-US";
+    utterance.rate = 1.02;
+    utterance.pitch = 0.9;
+    utterance.volume = 1;
+
+    utterance.onend = () => {
+      if (currentUtterance === utterance) {
+        currentUtterance = null;
+      }
+      resolve();
+    };
+
+    utterance.onerror = (event) => {
+      if (currentUtterance === utterance) {
+        currentUtterance = null;
+      }
+      reject(new Error(event.error || "browser speech failed"));
+    };
+
+    try {
+      synth.cancel();
+      synth.speak(utterance);
+    } catch (error) {
+      currentUtterance = null;
+      reject(error instanceof Error ? error : new Error(String(error)));
+    }
+  });
+
+  console.log("[Wilson TTS] Played via browser male voice:", voice.name, voice.lang);
+  return true;
 }
 
 function revokeCurrentAudioUrl(): void {
@@ -203,10 +347,9 @@ function unlockHtmlAudio(): void {
 
 export function unlockTTS(): void {
   unlockHtmlAudio();
+  getSpeechSynthesisInstance()?.getVoices();
 }
 
-// Kept for backward compatibility — no-op on iOS now since Google TTS handles voice.
-// Returns false so callers fall through to async speakText().
 export function speakTextSync(_text: string): boolean {
   return false;
 }
@@ -217,6 +360,13 @@ export async function speakText(text: string): Promise<void> {
   if (!clean) {
     console.warn("[Wilson TTS] No clean text to speak");
     return;
+  }
+
+  try {
+    const spokeWithBrowserVoice = await speakWithBrowserMaleVoice(clean.slice(0, 5000));
+    if (spokeWithBrowserVoice) return;
+  } catch (error) {
+    console.warn("[Wilson TTS] Browser male voice failed:", error);
   }
 
   const blob = await fetchFreeTTS(clean.slice(0, 5000));
@@ -234,6 +384,8 @@ export async function speakText(text: string): Promise<void> {
 }
 
 export function stopSpeaking(): void {
+  getSpeechSynthesisInstance()?.cancel();
+  currentUtterance = null;
   playbackSessionId += 1;
   const activeAudio = currentAudio;
   if (activeAudio && activeAudio !== playbackAudio) {
@@ -246,5 +398,6 @@ export function stopSpeaking(): void {
 
 export function isSpeaking(): boolean {
   const audio = currentAudio ?? playbackAudio;
-  return !!(audio && !audio.paused && !audio.ended);
+  const browserSpeaking = !!getSpeechSynthesisInstance()?.speaking;
+  return browserSpeaking || !!(audio && !audio.paused && !audio.ended);
 }
