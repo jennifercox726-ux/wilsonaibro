@@ -9,10 +9,11 @@ const corsHeaders = {
 };
 
 const TRUSTED_TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4";
-// Andrew Multilingual — Microsoft's 2024 studio-grade neural voice.
-// Deepest, richest, most podcast-host-sounding free male voice available.
-// Same free Edge TTS endpoint, zero cost, zero API key.
-const VOICE = "en-US-AndrewMultilingualNeural";
+// Andrew Neural — Microsoft's verified free-tier studio voice.
+// The "Multilingual" variant is Azure-paid-tier only and was returning
+// WebSocket errors on the free Edge endpoint, causing fallback to the
+// robotic Web Speech API. This one is confirmed free + studio quality.
+const VOICE = "en-US-AndrewNeural";
 
 function uuidNoDashes(): string {
   return crypto.randomUUID().replace(/-/g, "");
@@ -23,13 +24,12 @@ function buildSSML(text: string): string {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
-  // Slightly slower rate + mstts express-as "chat" style makes Brian sound
-  // dramatically more conversational and human, less announcer-like.
-  return `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='https://www.w3.org/2001/mstts' xml:lang='en-US'>
+  // Plain prosody only — mstts:express-as styles require Azure paid tier
+  // and cause WebSocket rejections on the free Edge endpoint, dropping us
+  // to the robotic Web Speech API fallback.
+  return `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
 <voice name='${VOICE}'>
-<mstts:express-as style='chat' styledegree='1.5'>
 <prosody rate='-4%' pitch='-2Hz'>${escaped}</prosody>
-</mstts:express-as>
 </voice>
 </speak>`;
 }
