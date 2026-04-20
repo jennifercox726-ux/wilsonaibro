@@ -9,10 +9,11 @@ const corsHeaders = {
 };
 
 const TRUSTED_TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4";
-// Andrew Multilingual — Microsoft's 2024 studio-grade neural voice.
-// Deepest, richest, most podcast-host-sounding free male voice available.
-// Same free Edge TTS endpoint, zero cost, zero API key.
-const VOICE = "en-US-AndrewMultilingualNeural";
+// Andrew Neural — Microsoft's verified free-tier studio voice.
+// The "Multilingual" variant is Azure-paid-tier only and was returning
+// WebSocket errors on the free Edge endpoint, causing fallback to the
+// robotic Web Speech API. This one is confirmed free + studio quality.
+const VOICE = "en-US-AndrewNeural";
 
 function uuidNoDashes(): string {
   return crypto.randomUUID().replace(/-/g, "");
