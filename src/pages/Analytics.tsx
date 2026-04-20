@@ -300,6 +300,54 @@ const Analytics = ({ userId }: { userId: string }) => {
           )}
         </div>
 
+        {/* Signups (admin only) */}
+        {isAdmin && (
+          <div className="rounded-2xl bg-void-surface/40 backdrop-blur-lg border border-border/20 p-4">
+            <h2 className="text-xs uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
+              <UserPlus className="w-3.5 h-3.5 text-accent" />
+              Signups <span className="text-[9px] text-accent">· {signups.length} total</span>
+            </h2>
+            {signups.length === 0 ? (
+              <p className="text-sm text-muted-foreground italic">No signups yet.</p>
+            ) : (
+              <div className="space-y-2 max-h-[40vh] overflow-y-auto">
+                {signups.map((s) => (
+                  <div key={s.user_id} className="border-b border-border/10 pb-2 px-2 py-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm text-foreground/90 font-semibold truncate">
+                        {s.display_name || <span className="italic text-muted-foreground">Unnamed</span>}
+                      </p>
+                      <span className="text-[10px] text-muted-foreground shrink-0">
+                        {new Date(s.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {s.emotional_vibe && s.emotional_vibe !== "neutral" && (
+                        <span className="text-[9px] uppercase tracking-widest bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
+                          {s.emotional_vibe}
+                        </span>
+                      )}
+                      {s.referral_source && (
+                        <span className="text-[9px] uppercase tracking-widest bg-accent/10 text-accent px-1.5 py-0.5 rounded-full">
+                          via {s.referral_source}
+                        </span>
+                      )}
+                      <span className="text-[9px] text-muted-foreground/60 font-mono">
+                        {s.user_id.slice(0, 8)}
+                      </span>
+                    </div>
+                    {s.core_dream && (
+                      <p className="text-[11px] text-muted-foreground mt-1 italic line-clamp-2">
+                        💭 {s.core_dream}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Recent Queries */}
         <div className="rounded-2xl bg-void-surface/40 backdrop-blur-lg border border-border/20 p-4">
           <h2 className="text-xs uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
