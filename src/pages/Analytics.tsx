@@ -155,6 +155,16 @@ const Analytics = ({ userId }: { userId: string }) => {
         .map(([text, count]) => ({ text, count }));
       setTopQueries(sorted);
 
+      // Admin-only: fetch all signups (RLS allows admins to read all profiles)
+      if (adminFlag) {
+        const { data: profileRows } = await supabase
+          .from("profiles")
+          .select("user_id, display_name, emotional_vibe, core_dream, referral_source, first_seen_at, created_at")
+          .order("created_at", { ascending: false })
+          .limit(500);
+        if (profileRows) setSignups(profileRows as SignupRow[]);
+      }
+
       setLoading(false);
     }
     fetchData();
