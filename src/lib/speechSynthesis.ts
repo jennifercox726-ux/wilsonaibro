@@ -1,16 +1,15 @@
-// Wilson TTS — Microsoft Edge neural voice via Supabase edge function (free, works on iOS)
-// Fallbacks: browser-direct Edge TTS WebSocket → Web Speech API
+// Wilson TTS — Google Cloud Text-to-Speech (WaveNet) via Supabase edge function.
+// No fallbacks. If Google TTS fails, Wilson stays silent.
 
-import { edgeTTSSynthesize } from "./edgeTTS";
 import { supabase } from "@/integrations/supabase/client";
 
-const EDGE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/edge-tts`;
+const GOOGLE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-tts`;
 
-async function fetchEdgeTTSFromServer(text: string): Promise<Blob | null> {
+async function fetchGoogleTTS(text: string): Promise<Blob | null> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-    const resp = await fetch(EDGE_TTS_URL, {
+    const resp = await fetch(GOOGLE_TTS_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -20,17 +19,23 @@ async function fetchEdgeTTSFromServer(text: string): Promise<Blob | null> {
       body: JSON.stringify({ text }),
     });
     if (!resp.ok) {
-      console.warn("[Wilson TTS] Server edge-tts non-OK:", resp.status);
+      console.warn("[Wilson TTS] google-tts non-OK:", resp.status);
+      return null;
+    }
+    const contentType = resp.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const body = await resp.json().catch(() => null);
+      console.warn("[Wilson TTS] google-tts returned JSON (provider unavailable):", body);
       return null;
     }
     const blob = await resp.blob();
     if (blob.size < 200) {
-      console.warn("[Wilson TTS] Server edge-tts blob too small:", blob.size);
+      console.warn("[Wilson TTS] google-tts blob too small:", blob.size);
       return null;
     }
     return blob;
   } catch (err) {
-    console.warn("[Wilson TTS] Server edge-tts request failed:", err);
+    console.warn("[Wilson TTS] google-tts request failed:", err);
     return null;
   }
 }
@@ -41,9 +46,7 @@ let playbackAudio: HTMLAudioElement | null = null;
 let htmlAudioUnlocked = false;
 let playbackSessionId = 0;
 
-const SILENT_AUDIO_DATA_URL = "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
-
-type CloudTTSResult = "played" | "provider-unavailable" | "playback-failed";
+const SILENT_AUDIO_DATA_URL = "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
 
 function getPlaybackAudio(): HTMLAudioElement | null {
   if (typeof Audio === "undefined") return null;
@@ -202,87 +205,10 @@ export function unlockTTS(): void {
   unlockHtmlAudio();
 }
 
-// SYNCHRONOUS iOS-friendly speak: call this DIRECTLY inside a click handler.
-// No awaits before synth.speak(). Voice is set only if already loaded;
-// otherwise we let the browser pick its default (still works on iOS).
-export function speakTextSync(text: string): boolean {
-  if (typeof window === "undefined" || !window.speechSynthesis) return false;
-  const synth = window.speechSynthesis;
-
-  const clean = stripMarkdown(text).slice(0, 3000);
-  if (!clean) return false;
-
-  // Build utterance FIRST while still in the gesture tick
-  const utterance = new SpeechSynthesisUtterance(clean);
-  utterance.lang = "en-US";
-  utterance.pitch = 1.0;
-  utterance.rate = 1.0;
-  utterance.volume = 1.0;
-
-  // Try to assign a premium voice ONLY if voices are already loaded.
-  // On iOS first call, voices may be empty — that's fine, default voice works.
-  const voices = synth.getVoices();
-  if (voices.length > 0) {
-    const preferred =
-      voices.find(v => /Daniel/i.test(v.name) && v.lang.startsWith("en")) ||
-      voices.find(v => /Samantha/i.test(v.name) && v.lang.startsWith("en")) ||
-      voices.find(v => v.lang.startsWith("en"));
-    if (preferred) {
-      utterance.voice = preferred;
-      utterance.lang = preferred.lang;
-    }
-  }
-
-  // CRITICAL iOS sequence: cancel any pending, then speak in same tick
-  synth.cancel();
-  synth.speak(utterance);
-  console.log("[Wilson TTS] speakTextSync invoked, voices loaded:", voices.length);
-  return true;
-}
-
-function isIOS(): boolean {
-  if (typeof navigator === "undefined") return false;
-  const ua = navigator.userAgent;
-  return /iPad|iPhone|iPod/.test(ua) || (ua.includes("Mac") && "ontouchend" in document);
-}
-
-async function trySpeakWebSpeech(text: string): Promise<boolean> {
-  if (typeof window === "undefined" || !window.speechSynthesis) return false;
-  try {
-    await speakWithWebSpeechAPI(text);
-    console.log("[Wilson TTS] Played via Web Speech API");
-    return true;
-  } catch (err) {
-    console.warn("[Wilson TTS] Web Speech API failed:", err);
-    return false;
-  }
-}
-
-async function trySpeakEdgeTTSBrowser(text: string): Promise<boolean> {
-  try {
-    const audioBlob = await edgeTTSSynthesize(text.slice(0, 5000));
-    if (audioBlob && audioBlob.size > 100) {
-      await playAudioBlob(audioBlob);
-      console.log("[Wilson TTS] Played via Edge TTS (browser WS)");
-      return true;
-    }
-  } catch (err) {
-    console.warn("[Wilson TTS] Browser Edge TTS failed:", err);
-  }
+// Kept for backward compatibility — no-op on iOS now since Google TTS handles voice.
+// Returns false so callers fall through to async speakText().
+export function speakTextSync(_text: string): boolean {
   return false;
-}
-
-async function trySpeakEdgeTTSServer(text: string): Promise<boolean> {
-  const blob = await fetchEdgeTTSFromServer(text.slice(0, 5000));
-  if (!blob) return false;
-  try {
-    await playAudioBlob(blob);
-    console.log("[Wilson TTS] Played via Edge TTS (server proxy)");
-    return true;
-  } catch (err) {
-    console.warn("[Wilson TTS] Server Edge TTS playback failed:", err);
-    return false;
-  }
 }
 
 export async function speakText(text: string): Promise<void> {
@@ -293,126 +219,18 @@ export async function speakText(text: string): Promise<void> {
     return;
   }
 
-  // 1. Server-proxied Microsoft Edge TTS — natural neural voice, MP3 blob,
-  //    works on iOS Safari because there's no client WebSocket involved.
-  if (await trySpeakEdgeTTSServer(clean)) return;
-
-  // 2. Browser-direct Edge TTS WebSocket — desktop / Android fallback.
-  if (await trySpeakEdgeTTSBrowser(clean)) return;
-
-  // 3. Web Speech API — last resort, uses local system voice.
-  if (await trySpeakWebSpeech(clean)) return;
-
-  console.warn("[Wilson TTS] All voice providers unavailable; staying silent");
-}
-
-// --- Web Speech API: hunt for premium/natural system voices ---
-
-let cachedPremiumVoice: SpeechSynthesisVoice | null = null;
-
-function getPremiumVoice(): SpeechSynthesisVoice | null {
-  if (cachedPremiumVoice) return cachedPremiumVoice;
-
-  const voices = window.speechSynthesis.getVoices();
-  if (!voices.length) return null;
-
-  // Priority: warm, natural, trustworthy English male voices
-  const preferencePatterns = [
-    /Microsoft Ryan.*Natural/i,
-    /Microsoft Guy.*Natural/i,
-    /Microsoft Mark/i,
-    /Google UK English Male/i,
-    /Google US English/i,
-    /Daniel/i,
-    /Aaron/i,
-    /James/i,
-    /Arthur/i,
-    /Thomas/i,
-    /Ryan/i,
-    /Natural/i,
-    /Premium/i,
-    /Enhanced/i,
-    /Online/i,
-  ];
-
-  for (const pattern of preferencePatterns) {
-    const match = voices.find(v => pattern.test(v.name) && v.lang.startsWith("en"));
-    if (match) {
-      cachedPremiumVoice = match;
-      console.log(`[Wilson TTS] Selected premium voice: ${match.name}`);
-      return match;
-    }
+  const blob = await fetchGoogleTTS(clean.slice(0, 5000));
+  if (!blob) {
+    console.warn("[Wilson TTS] Google TTS unavailable; staying silent");
+    return;
   }
 
-  const anyEnglish = voices.find(v => v.lang.startsWith("en"));
-  if (anyEnglish) {
-    cachedPremiumVoice = anyEnglish;
-    console.log(`[Wilson TTS] Using English fallback voice: ${anyEnglish.name}`);
-    return anyEnglish;
+  try {
+    await playAudioBlob(blob);
+    console.log("[Wilson TTS] Played via Google Cloud TTS (WaveNet)");
+  } catch (err) {
+    console.warn("[Wilson TTS] Google TTS playback failed:", err);
   }
-
-  return null;
-}
-
-function speakWithWebSpeechAPI(text: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const synth = window.speechSynthesis;
-    synth.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(text.slice(0, 3000));
-    const voice = getPremiumVoice();
-    if (voice) utterance.voice = voice;
-
-    utterance.pitch = 0.95;
-    utterance.rate = 0.88;
-    utterance.volume = 1.0;
-    utterance.lang = voice?.lang || "en-GB";
-
-    let started = false;
-    let timeoutId: number | null = null;
-
-    utterance.onstart = () => {
-      started = true;
-      if (timeoutId !== null) {
-        window.clearTimeout(timeoutId);
-      }
-    };
-    utterance.onend = () => {
-      if (timeoutId !== null) {
-        window.clearTimeout(timeoutId);
-      }
-      resolve();
-    };
-    utterance.onerror = (e) => {
-      if (timeoutId !== null) {
-        window.clearTimeout(timeoutId);
-      }
-      reject(e);
-    };
-
-    const speakNow = () => {
-      synth.speak(utterance);
-      timeoutId = window.setTimeout(() => {
-        if (!started && !synth.speaking) {
-          reject(new Error("Web Speech API did not start"));
-        }
-      }, 2500);
-    };
-
-    if (!voice && synth.getVoices().length === 0) {
-      synth.onvoiceschanged = () => {
-        const v = getPremiumVoice();
-        if (v) {
-          utterance.voice = v;
-          utterance.lang = v.lang;
-        }
-        synth.onvoiceschanged = null;
-        speakNow();
-      };
-    } else {
-      speakNow();
-    }
-  });
 }
 
 export function stopSpeaking(): void {
@@ -424,14 +242,9 @@ export function stopSpeaking(): void {
   resetAudioElement(getPlaybackAudio());
   currentAudio = null;
   revokeCurrentAudioUrl();
-  if (typeof window !== "undefined" && window.speechSynthesis) {
-    window.speechSynthesis.cancel();
-  }
 }
 
 export function isSpeaking(): boolean {
   const audio = currentAudio ?? playbackAudio;
-  const audioPlaying = !!(audio && !audio.paused && !audio.ended);
-  const webSpeechPlaying = typeof window !== "undefined" && window.speechSynthesis?.speaking;
-  return audioPlaying || !!webSpeechPlaying;
+  return !!(audio && !audio.paused && !audio.ended);
 }
