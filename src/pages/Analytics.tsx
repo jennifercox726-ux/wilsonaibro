@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, MessageSquare, Users, Clock, AlertTriangle, TrendingUp, Shield, ChevronDown, Loader2 } from "lucide-react";
+import { ArrowLeft, MessageSquare, Users, Clock, AlertTriangle, TrendingUp, Shield, ChevronDown, Loader2, UserPlus } from "lucide-react";
 import { motion } from "framer-motion";
 import WilsonOrb from "@/components/WilsonOrb";
 
@@ -30,6 +30,16 @@ interface TopQuery {
   count: number;
 }
 
+interface SignupRow {
+  user_id: string;
+  display_name: string | null;
+  emotional_vibe: string | null;
+  core_dream: string | null;
+  referral_source: string | null;
+  first_seen_at: string;
+  created_at: string;
+}
+
 const Analytics = ({ userId }: { userId: string }) => {
   const navigate = useNavigate();
   const [logs, setLogs] = useState<QueryLog[]>([]);
@@ -43,6 +53,7 @@ const Analytics = ({ userId }: { userId: string }) => {
     avgResponseLength: 0,
   });
   const [topQueries, setTopQueries] = useState<TopQuery[]>([]);
+  const [signups, setSignups] = useState<SignupRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState<"24h" | "7d" | "30d">("7d");
   const [expandedId, setExpandedId] = useState<string | null>(null);
