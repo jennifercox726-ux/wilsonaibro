@@ -1,15 +1,15 @@
-// Wilson TTS — Google Cloud Text-to-Speech (WaveNet) via Supabase edge function.
-// No fallbacks. If Google TTS fails, Wilson stays silent.
+// Wilson TTS — free Translate TTS via the edge-tts function.
+// No paid providers, no browser speech fallback. If it fails, Wilson stays silent.
 
 import { supabase } from "@/integrations/supabase/client";
 
-const GOOGLE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-tts`;
+const FREE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/edge-tts`;
 
-async function fetchGoogleTTS(text: string): Promise<Blob | null> {
+async function fetchFreeTTS(text: string): Promise<Blob | null> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-    const resp = await fetch(GOOGLE_TTS_URL, {
+    const resp = await fetch(FREE_TTS_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -19,23 +19,23 @@ async function fetchGoogleTTS(text: string): Promise<Blob | null> {
       body: JSON.stringify({ text }),
     });
     if (!resp.ok) {
-      console.warn("[Wilson TTS] google-tts non-OK:", resp.status);
+      console.warn("[Wilson TTS] free-tts non-OK:", resp.status);
       return null;
     }
     const contentType = resp.headers.get("content-type") || "";
     if (contentType.includes("application/json")) {
       const body = await resp.json().catch(() => null);
-      console.warn("[Wilson TTS] google-tts returned JSON (provider unavailable):", body);
+      console.warn("[Wilson TTS] free-tts returned JSON:", body);
       return null;
     }
     const blob = await resp.blob();
     if (blob.size < 200) {
-      console.warn("[Wilson TTS] google-tts blob too small:", blob.size);
+      console.warn("[Wilson TTS] free-tts blob too small:", blob.size);
       return null;
     }
     return blob;
   } catch (err) {
-    console.warn("[Wilson TTS] google-tts request failed:", err);
+    console.warn("[Wilson TTS] free-tts request failed:", err);
     return null;
   }
 }
@@ -219,17 +219,17 @@ export async function speakText(text: string): Promise<void> {
     return;
   }
 
-  const blob = await fetchGoogleTTS(clean.slice(0, 5000));
+  const blob = await fetchFreeTTS(clean.slice(0, 5000));
   if (!blob) {
-    console.warn("[Wilson TTS] Google TTS unavailable; staying silent");
+    console.warn("[Wilson TTS] Free TTS unavailable; staying silent");
     return;
   }
 
   try {
     await playAudioBlob(blob);
-    console.log("[Wilson TTS] Played via Google Cloud TTS (WaveNet)");
+    console.log("[Wilson TTS] Played via free server-side TTS");
   } catch (err) {
-    console.warn("[Wilson TTS] Google TTS playback failed:", err);
+    console.warn("[Wilson TTS] Free TTS playback failed:", err);
   }
 }
 
