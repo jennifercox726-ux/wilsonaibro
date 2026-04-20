@@ -2,6 +2,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { edgeTTSSynthesize } from "@/lib/edgeTTS";
+import { attachAudio, detachAudio } from "@/lib/audioBus";
 
 const FREE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/edge-tts`;
 const AMERICAN_MALE_VOICE_HINTS = [
@@ -326,8 +327,14 @@ async function playAudioBlob(audioBlob: Blob): Promise<void> {
 
   const primaryAudio = getPlaybackAudio();
   const bindPlaybackLifecycle = (audio: HTMLAudioElement) => {
-    audio.onended = () => finalizePlayback(audio, audioUrl, sessionId);
-    audio.onerror = () => finalizePlayback(audio, audioUrl, sessionId);
+    audio.onended = () => {
+      detachAudio(audio);
+      finalizePlayback(audio, audioUrl, sessionId);
+    };
+    audio.onerror = () => {
+      detachAudio(audio);
+      finalizePlayback(audio, audioUrl, sessionId);
+    };
   };
 
   const primaryPlayback = async () => {
@@ -336,10 +343,12 @@ async function playAudioBlob(audioBlob: Blob): Promise<void> {
     resetAudioElement(primaryAudio);
     primaryAudio.src = audioUrl;
     primaryAudio.volume = 1;
+    primaryAudio.crossOrigin = "anonymous";
     currentAudio = primaryAudio;
     bindPlaybackLifecycle(primaryAudio);
 
     await primaryAudio.play();
+    attachAudio(primaryAudio);
   };
 
   try {
@@ -358,12 +367,14 @@ async function playAudioBlob(audioBlob: Blob): Promise<void> {
 
   const fallbackAudio = new Audio(audioUrl);
   fallbackAudio.preload = "auto";
+  fallbackAudio.crossOrigin = "anonymous";
   fallbackAudio.setAttribute("playsinline", "true");
   bindPlaybackLifecycle(fallbackAudio);
 
   currentAudio = fallbackAudio;
   try {
     await fallbackAudio.play();
+    attachAudio(fallbackAudio);
   } catch (fallbackError) {
     finalizePlayback(fallbackAudio, audioUrl, sessionId);
     throw fallbackError;
@@ -495,6 +506,7 @@ export function stopSpeaking(): void {
     resetAudioElement(activeAudio);
   }
   resetAudioElement(getPlaybackAudio());
+  detachAudio();
   currentAudio = null;
   revokeCurrentAudioUrl();
 }
