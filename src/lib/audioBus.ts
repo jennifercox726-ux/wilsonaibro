@@ -37,7 +37,8 @@ function tick() {
   }
   // Use the existing buffer length to avoid TS DOM lib mismatches between
   // AnalyserNode#getByteTimeDomainData(Uint8Array) and Uint8Array<ArrayBuffer>.
-  analyser.getByteTimeDomainData(dataArray as unknown as Uint8Array);
+  // Cast to satisfy stricter TS DOM lib typings (Uint8Array<ArrayBuffer>).
+  analyser.getByteTimeDomainData(dataArray as unknown as Uint8Array<ArrayBuffer>);
   let sumSq = 0;
   for (let i = 0; i < dataArray.length; i++) {
     const v = (dataArray[i] - 128) / 128;
