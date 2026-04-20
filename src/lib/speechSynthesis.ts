@@ -34,6 +34,25 @@ const FEMALE_VOICE_HINTS = [
   "princess",
 ];
 
+function getVoiceSignature(voice: SpeechSynthesisVoice): string {
+  return `${voice.name} ${voice.voiceURI}`.toLowerCase();
+}
+
+function isFemaleCodedVoice(voice: SpeechSynthesisVoice): boolean {
+  const signature = getVoiceSignature(voice);
+  return FEMALE_VOICE_HINTS.some((hint) => signature.includes(hint));
+}
+
+function isRecognizedAmericanMaleVoice(voice: SpeechSynthesisVoice): boolean {
+  const signature = getVoiceSignature(voice);
+  const lang = (voice.lang || "").toLowerCase();
+
+  if (!(lang.startsWith("en-us") || lang.startsWith("en"))) return false;
+  if (isFemaleCodedVoice(voice)) return false;
+
+  return AMERICAN_MALE_VOICE_HINTS.some((hint) => signature.includes(hint));
+}
+
 async function fetchFreeTTS(text: string): Promise<Blob | null> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -148,7 +167,7 @@ async function getAvailableVoices(timeoutMs = 1200): Promise<SpeechSynthesisVoic
 }
 
 function scoreAmericanMaleVoice(voice: SpeechSynthesisVoice): number {
-  const name = `${voice.name} ${voice.voiceURI}`.toLowerCase();
+  const name = getVoiceSignature(voice);
   const lang = (voice.lang || "").toLowerCase();
 
   let score = 0;
@@ -159,8 +178,8 @@ function scoreAmericanMaleVoice(voice: SpeechSynthesisVoice): number {
   if (voice.localService) score += 20;
   if (name.includes("google us english")) score += 70;
   if (name.includes("english (united states)")) score += 40;
-  if (AMERICAN_MALE_VOICE_HINTS.some((hint) => name.includes(hint))) score += 180;
-  if (FEMALE_VOICE_HINTS.some((hint) => name.includes(hint))) score -= 260;
+  if (isRecognizedAmericanMaleVoice(voice)) score += 240;
+  if (isFemaleCodedVoice(voice)) score -= 400;
 
   return score;
 }
@@ -168,10 +187,16 @@ function scoreAmericanMaleVoice(voice: SpeechSynthesisVoice): number {
 function selectPreferredAmericanMaleVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
   if (voices.length === 0) return null;
 
-  const rankedVoices = [...voices].sort((a, b) => scoreAmericanMaleVoice(b) - scoreAmericanMaleVoice(a));
+  const rankedVoices = [...voices]
+    .filter((voice) => !isFemaleCodedVoice(voice))
+    .sort((a, b) => scoreAmericanMaleVoice(b) - scoreAmericanMaleVoice(a));
+
+  const strictMaleVoice = rankedVoices.find(isRecognizedAmericanMaleVoice);
+  if (strictMaleVoice) return strictMaleVoice;
+
   const bestVoice = rankedVoices[0];
 
-  return scoreAmericanMaleVoice(bestVoice) > 0 ? bestVoice : null;
+  return bestVoice && isRecognizedAmericanMaleVoice(bestVoice) ? bestVoice : null;
 }
 
 async function speakWithBrowserMaleVoice(text: string): Promise<boolean> {
@@ -367,7 +392,39 @@ export function unlockTTS(): void {
 }
 
 export function speakTextSync(_text: string): boolean {
-  return false;
+  const synth = getSpeechSynthesisInstance();
+  if (!synth) return false;
+
+  const voice = selectPreferredAmericanMaleVoice(synth.getVoices());
+  if (!voice) {
+    console.warn("[Wilson TTS] No synchronous male American browser voice available");
+    return false;
+  }
+
+  try {
+    const utterance = new SpeechSynthesisUtterance(stripMarkdown(_text).slice(0, 5000));
+    currentUtterance = utterance;
+    utterance.voice = voice;
+    utterance.lang = voice.lang || "en-US";
+    utterance.rate = 1.02;
+    utterance.pitch = 0.9;
+    utterance.volume = 1;
+    utterance.onend = () => {
+      if (currentUtterance === utterance) currentUtterance = null;
+    };
+    utterance.onerror = () => {
+      if (currentUtterance === utterance) currentUtterance = null;
+    };
+
+    synth.cancel();
+    synth.speak(utterance);
+    console.log("[Wilson TTS] Played via synchronous browser male voice:", voice.name, voice.lang);
+    return true;
+  } catch (error) {
+    currentUtterance = null;
+    console.warn("[Wilson TTS] Synchronous browser male voice failed:", error);
+    return false;
+  }
 }
 
 export async function speakText(text: string): Promise<void> {
