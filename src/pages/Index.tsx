@@ -225,7 +225,8 @@ const Index = ({ userId, displayName }: IndexProps) => {
   }, [messages, activeChat, scrollToBottom]);
 
   const createNewChat = useCallback(async () => {
-    const greeting = getGreeting(referral, displayName);
+    const isReturning = chats.length > 0;
+    const greeting = getGreeting(referral, displayName, isReturning);
 
     // Create conversation in DB
     const { data, error } = await supabase
@@ -258,7 +259,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
     setMessages((prev) => ({ ...prev, [id]: [greetingMsg] }));
     setActiveChat(id);
     setSidebarOpen(false);
-  }, [userId, referral, displayName]);
+  }, [userId, referral, displayName, chats.length]);
 
   const handleSend = useCallback(
     async (content: string) => {
