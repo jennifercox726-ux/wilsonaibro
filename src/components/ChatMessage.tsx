@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Copy, Check, Volume2, Square } from "lucide-react";
 import { markdownToHtml } from "@/lib/simpleMarkdown";
