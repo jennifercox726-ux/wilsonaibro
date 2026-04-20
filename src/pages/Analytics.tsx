@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, MessageSquare, Users, Clock, AlertTriangle, TrendingUp, Shield } from "lucide-react";
+import { ArrowLeft, MessageSquare, Users, Clock, AlertTriangle, TrendingUp, Shield, ChevronDown } from "lucide-react";
 import { motion } from "framer-motion";
 import WilsonOrb from "@/components/WilsonOrb";
 
@@ -45,6 +45,7 @@ const Analytics = ({ userId }: { userId: string }) => {
   const [topQueries, setTopQueries] = useState<TopQuery[]>([]);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState<"24h" | "7d" | "30d">("7d");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -268,36 +269,58 @@ const Analytics = ({ userId }: { userId: string }) => {
               No queries logged yet.
             </p>
           ) : (
-            <div className="space-y-2 max-h-80 overflow-y-auto">
-              {logs.slice(0, 30).map((log) => (
-                <div
-                  key={log.id}
-                  className="flex items-start gap-3 text-sm border-b border-border/10 pb-2"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="truncate text-foreground/80">{log.query_text}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      {new Date(log.created_at).toLocaleString()} ·{" "}
-                      {log.response_time_ms ? `${(log.response_time_ms / 1000).toFixed(1)}s` : "—"} ·{" "}
-                      {log.response_length ? `${log.response_length} chars` : "failed"}
-                      {isAdmin && (
-                        <span className="ml-1 text-accent/70">
-                          · {log.user_id.slice(0, 8)}
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                  <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full ${
-                      log.response_length && log.response_length > 0
-                        ? "bg-primary/10 text-primary"
-                        : "bg-destructive/10 text-destructive"
-                    }`}
+            <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+              {logs.slice(0, 100).map((log) => {
+                const isOpen = expandedId === log.id;
+                return (
+                  <button
+                    key={log.id}
+                    type="button"
+                    onClick={() => setExpandedId(isOpen ? null : log.id)}
+                    className="w-full text-left flex items-start gap-3 text-sm border-b border-border/10 pb-2 hover:bg-muted/20 active:bg-muted/30 rounded-lg px-2 py-1.5 transition-colors"
                   >
-                    {log.response_length && log.response_length > 0 ? "OK" : "ERR"}
-                  </span>
-                </div>
-              ))}
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 mt-1 text-muted-foreground shrink-0 transition-transform ${isOpen ? "rotate-0" : "-rotate-90"}`}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-foreground/90 ${isOpen ? "whitespace-pre-wrap break-words" : "truncate"}`}>
+                        {log.query_text}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        {new Date(log.created_at).toLocaleString()} ·{" "}
+                        {log.response_time_ms ? `${(log.response_time_ms / 1000).toFixed(1)}s` : "—"} ·{" "}
+                        {log.response_length ? `${log.response_length} chars` : "failed"}
+                        {isAdmin && (
+                          <span className="ml-1 text-accent/70">
+                            · user {log.user_id.slice(0, 8)}
+                          </span>
+                        )}
+                      </p>
+                      {isOpen && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <span className="text-[10px] text-muted-foreground/70">
+                            Query length: {log.query_length}
+                          </span>
+                          {log.conversation_id && (
+                            <span className="text-[10px] text-muted-foreground/70">
+                              · conv {log.conversation_id.slice(0, 8)}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 ${
+                        log.response_length && log.response_length > 0
+                          ? "bg-primary/10 text-primary"
+                          : "bg-destructive/10 text-destructive"
+                      }`}
+                    >
+                      {log.response_length && log.response_length > 0 ? "OK" : "ERR"}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
