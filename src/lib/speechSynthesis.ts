@@ -506,6 +506,7 @@ export function stopSpeaking(): void {
     resetAudioElement(activeAudio);
   }
   resetAudioElement(getPlaybackAudio());
+  detachAudio();
   currentAudio = null;
   revokeCurrentAudioUrl();
 }
