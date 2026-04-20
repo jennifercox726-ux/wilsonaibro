@@ -1,4 +1,4 @@
-// Wilson TTS — prefer a local browser male American voice, then fall back to free server-side TTS.
+// Wilson TTS — prefer a local browser male English voice, then fall back to a natural neural male voice.
 
 import { supabase } from "@/integrations/supabase/client";
 import { edgeTTSSynthesize } from "@/lib/edgeTTS";
@@ -9,11 +9,21 @@ const AMERICAN_MALE_VOICE_HINTS = [
   "daniel",
   "alex",
   "aaron",
+  "william",
+  "thomas",
+  "james",
+  "liam",
   "nathan",
   "fred",
   "ralph",
   "reed",
   "guy",
+  "ryan",
+  "sean",
+  "lee",
+  "neil",
+  "duncan",
+  "oliver",
   "davis",
   "jason",
   "tom",
@@ -95,11 +105,11 @@ async function fetchPreferredMaleTTS(text: string): Promise<Blob | null> {
       console.warn("[Wilson TTS] edge male blob too small:", blob.size);
       return null;
     }
-    console.log("[Wilson TTS] Using fixed male US neural voice");
+    console.log("[Wilson TTS] Using natural neural male fallback voice");
     return blob;
   } catch (err) {
-    console.warn("[Wilson TTS] fixed male US neural voice failed:", err);
-    return fetchFreeTTS(text);
+    console.warn("[Wilson TTS] natural neural male fallback voice failed:", err);
+    return null;
   }
 }
 
@@ -172,12 +182,17 @@ function scoreAmericanMaleVoice(voice: SpeechSynthesisVoice): number {
 
   let score = 0;
 
-  if (lang.startsWith("en-us")) score += 120;
-  else if (lang.startsWith("en")) score += 60;
+  if (lang.startsWith("en-au")) score += 170;
+  else if (lang.startsWith("en-gb")) score += 150;
+  else if (lang.startsWith("en-us")) score += 130;
+  else if (lang.startsWith("en")) score += 80;
 
-  if (voice.localService) score += 20;
+  if (voice.localService) score += 120;
   if (name.includes("google us english")) score += 70;
+  if (name.includes("australia") || name.includes("australian")) score += 90;
+  if (name.includes("united kingdom") || name.includes("british")) score += 50;
   if (name.includes("english (united states)")) score += 40;
+  if (name.includes("neural") || name.includes("natural")) score += 20;
   if (isRecognizedAmericanMaleVoice(voice)) score += 240;
   if (isFemaleCodedVoice(voice)) score -= 400;
 
@@ -205,7 +220,7 @@ async function speakWithBrowserMaleVoice(text: string): Promise<boolean> {
 
   const voice = selectPreferredAmericanMaleVoice(await getAvailableVoices());
   if (!voice) {
-    console.warn("[Wilson TTS] No male American browser voice available");
+    console.warn("[Wilson TTS] No natural male English browser voice available");
     return false;
   }
 
@@ -444,15 +459,15 @@ export async function speakText(text: string): Promise<void> {
 
   const blob = await fetchPreferredMaleTTS(clean.slice(0, 5000));
   if (!blob) {
-    console.warn("[Wilson TTS] Free TTS unavailable; staying silent");
+    console.warn("[Wilson TTS] Natural male fallback unavailable; staying silent");
     return;
   }
 
   try {
     await playAudioBlob(blob);
-    console.log("[Wilson TTS] Played via free server-side TTS");
+    console.log("[Wilson TTS] Played via natural neural male fallback voice");
   } catch (err) {
-    console.warn("[Wilson TTS] Free TTS playback failed:", err);
+    console.warn("[Wilson TTS] Natural neural male playback failed:", err);
   }
 }
 
