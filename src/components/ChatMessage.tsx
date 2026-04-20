@@ -103,7 +103,7 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
       transition={{ duration: 0.4, delay: index * 0.05 }}
       className={`group flex gap-3 ${isWilson ? "items-start" : "items-start justify-end"}`}
     >
-      {isWilson && <WilsonOrb size="sm" speaking={speaking} />}
+      {isWilson && <WilsonOrb size="sm" />}
       <div
         className={`relative max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3 ${
           isWilson ? "thought-block-wilson" : "thought-block"
