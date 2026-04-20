@@ -46,6 +46,27 @@ const Analytics = ({ userId }: { userId: string }) => {
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState<"24h" | "7d" | "30d">("7d");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [threadCache, setThreadCache] = useState<Record<string, { role: string; content: string; created_at: string }[]>>({});
+  const [threadLoading, setThreadLoading] = useState<string | null>(null);
+
+  async function handleToggle(log: QueryLog) {
+    if (expandedId === log.id) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(log.id);
+    if (!log.conversation_id || threadCache[log.conversation_id]) return;
+    setThreadLoading(log.conversation_id);
+    const { data } = await supabase
+      .from("messages")
+      .select("role, content, created_at")
+      .eq("conversation_id", log.conversation_id)
+      .order("created_at", { ascending: true });
+    if (data) {
+      setThreadCache((prev) => ({ ...prev, [log.conversation_id!]: data }));
+    }
+    setThreadLoading(null);
+  }
 
   useEffect(() => {
     async function fetchData() {
