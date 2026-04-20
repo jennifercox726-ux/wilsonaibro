@@ -62,6 +62,40 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
     speakText(cleanContent).finally(() => setSpeaking(false));
   };
 
+  // Wire up click-to-copy on rendered code blocks
+  const proseRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const root = proseRef.current;
+    if (!root) return;
+    const handler = async (e: MouseEvent) => {
+      const target = (e.target as HTMLElement).closest("[data-copy-btn]") as HTMLButtonElement | null;
+      if (!target) return;
+      const wrapper = target.closest(".wilson-code-wrapper") as HTMLElement | null;
+      const encoded = wrapper?.getAttribute("data-code") || "";
+      const code = decodeURIComponent(encoded);
+      try {
+        await navigator.clipboard.writeText(code);
+      } catch {
+        const ta = document.createElement("textarea");
+        ta.value = code;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      const label = target.querySelector("span");
+      const original = label?.textContent || "Copy";
+      target.classList.add("copied");
+      if (label) label.textContent = "Copied";
+      setTimeout(() => {
+        target.classList.remove("copied");
+        if (label) label.textContent = original;
+      }, 1600);
+    };
+    root.addEventListener("click", handler);
+    return () => root.removeEventListener("click", handler);
+  }, [cleanContent]);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
