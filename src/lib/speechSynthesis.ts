@@ -1,6 +1,7 @@
 // Wilson TTS — prefer a local browser male American voice, then fall back to free server-side TTS.
 
 import { supabase } from "@/integrations/supabase/client";
+import { edgeTTSSynthesize } from "@/lib/edgeTTS";
 
 const FREE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/edge-tts`;
 const AMERICAN_MALE_VOICE_HINTS = [
@@ -65,6 +66,21 @@ async function fetchFreeTTS(text: string): Promise<Blob | null> {
   } catch (err) {
     console.warn("[Wilson TTS] free-tts request failed:", err);
     return null;
+  }
+}
+
+async function fetchPreferredMaleTTS(text: string): Promise<Blob | null> {
+  try {
+    const blob = await edgeTTSSynthesize(text);
+    if (blob.size < 200) {
+      console.warn("[Wilson TTS] edge male blob too small:", blob.size);
+      return null;
+    }
+    console.log("[Wilson TTS] Using fixed male US neural voice");
+    return blob;
+  } catch (err) {
+    console.warn("[Wilson TTS] fixed male US neural voice failed:", err);
+    return fetchFreeTTS(text);
   }
 }
 
@@ -369,7 +385,7 @@ export async function speakText(text: string): Promise<void> {
     console.warn("[Wilson TTS] Browser male voice failed:", error);
   }
 
-  const blob = await fetchFreeTTS(clean.slice(0, 5000));
+  const blob = await fetchPreferredMaleTTS(clean.slice(0, 5000));
   if (!blob) {
     console.warn("[Wilson TTS] Free TTS unavailable; staying silent");
     return;
