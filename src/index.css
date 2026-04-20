@@ -227,8 +227,23 @@
 .wilson-prose .wilson-inline-code {
   @apply font-mono text-xs px-1.5 py-0.5 rounded-md bg-muted text-primary border border-border/30;
 }
+.wilson-prose .wilson-code-wrapper {
+  @apply relative rounded-xl border border-border/30 bg-muted/80 overflow-hidden mb-3;
+}
+.wilson-prose .wilson-code-header {
+  @apply flex items-center justify-between px-3 py-1.5 bg-background/40 border-b border-border/30;
+}
+.wilson-prose .wilson-code-lang {
+  @apply font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground;
+}
+.wilson-prose .wilson-code-copy {
+  @apply inline-flex items-center gap-1 px-2 py-1 rounded-md bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-semibold uppercase tracking-wider transition-colors cursor-pointer;
+}
+.wilson-prose .wilson-code-copy.copied {
+  @apply bg-primary/30;
+}
 .wilson-prose .wilson-code-block {
-  @apply font-mono text-xs p-4 rounded-xl bg-muted/80 border border-border/30 overflow-x-auto mb-3;
+  @apply font-mono text-xs p-4 bg-transparent overflow-x-auto m-0;
 }
 .wilson-prose .wilson-code-block code {
   @apply bg-transparent p-0 border-none;
