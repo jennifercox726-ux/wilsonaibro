@@ -223,7 +223,93 @@ serve(async (req) => {
       );
     }
 
-    return new Response(response.body, {
+    if (!response.body) {
+      return new Response(
+        JSON.stringify({ error: "Empty response from AI gateway" }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Wrap the upstream SSE so we can detect safety / length stops mid-stream
+    // and inject a graceful Wilson-voiced sign-off instead of letting the
+    // user see a half-finished sentence.
+    const upstream = response.body;
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
+
+    const wrapped = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        const reader = upstream.getReader();
+        let buffer = "";
+        let stopReason: string | null = null;
+        let sawAnyContent = false;
+
+        const sseChunk = (text: string) => {
+          const payload = {
+            choices: [{ delta: { content: text }, index: 0 }],
+          };
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+        };
+
+        const handleStop = (reason: string) => {
+          if (reason === "SAFETY" || reason === "content_filter") {
+            const msg = sawAnyContent
+              ? "\n\n*...okay okay, the safety net just yanked me back. The model cut me off on that one — I can't push past its content filter. Try rephrasing, or ask me something adjacent and I'll get you what you need.*"
+              : "*Whoa — the model's safety filter blocked that one before I could even start. Not my call, it's baked in upstream. Try rephrasing it, or come at it from a different angle and I'll do my best.*";
+            sseChunk(msg);
+          } else if (reason === "length" || reason === "MAX_TOKENS") {
+            sseChunk("\n\n*...whew, hit my length ceiling. Ask me to continue and I'll pick up where I left off.*");
+          }
+        };
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+
+            let nl: number;
+            while ((nl = buffer.indexOf("\n")) !== -1) {
+              const rawLine = buffer.slice(0, nl);
+              buffer = buffer.slice(nl + 1);
+              const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
+
+              // Forward the line as-is to the client
+              controller.enqueue(encoder.encode(rawLine + "\n"));
+
+              if (!line.startsWith("data: ")) continue;
+              const json = line.slice(6).trim();
+              if (json === "[DONE]") continue;
+              try {
+                const parsed = JSON.parse(json);
+                const choice = parsed?.choices?.[0];
+                if (choice?.delta?.content) sawAnyContent = true;
+                const finish = choice?.finish_reason || choice?.finishReason;
+                if (finish && finish !== "stop" && finish !== "STOP") {
+                  stopReason = finish;
+                }
+              } catch {
+                // partial json — fine, upstream will send rest
+              }
+            }
+          }
+          if (buffer.length > 0) {
+            controller.enqueue(encoder.encode(buffer));
+          }
+          if (stopReason) {
+            console.log("[chat] non-stop finish_reason:", stopReason);
+            handleStop(stopReason);
+            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          }
+        } catch (err) {
+          console.error("[chat] stream wrapper error:", err);
+        } finally {
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(wrapped, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });
   } catch (e) {
