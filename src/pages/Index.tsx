@@ -405,8 +405,19 @@ const Index = ({ userId, displayName }: IndexProps) => {
       } catch (e) {
         console.error(e);
         setIsThinking(false);
+        const msg = e instanceof Error ? e.message : "Unknown error";
         if (!assistantSoFar) {
-          upsertAssistant("*Oh no no no!* Something went wrong in the void... Please try again!");
+          // Hard failure before any tokens arrived
+          upsertAssistant(
+            msg.toLowerCase().includes("rate")
+              ? "*Whew — rate-limited. Give it a beat and ask again.*"
+              : msg.toLowerCase().includes("credit") || msg.toLowerCase().includes("payment")
+              ? "*The AI workspace is out of credits. Top up in Settings → Workspace → Usage.*"
+              : "*Oh no no no! Something went wrong in the void... Please try again!*"
+          );
+        } else {
+          // Partial response — append a tail note so user sees WHY it stopped
+          upsertAssistant("\n\n*...connection dropped mid-thought. Ask me to continue and I'll pick it back up.*");
         }
         // Log failed query too
         supabase.from("query_logs").insert({
