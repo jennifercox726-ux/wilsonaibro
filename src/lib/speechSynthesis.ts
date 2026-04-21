@@ -304,6 +304,9 @@ function finalizePlayback(audio: HTMLAudioElement | null, audioUrl: string, sess
 
 function stripMarkdown(text: string): string {
   return text
+    // Strip Wilson's internal control tags first so TTS never reads them
+    .replace(/\[VIBE:\s*\w+\]/gi, "")
+    .replace(/\[DREAM_UPDATE:\s*[^\]]+\]/gi, "")
     .replace(/\*\*(.*?)\*\*/g, "$1")
     .replace(/\*(.*?)\*/g, "$1")
     .replace(/#{1,6}\s/g, "")
