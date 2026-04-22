@@ -1,5 +1,6 @@
 const AMERICAN_MALE_VOICE_HINTS = [
   "male",
+  "ryan",
   "daniel",
   "alex",
   "aaron",
@@ -8,11 +9,6 @@ const AMERICAN_MALE_VOICE_HINTS = [
   "james",
   "liam",
   "nathan",
-  "fred",
-  "ralph",
-  "reed",
-  "guy",
-  "ryan",
   "sean",
   "lee",
   "neil",
@@ -39,6 +35,33 @@ const FEMALE_VOICE_HINTS = [
   "princess",
 ];
 
+const ROBOTIC_OR_NOVELTY_VOICE_HINTS = [
+  "fred",
+  "ralph",
+  "reed",
+  "junior",
+  "albert",
+  "eddy",
+  "grandpa",
+  "old man",
+  "whisper",
+  "zarvox",
+  "bad news",
+  "good news",
+  "bells",
+  "boing",
+  "bubbles",
+  "cellos",
+  "deranged",
+  "organ",
+  "trinoids",
+  "eloquence",
+  "espeak",
+  "robot",
+  "synth",
+  "compact",
+];
+
 let hasUnlockedSpeech = false;
 
 function getVoiceSignature(voice: SpeechSynthesisVoice): string {
@@ -50,6 +73,11 @@ function isFemaleCodedVoice(voice: SpeechSynthesisVoice): boolean {
   return FEMALE_VOICE_HINTS.some((hint) => signature.includes(hint));
 }
 
+function isRoboticOrNoveltyVoice(voice: SpeechSynthesisVoice): boolean {
+  const signature = getVoiceSignature(voice);
+  return ROBOTIC_OR_NOVELTY_VOICE_HINTS.some((hint) => signature.includes(hint));
+}
+
 function isRecognizedAmericanMaleVoice(voice: SpeechSynthesisVoice): boolean {
   const signature = getVoiceSignature(voice);
   const lang = (voice.lang || "").toLowerCase();
@@ -58,6 +86,7 @@ function isRecognizedAmericanMaleVoice(voice: SpeechSynthesisVoice): boolean {
     return false;
   }
   if (isFemaleCodedVoice(voice)) return false;
+  if (isRoboticOrNoveltyVoice(voice)) return false;
 
   return AMERICAN_MALE_VOICE_HINTS.some((hint) => signature.includes(hint));
 }
@@ -111,18 +140,25 @@ function scoreAmericanMaleVoice(voice: SpeechSynthesisVoice): number {
 
   let score = 0;
 
-  if (lang.startsWith("en-gb")) score += 180;
-  else if (lang.startsWith("en-au")) score += 170;
-  else if (lang.startsWith("en-us")) score += 150;
+  if (lang.startsWith("en-gb")) score += 260;
+  else if (lang.startsWith("en-au")) score += 220;
+  else if (lang.startsWith("en-us")) score += 140;
   else if (lang.startsWith("en")) score += 80;
 
-  if (voice.localService) score += 120;
-  if (name.includes("google us english")) score += 70;
-  if (name.includes("british") || name.includes("united kingdom")) score += 100;
-  if (name.includes("australia") || name.includes("australian")) score += 70;
-  if (name.includes("neural") || name.includes("natural")) score += 20;
-  if (isRecognizedAmericanMaleVoice(voice)) score += 240;
-  if (isFemaleCodedVoice(voice)) score -= 400;
+  if (voice.default) score += 30;
+  if (voice.localService) score += 40;
+  if (name.includes("microsoft ryan") || name.includes("ryan neural")) score += 420;
+  if (name.includes("google uk english male")) score += 340;
+  if (name.includes("google british english")) score += 260;
+  if (name.includes("google us english")) score += 140;
+  if (name.includes("daniel")) score += 240;
+  if (name.includes("arthur") || name.includes("oliver") || name.includes("thomas")) score += 180;
+  if (name.includes("british") || name.includes("united kingdom")) score += 140;
+  if (name.includes("australia") || name.includes("australian")) score += 100;
+  if (name.includes("neural") || name.includes("natural") || name.includes("enhanced") || name.includes("premium")) score += 100;
+  if (isRecognizedAmericanMaleVoice(voice)) score += 220;
+  if (isFemaleCodedVoice(voice)) score -= 800;
+  if (isRoboticOrNoveltyVoice(voice)) score -= 1200;
 
   return score;
 }
