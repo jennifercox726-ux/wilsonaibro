@@ -39,6 +39,8 @@ const FEMALE_VOICE_HINTS = [
   "princess",
 ];
 
+let hasUnlockedSpeech = false;
+
 function getVoiceSignature(voice: SpeechSynthesisVoice): string {
   return `${voice.name} ${voice.voiceURI}`.toLowerCase();
 }
@@ -140,13 +142,16 @@ function speakWithBrowserMaleVoice(text: string): boolean {
   if (!synth) return false;
 
   const voice = selectPreferredAmericanMaleVoice(synth.getVoices());
-  if (!voice) return false;
 
   try {
     const utterance = new SpeechSynthesisUtterance(text);
     currentUtterance = utterance;
-    utterance.voice = voice;
-    utterance.lang = voice.lang || "en-US";
+    if (voice) {
+      utterance.voice = voice;
+      utterance.lang = voice.lang || "en-US";
+    } else {
+      utterance.lang = "en-US";
+    }
     utterance.rate = 1.02;
     utterance.pitch = 0.9;
     utterance.volume = 1;
@@ -192,6 +197,26 @@ export function unlockTTS(): void {
   if (!synth) return;
   synth.getVoices();
   void getAvailableVoices();
+
+  if (hasUnlockedSpeech) return;
+
+  try {
+    const primer = new SpeechSynthesisUtterance(" ");
+    primer.volume = 0;
+    primer.rate = 1;
+    primer.pitch = 1;
+    primer.onend = () => {
+      if (currentUtterance === primer) currentUtterance = null;
+    };
+    primer.onerror = () => {
+      if (currentUtterance === primer) currentUtterance = null;
+    };
+    currentUtterance = primer;
+    synth.speak(primer);
+    hasUnlockedSpeech = true;
+  } catch {
+    currentUtterance = null;
+  }
 }
 
 export function speakText(text: string): boolean {
