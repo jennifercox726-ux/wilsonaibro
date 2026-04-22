@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Copy, Check, Volume2, Square } from "lucide-react";
 import { toast } from "sonner";
 import { markdownToHtml } from "@/lib/simpleMarkdown";
-import { speakText, stopSpeaking, unlockTTS } from "@/lib/speechSynthesis";
+import { isSpeaking, speakText, stopSpeaking, unlockTTS } from "@/lib/speechSynthesis";
 import WilsonOrb from "./WilsonOrb";
 
 
@@ -101,6 +101,18 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
     root.addEventListener("click", handler);
     return () => root.removeEventListener("click", handler);
   }, [cleanContent]);
+
+  useEffect(() => {
+    if (!speaking) return;
+
+    const intervalId = window.setInterval(() => {
+      if (!isSpeaking()) {
+        setSpeaking(false);
+      }
+    }, 200);
+
+    return () => window.clearInterval(intervalId);
+  }, [speaking]);
 
   return (
     <motion.div
