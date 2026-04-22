@@ -1,10 +1,3 @@
-import { supabase } from "@/integrations/supabase/client";
-import { attachAudio, detachAudio } from "@/lib/audioBus";
-
-const FREE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/edge-tts`;
-const SILENT_AUDIO_DATA_URL =
-  "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
-
 const AMERICAN_MALE_VOICE_HINTS = [
   "male",
   "daniel",
@@ -45,6 +38,8 @@ const FEMALE_VOICE_HINTS = [
   "kathy",
   "princess",
 ];
+
+let hasUnlockedSpeech = false;
 
 function getVoiceSignature(voice: SpeechSynthesisVoice): string {
   return `${voice.name} ${voice.voiceURI}`.toLowerCase();
@@ -142,92 +137,41 @@ function selectPreferredAmericanMaleVoice(voices: SpeechSynthesisVoice[]): Speec
   return strict ?? ranked[0] ?? voices[0] ?? null;
 }
 
-async function speakWithBrowserMaleVoice(text: string): Promise<boolean> {
+function speakWithBrowserMaleVoice(text: string): boolean {
   const synth = getSpeechSynthesisInstance();
   if (!synth) return false;
 
-  const voice = selectPreferredAmericanMaleVoice(await getAvailableVoices());
-  if (!voice) return false;
+  const voice = selectPreferredAmericanMaleVoice(synth.getVoices());
 
-  return await new Promise<boolean>((resolve) => {
+  try {
     const utterance = new SpeechSynthesisUtterance(text);
     currentUtterance = utterance;
-    utterance.voice = voice;
-    utterance.lang = voice.lang || "en-US";
+    if (voice) {
+      utterance.voice = voice;
+      utterance.lang = voice.lang || "en-US";
+    } else {
+      utterance.lang = "en-US";
+    }
     utterance.rate = 1.02;
     utterance.pitch = 0.9;
     utterance.volume = 1;
-
     utterance.onend = () => {
       if (currentUtterance === utterance) currentUtterance = null;
-      resolve(true);
     };
-
     utterance.onerror = () => {
       if (currentUtterance === utterance) currentUtterance = null;
-      resolve(false);
     };
 
-    try {
-      synth.cancel();
-      synth.speak(utterance);
-    } catch {
-      currentUtterance = null;
-      resolve(false);
-    }
-  });
-}
-
-async function fetchFreeTTS(text: string): Promise<Blob | null> {
-  try {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-    const resp = await fetch(FREE_TTS_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-      },
-      body: JSON.stringify({ text }),
-    });
-
-    if (!resp.ok) {
-      console.warn("[Wilson TTS] edge-tts non-OK:", resp.status);
-      return null;
-    }
-
-    const contentType = resp.headers.get("content-type") || "";
-    if (contentType.includes("application/json")) {
-      const body = await resp.json().catch(() => null);
-      console.warn("[Wilson TTS] edge-tts returned JSON:", body);
-      return null;
-    }
-
-    const blob = await resp.blob();
-    if (blob.size < 200) {
-      console.warn("[Wilson TTS] edge-tts blob too small:", blob.size);
-      return null;
-    }
-
-    return blob;
-  } catch (err) {
-    console.warn("[Wilson TTS] edge-tts request failed:", err);
-    return null;
+    synth.cancel();
+    synth.speak(utterance);
+    return true;
+  } catch {
+    currentUtterance = null;
+    return false;
   }
 }
 
-let currentAudio: HTMLAudioElement | null = null;
-let currentAudioUrl: string | null = null;
 let currentUtterance: SpeechSynthesisUtterance | null = null;
-
-function revokeCurrentAudioUrl(): void {
-  if (!currentAudioUrl) return;
-  URL.revokeObjectURL(currentAudioUrl);
-  currentAudioUrl = null;
-}
 
 function stripMarkdown(text: string): string {
   return text
@@ -248,145 +192,46 @@ function stripMarkdown(text: string): string {
     .trim();
 }
 
-function createPlaybackAudio(): HTMLAudioElement {
-  const audio = new Audio();
-  audio.preload = "auto";
-  audio.crossOrigin = "anonymous";
-  audio.setAttribute("playsinline", "true");
-  return audio;
-}
-
-export function beginSpeechPlayback(): HTMLAudioElement | null {
-  stopSpeaking();
-
-  const audio = createPlaybackAudio();
-  currentAudio = audio;
-
-  try {
-    audio.src = SILENT_AUDIO_DATA_URL;
-    audio.loop = true;
-    audio.volume = 0.001;
-    audio.muted = false;
-    const playPromise = audio.play();
-    if (playPromise && typeof playPromise.then === "function") {
-      playPromise.catch((err) => {
-        console.warn("[Wilson TTS] priming play failed:", err);
-      });
-    }
-  } catch (err) {
-    console.warn("[Wilson TTS] priming threw:", err);
-  }
-
-  return audio;
-}
-
-async function playFetchedAudio(audio: HTMLAudioElement, audioBlob: Blob): Promise<void> {
-  const audioUrl = URL.createObjectURL(audioBlob);
-  revokeCurrentAudioUrl();
-  currentAudio = audio;
-  currentAudioUrl = audioUrl;
-
-  audio.onended = () => {
-    detachAudio(audio);
-    if (currentAudio === audio) currentAudio = null;
-    revokeCurrentAudioUrl();
-  };
-
-  audio.onerror = () => {
-    detachAudio(audio);
-    if (currentAudio === audio) currentAudio = null;
-    revokeCurrentAudioUrl();
-  };
-
-  audio.loop = false;
-  audio.volume = 1;
-  audio.muted = false;
-  audio.src = audioUrl;
-
-  const playPromise = audio.play();
-  if (playPromise && typeof playPromise.then === "function") {
-    await playPromise;
-  }
-  attachAudio(audio);
-}
-
 export function unlockTTS(): void {
-  getSpeechSynthesisInstance()?.getVoices();
-}
-
-export function speakTextSync(_text: string): boolean {
   const synth = getSpeechSynthesisInstance();
-  if (!synth) return false;
+  if (!synth) return;
+  synth.getVoices();
+  void getAvailableVoices();
 
-  const voice = selectPreferredAmericanMaleVoice(synth.getVoices());
-  if (!voice) return false;
+  if (hasUnlockedSpeech) return;
 
   try {
-    const utterance = new SpeechSynthesisUtterance(stripMarkdown(_text).slice(0, 5000));
-    currentUtterance = utterance;
-    utterance.voice = voice;
-    utterance.lang = voice.lang || "en-US";
-    utterance.rate = 1.02;
-    utterance.pitch = 0.9;
-    utterance.volume = 1;
-    utterance.onend = () => {
-      if (currentUtterance === utterance) currentUtterance = null;
+    const primer = new SpeechSynthesisUtterance(" ");
+    primer.volume = 0;
+    primer.rate = 1;
+    primer.pitch = 1;
+    primer.onend = () => {
+      if (currentUtterance === primer) currentUtterance = null;
     };
-    utterance.onerror = () => {
-      if (currentUtterance === utterance) currentUtterance = null;
+    primer.onerror = () => {
+      if (currentUtterance === primer) currentUtterance = null;
     };
-
-    synth.cancel();
-    synth.speak(utterance);
-    return true;
+    currentUtterance = primer;
+    synth.speak(primer);
+    hasUnlockedSpeech = true;
   } catch {
     currentUtterance = null;
-    return false;
   }
 }
 
-export async function speakText(text: string, primedAudio?: HTMLAudioElement | null): Promise<void> {
+export function speakText(text: string): boolean {
   const clean = stripMarkdown(text);
-  if (!clean) return;
+  if (!clean) return false;
 
   const trimmed = clean.slice(0, 5000);
-  const audio = primedAudio ?? beginSpeechPlayback() ?? createPlaybackAudio();
-
-  const blob = await fetchFreeTTS(trimmed);
-  if (blob) {
-    try {
-      await playFetchedAudio(audio, blob);
-      return;
-    } catch (err) {
-      console.warn("[Wilson TTS] fetched audio playback failed:", err);
-      stopSpeaking();
-    }
-  }
-
-  const ok = await speakWithBrowserMaleVoice(trimmed);
-  if (ok) return;
-
-  throw new Error("Wilson voice playback failed.");
+  return speakWithBrowserMaleVoice(trimmed);
 }
 
 export function stopSpeaking(): void {
   getSpeechSynthesisInstance()?.cancel();
   currentUtterance = null;
-
-  if (currentAudio) {
-    currentAudio.onended = null;
-    currentAudio.onerror = null;
-    currentAudio.pause();
-    currentAudio.currentTime = 0;
-    currentAudio.removeAttribute("src");
-  }
-
-  detachAudio(currentAudio ?? undefined);
-  currentAudio = null;
-  revokeCurrentAudioUrl();
 }
 
 export function isSpeaking(): boolean {
-  const browserSpeaking = !!getSpeechSynthesisInstance()?.speaking;
-  return browserSpeaking || !!(currentAudio && !currentAudio.paused && !currentAudio.ended);
+  return !!getSpeechSynthesisInstance()?.speaking;
 }
