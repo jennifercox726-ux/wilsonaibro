@@ -168,7 +168,32 @@ const Index = ({ userId, displayName }: IndexProps) => {
     }
   }, []);
 
-  // Load conversations from DB on mount
+  // Load thread messages on demand (and cache)
+  const loadThreadMessages = useCallback(async (chatId: string) => {
+    const { data: msgs, error } = await supabase
+      .from("messages")
+      .select("id, role, content, created_at")
+      .eq("conversation_id", chatId)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      toast.error("Couldn't load this thread.");
+      console.error("[loadThreadMessages]", error);
+      return;
+    }
+
+    setMessages((prev) => ({
+      ...prev,
+      [chatId]: (msgs || []).map((m) => ({
+        id: m.id,
+        role: m.role as "user" | "assistant",
+        content: m.content,
+        timestamp: new Date(m.created_at),
+      })),
+    }));
+  }, []);
+
+  // Load conversations list on mount (messages load lazily on select)
   useEffect(() => {
     async function load() {
       const { data: convos } = await supabase
@@ -178,27 +203,6 @@ const Index = ({ userId, displayName }: IndexProps) => {
 
       if (convos && convos.length > 0) {
         setChats(convos.map((c) => ({ id: c.id, title: c.title, createdAt: new Date(c.created_at) })));
-
-        // Load messages for all conversations
-        const { data: msgs } = await supabase
-          .from("messages")
-          .select("id, conversation_id, role, content, created_at")
-          .in("conversation_id", convos.map((c) => c.id))
-          .order("created_at", { ascending: true });
-
-        if (msgs) {
-          const grouped: Record<string, Message[]> = {};
-          msgs.forEach((m) => {
-            if (!grouped[m.conversation_id]) grouped[m.conversation_id] = [];
-            grouped[m.conversation_id].push({
-              id: m.id,
-              role: m.role as "user" | "assistant",
-              content: m.content,
-              timestamp: new Date(m.created_at),
-            });
-          });
-          setMessages(grouped);
-        }
       }
 
       // Upsert profile with referral and load vibe
@@ -470,6 +474,8 @@ const Index = ({ userId, displayName }: IndexProps) => {
         onSelectChat={(id) => {
           setActiveChat(id);
           setSidebarOpen(false);
+          // Always refresh from DB to ensure full thread history is shown
+          loadThreadMessages(id);
         }}
         onNewChat={createNewChat}
         onDeleteChat={handleDeleteChat}
