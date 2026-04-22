@@ -9,7 +9,7 @@ import ChatInput from "@/components/ChatInput";
 import WilsonOrb, { WilsonVibe } from "@/components/WilsonOrb";
 import NeuralNebula from "@/components/NeuralNebula";
 import IOSIframeBanner from "@/components/IOSIframeBanner";
-import { speakText, stopSpeaking, unlockTTS } from "@/lib/speechSynthesis";
+import { unlockTTS } from "@/lib/speechSynthesis";
 import { useReferral } from "@/hooks/useReferral";
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
@@ -151,6 +151,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
   const [currentVibe, setCurrentVibe] = useState<WilsonVibe>("neutral");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [loadingChatId, setLoadingChatId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const referral = useReferral();
 
@@ -158,7 +159,6 @@ const Index = ({ userId, displayName }: IndexProps) => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
-  // Pre-load browser voices
   useEffect(() => {
     if (window.speechSynthesis) {
       window.speechSynthesis.getVoices();
@@ -168,8 +168,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
     }
   }, []);
 
-  // Load thread messages on demand (and cache)
-  const loadThreadMessages = useCallback(async (chatId: string) => {
+  const loadThreadMessages = useCallback(async (chatId: string): Promise<Message[]> => {
     const { data: msgs, error } = await supabase
       .from("messages")
       .select("id, role, content, created_at")
@@ -177,23 +176,18 @@ const Index = ({ userId, displayName }: IndexProps) => {
       .order("created_at", { ascending: true });
 
     if (error) {
-      toast.error("Couldn't load this thread.");
       console.error("[loadThreadMessages]", error);
-      return;
+      throw error;
     }
 
-    setMessages((prev) => ({
-      ...prev,
-      [chatId]: (msgs || []).map((m) => ({
-        id: m.id,
-        role: m.role as "user" | "assistant",
-        content: m.content,
-        timestamp: new Date(m.created_at),
-      })),
+    return (msgs || []).map((m) => ({
+      id: m.id,
+      role: m.role as "user" | "assistant",
+      content: m.content,
+      timestamp: new Date(m.created_at),
     }));
   }, []);
 
-  // Load conversations list on mount (messages load lazily on select)
   useEffect(() => {
     async function load() {
       const { data: convos } = await supabase
@@ -205,7 +199,6 @@ const Index = ({ userId, displayName }: IndexProps) => {
         setChats(convos.map((c) => ({ id: c.id, title: c.title, createdAt: new Date(c.created_at) })));
       }
 
-      // Upsert profile with referral and load vibe
       const { data: profileData } = await supabase.from("profiles").upsert(
         {
           user_id: userId,
@@ -232,7 +225,6 @@ const Index = ({ userId, displayName }: IndexProps) => {
     const isReturning = chats.length > 0;
     const greeting = getGreeting(referral, displayName, isReturning);
 
-    // Create conversation in DB
     const { data, error } = await supabase
       .from("conversations")
       .insert({ user_id: userId, title: "New Thread" })
@@ -252,7 +244,6 @@ const Index = ({ userId, displayName }: IndexProps) => {
       timestamp: new Date(),
     };
 
-    // Save greeting message
     await supabase.from("messages").insert({
       conversation_id: id,
       role: "assistant",
@@ -264,6 +255,21 @@ const Index = ({ userId, displayName }: IndexProps) => {
     setActiveChat(id);
     setSidebarOpen(false);
   }, [userId, referral, displayName, chats.length]);
+
+  const handleSelectChat = useCallback(async (id: string) => {
+    setActiveChat(id);
+    setSidebarOpen(false);
+    setLoadingChatId(id);
+
+    try {
+      const loadedMessages = await loadThreadMessages(id);
+      setMessages((prev) => ({ ...prev, [id]: loadedMessages }));
+    } catch {
+      toast.error("Couldn't load this thread.");
+    } finally {
+      setLoadingChatId((current) => (current === id ? null : current));
+    }
+  }, [loadThreadMessages]);
 
   const handleSend = useCallback(
     async (content: string) => {
@@ -286,14 +292,12 @@ const Index = ({ userId, displayName }: IndexProps) => {
         [activeChat]: [...(prev[activeChat] || []), userMsg],
       }));
 
-      // Save user message to DB
       supabase.from("messages").insert({
         conversation_id: activeChat,
         role: "user",
         content,
       }).then();
 
-      // Update chat title if still default
       setChats((prev) =>
         prev.map((c) => {
           if (c.id === activeChat && c.title === "New Thread") {
@@ -313,7 +317,6 @@ const Index = ({ userId, displayName }: IndexProps) => {
         .filter((m) => m.role === "user" || m.role === "assistant")
         .map((m) => ({ role: m.role, content: m.content }));
       allAiMessages.push({ role: "user", content });
-      // Context truncation: only send last 10 messages to save tokens
       const aiMessages = allAiMessages.slice(-10);
 
       let assistantSoFar = "";
@@ -354,10 +357,9 @@ const Index = ({ userId, displayName }: IndexProps) => {
             setIsThinking(false);
             const responseTimeMs = Date.now() - queryStart;
             if (assistantSoFar) {
-              // Parse vibe and dream tags from response
               const vibeMatch = assistantSoFar.match(/\[VIBE:\s*(excited|calm|tired|dreaming|neutral)\]/i);
               const dreamMatch = assistantSoFar.match(/\[DREAM_UPDATE:\s*(.+?)\]/i);
-              
+
               if (vibeMatch) {
                 const newVibe = vibeMatch[1].toLowerCase() as WilsonVibe;
                 setCurrentVibe(newVibe);
@@ -367,13 +369,11 @@ const Index = ({ userId, displayName }: IndexProps) => {
                 supabase.from("profiles").update({ core_dream: dreamMatch[1].trim() }).eq("user_id", userId).then();
               }
 
-              // Strip tags from displayed content
               const cleanContent = assistantSoFar
                 .replace(/\[VIBE:\s*\w+\]/gi, "")
                 .replace(/\[DREAM_UPDATE:\s*.+?\]/gi, "")
                 .trim();
 
-              // Update the displayed message with cleaned content
               if (cleanContent !== assistantSoFar) {
                 setMessages((prev) => {
                   const current = prev[activeChat] || [];
@@ -387,15 +387,12 @@ const Index = ({ userId, displayName }: IndexProps) => {
                 assistantSoFar = cleanContent;
               }
 
-              // Note: auto-speak removed — iOS Safari requires a fresh user gesture
-              // for audio playback. Users tap the speaker button on each Wilson reply.
               supabase.from("messages").insert({
                 conversation_id: activeChat,
                 role: "assistant",
                 content: assistantSoFar,
               }).then();
             }
-            // Log query analytics
             supabase.from("query_logs").insert({
               user_id: userId,
               conversation_id: activeChat,
@@ -411,7 +408,6 @@ const Index = ({ userId, displayName }: IndexProps) => {
         setIsThinking(false);
         const msg = e instanceof Error ? e.message : "Unknown error";
         if (!assistantSoFar) {
-          // Hard failure before any tokens arrived
           upsertAssistant(
             msg.toLowerCase().includes("rate")
               ? "*Whew — rate-limited. Give it a beat and ask again.*"
@@ -420,10 +416,8 @@ const Index = ({ userId, displayName }: IndexProps) => {
               : "*Oh no no no! Something went wrong in the void... Please try again!*"
           );
         } else {
-          // Partial response — append a tail note so user sees WHY it stopped
           upsertAssistant("\n\n*...connection dropped mid-thought. Ask me to continue and I'll pick it back up.*");
         }
-        // Log failed query too
         supabase.from("query_logs").insert({
           user_id: userId,
           conversation_id: activeChat,
@@ -434,7 +428,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
         }).then();
       }
     },
-    [activeChat, createNewChat, messages]
+    [activeChat, createNewChat, messages, userId]
   );
 
   const handleDeleteChat = useCallback(
@@ -455,7 +449,8 @@ const Index = ({ userId, displayName }: IndexProps) => {
     await supabase.auth.signOut();
   };
 
-  const currentMessages = activeChat ? messages[activeChat] || [] : [];
+  const currentMessages = activeChat ? messages[activeChat] : undefined;
+  const isCurrentThreadLoading = !!activeChat && loadingChatId === activeChat && !currentMessages;
 
   if (!loaded) {
     return (
@@ -471,12 +466,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
       <ChatSidebar
         chats={chats}
         activeChat={activeChat}
-        onSelectChat={(id) => {
-          setActiveChat(id);
-          setSidebarOpen(false);
-          // Always refresh from DB to ensure full thread history is shown
-          loadThreadMessages(id);
-        }}
+        onSelectChat={handleSelectChat}
         onNewChat={createNewChat}
         onDeleteChat={handleDeleteChat}
         isOpen={sidebarOpen}
@@ -491,11 +481,11 @@ const Index = ({ userId, displayName }: IndexProps) => {
           >
             <Menu className="w-5 h-5" />
           </button>
-          <WilsonOrb size="sm" isThinking={isThinking} vibe={currentVibe} />
+          <WilsonOrb size="sm" isThinking={isThinking || isCurrentThreadLoading} vibe={currentVibe} />
           <div className="flex-1">
-           <h1 className="text-sm font-bold tracking-wide text-foreground">Wilson <span className="text-primary/70">+ The Only One</span> ✨</h1>
+            <h1 className="text-sm font-bold tracking-wide text-foreground">Wilson <span className="text-primary/70">+ The Only One</span> ✨</h1>
             <p className="text-[10px] uppercase tracking-[0.15em] text-primary/60">
-              {isThinking ? "Searching the void..." : "Sentinel of Omnipresence"}
+              {isCurrentThreadLoading ? "Loading thread..." : isThinking ? "Searching the void..." : "Sentinel of Omnipresence"}
             </p>
           </div>
           <button
@@ -526,13 +516,17 @@ const Index = ({ userId, displayName }: IndexProps) => {
                 Enter the Void ✨
               </button>
             </div>
+          ) : isCurrentThreadLoading ? (
+            <div className="max-w-2xl mx-auto pt-12">
+              <NeuralNebula vibe={currentVibe} />
+            </div>
           ) : (
             <div className="max-w-2xl mx-auto space-y-5">
-              {currentMessages.map((msg, i) => (
+              {(currentMessages || []).map((msg, i) => (
                 <ChatMessage key={msg.id} message={msg} index={i} />
               ))}
               <AnimatePresence>
-                {isThinking && !currentMessages.some(m => m.id.startsWith("stream-")) && (
+                {isThinking && !(currentMessages || []).some((m) => m.id.startsWith("stream-")) && (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -549,7 +543,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
 
         {activeChat && (
           <div className="px-4 pb-4 pt-2">
-            <ChatInput onSend={handleSend} disabled={isThinking} />
+            <ChatInput onSend={handleSend} disabled={isThinking || isCurrentThreadLoading} />
           </div>
         )}
 
