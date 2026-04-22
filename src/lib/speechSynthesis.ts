@@ -101,6 +101,41 @@ async function fetchFreeTTS(text: string): Promise<Blob | null> {
   }
 }
 
+async function fetchEdgeFunctionTTS(url: string, label: string, text: string): Promise<Blob | null> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      },
+      body: JSON.stringify({ text }),
+    });
+    if (!resp.ok) {
+      console.warn(`[Wilson TTS] ${label} non-OK:`, resp.status);
+      return null;
+    }
+    const contentType = resp.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const body = await resp.json().catch(() => null);
+      console.warn(`[Wilson TTS] ${label} returned JSON (fallback signal):`, body);
+      return null;
+    }
+    const blob = await resp.blob();
+    if (blob.size < 200) {
+      console.warn(`[Wilson TTS] ${label} blob too small:`, blob.size);
+      return null;
+    }
+    return blob;
+  } catch (err) {
+    console.warn(`[Wilson TTS] ${label} request failed:`, err);
+    return null;
+  }
+}
+
 async function fetchPreferredMaleTTS(text: string): Promise<Blob | null> {
   try {
     const blob = await edgeTTSSynthesize(text);
