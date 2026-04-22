@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Copy, Check, Volume2, Square } from "lucide-react";
+import { toast } from "sonner";
 import { markdownToHtml } from "@/lib/simpleMarkdown";
 import { speakText, stopSpeaking, unlockTTS } from "@/lib/speechSynthesis";
 import WilsonOrb from "./WilsonOrb";
@@ -58,8 +59,12 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
     }
     unlockTTS();
     setSpeaking(true);
-    // Use the free open natural-sounding TTS (podcast-style male voice)
-    speakText(cleanContent).finally(() => setSpeaking(false));
+    speakText(cleanContent)
+      .catch((err) => {
+        console.warn("[Wilson TTS] all providers failed:", err);
+        toast.error("Voice playback failed — every TTS provider is offline. Try again in a moment.");
+      })
+      .finally(() => setSpeaking(false));
   };
 
   // Wire up click-to-copy on rendered code blocks
