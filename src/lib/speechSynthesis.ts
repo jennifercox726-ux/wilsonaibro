@@ -514,6 +514,10 @@ export function speakTextSync(_text: string): boolean {
 
 export async function speakText(text: string): Promise<void> {
   stopSpeaking();
+  // CRITICAL: re-prime the audio element synchronously after stopSpeaking()
+  // so the user gesture context is preserved through the upcoming await chain.
+  unlockHtmlAudio();
+
   const clean = stripMarkdown(text);
   if (!clean) {
     console.warn("[Wilson TTS] No clean text to speak");
@@ -522,31 +526,31 @@ export async function speakText(text: string): Promise<void> {
 
   const trimmed = clean.slice(0, 5000);
 
-  // 1. Microsoft Edge Neural (PRIMARY) — unlimited, free, human-grade
-  const neuralBlob = await fetchPreferredMaleTTS(trimmed);
-  if (neuralBlob) {
-    try {
-      await playAudioBlob(neuralBlob);
-      console.log("[Wilson TTS] Played via Edge neural male (primary)");
-      return;
-    } catch (err) {
-      console.warn("[Wilson TTS] Edge neural playback failed:", err);
-    }
-  }
-
-  // 2. Free Google Translate TTS proxy (server-side mp3, works in iframes)
+  // 1. Free server TTS (PRIMARY) — fast, reliable, works in all iframes
   const freeBlob = await fetchFreeTTS(trimmed);
   if (freeBlob) {
     try {
       await playAudioBlob(freeBlob);
-      console.log("[Wilson TTS] Played via free server TTS");
+      console.log("[Wilson TTS] Played via free server TTS (primary)");
       return;
     } catch (err) {
       console.warn("[Wilson TTS] Free TTS playback failed:", err);
     }
   }
 
-  // 3. Google WaveNet (only if Cloud key is enabled — usually returns JSON fallback)
+  // 2. Microsoft Edge Neural via browser WebSocket (deeper male voice)
+  const neuralBlob = await fetchPreferredMaleTTS(trimmed);
+  if (neuralBlob) {
+    try {
+      await playAudioBlob(neuralBlob);
+      console.log("[Wilson TTS] Played via Edge neural male");
+      return;
+    } catch (err) {
+      console.warn("[Wilson TTS] Edge neural playback failed:", err);
+    }
+  }
+
+  // 3. Google WaveNet (only works if Cloud TTS API is enabled)
   const googleBlob = await fetchEdgeFunctionTTS(GOOGLE_TTS_URL, "google-tts", trimmed);
   if (googleBlob) {
     try {
