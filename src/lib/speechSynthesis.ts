@@ -522,17 +522,8 @@ export async function speakText(text: string): Promise<void> {
 
   const trimmed = clean.slice(0, 5000);
 
-  // 1. ElevenLabs "Payload" (warm, drawly — McConaughey-ish) when available
-  const elevenBlob = await fetchEdgeFunctionTTS(ELEVEN_TTS_URL, "elevenlabs", trimmed);
-  if (elevenBlob) {
-    try {
-      await playAudioBlob(elevenBlob);
-      console.log("[Wilson TTS] Played via ElevenLabs");
-      return;
-    } catch (err) {
-      console.warn("[Wilson TTS] ElevenLabs playback failed:", err);
-    }
-  }
+  // 1. ElevenLabs disabled by user request — skip entirely.
+
 
   // 2. Google WaveNet (deep British male)
   const googleBlob = await fetchEdgeFunctionTTS(GOOGLE_TTS_URL, "google-tts", trimmed);
