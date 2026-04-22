@@ -505,36 +505,65 @@ export async function speakText(text: string): Promise<void> {
     return;
   }
 
-  // PRIMARY: free open natural-sounding server TTS (podcast-style male voice)
-  const freeBlob = await fetchFreeTTS(clean.slice(0, 5000));
+  const trimmed = clean.slice(0, 5000);
+
+  // 1. ElevenLabs "Payload" (warm, drawly — McConaughey-ish) when available
+  const elevenBlob = await fetchEdgeFunctionTTS(ELEVEN_TTS_URL, "elevenlabs", trimmed);
+  if (elevenBlob) {
+    try {
+      await playAudioBlob(elevenBlob);
+      console.log("[Wilson TTS] Played via ElevenLabs");
+      return;
+    } catch (err) {
+      console.warn("[Wilson TTS] ElevenLabs playback failed:", err);
+    }
+  }
+
+  // 2. Google WaveNet (deep British male)
+  const googleBlob = await fetchEdgeFunctionTTS(GOOGLE_TTS_URL, "google-tts", trimmed);
+  if (googleBlob) {
+    try {
+      await playAudioBlob(googleBlob);
+      console.log("[Wilson TTS] Played via Google WaveNet");
+      return;
+    } catch (err) {
+      console.warn("[Wilson TTS] Google playback failed:", err);
+    }
+  }
+
+  // 3. Free Google Translate TTS proxy (server-side mp3, works in iframes)
+  const freeBlob = await fetchFreeTTS(trimmed);
   if (freeBlob) {
     try {
       await playAudioBlob(freeBlob);
-      console.log("[Wilson TTS] Played via free open natural TTS");
+      console.log("[Wilson TTS] Played via free server TTS");
       return;
     } catch (err) {
       console.warn("[Wilson TTS] Free TTS playback failed:", err);
     }
   }
 
-  // SECONDARY: neural Edge TTS (Australian male)
-  const neuralBlob = await fetchPreferredMaleTTS(clean.slice(0, 5000));
+  // 4. Microsoft Edge Neural (browser WebSocket — blocked in some iframes)
+  const neuralBlob = await fetchPreferredMaleTTS(trimmed);
   if (neuralBlob) {
     try {
       await playAudioBlob(neuralBlob);
-      console.log("[Wilson TTS] Played via neural male fallback");
+      console.log("[Wilson TTS] Played via Edge neural male");
       return;
     } catch (err) {
-      console.warn("[Wilson TTS] Neural male playback failed:", err);
+      console.warn("[Wilson TTS] Edge neural playback failed:", err);
     }
   }
 
-  // LAST RESORT: local browser voice
+  // 5. Local browser voice — last resort
   try {
-    await speakWithBrowserMaleVoice(clean.slice(0, 5000));
+    const ok = await speakWithBrowserMaleVoice(trimmed);
+    if (ok) return;
   } catch (error) {
-    console.warn("[Wilson TTS] All TTS paths failed:", error);
+    console.warn("[Wilson TTS] Browser voice failed:", error);
   }
+
+  throw new Error("Wilson can't reach any voice provider right now.");
 }
 
 export function stopSpeaking(): void {
