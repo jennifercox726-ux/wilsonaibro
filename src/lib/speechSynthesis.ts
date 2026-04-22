@@ -380,14 +380,20 @@ async function playAudioBlob(audioBlob: Blob): Promise<void> {
   const primaryPlayback = async () => {
     if (!primaryAudio) throw new Error("HTML audio playback is not available");
 
-    resetAudioElement(primaryAudio);
-    primaryAudio.src = audioUrl;
+    // Don't fully reset — that would call .load() and lose our primed gesture.
+    primaryAudio.onended = null;
+    primaryAudio.onerror = null;
+    primaryAudio.loop = false;
+    primaryAudio.muted = false;
     primaryAudio.volume = 1;
-    primaryAudio.crossOrigin = "anonymous";
+    primaryAudio.src = audioUrl;
     currentAudio = primaryAudio;
     bindPlaybackLifecycle(primaryAudio);
 
-    await primaryAudio.play();
+    const playPromise = primaryAudio.play();
+    if (playPromise && typeof playPromise.then === "function") {
+      await playPromise;
+    }
     attachAudio(primaryAudio);
   };
 
@@ -423,37 +429,46 @@ async function playAudioBlob(audioBlob: Blob): Promise<void> {
 
 function unlockHtmlAudio(): void {
   const audio = getPlaybackAudio();
-  if (!audio || htmlAudioUnlocked) return;
+  if (!audio) return;
 
-  audio.src = SILENT_AUDIO_DATA_URL;
-  audio.volume = 0.01;
-
-  const playAttempt = audio.play();
-
-  const resetUnlockedAudio = () => {
-    audio.pause();
-    audio.currentTime = 0;
-    audio.removeAttribute("src");
-    audio.load();
-    audio.volume = 1;
-  };
-
-  if (playAttempt && typeof playAttempt.then === "function") {
-    playAttempt
-      .then(() => {
-        resetUnlockedAudio();
+  // Prime synchronously inside the user gesture. Keep the silent track
+  // looping at near-zero volume so the element stays "playing" — when real
+  // audio arrives we just swap the src and the browser does NOT treat that
+  // as a new autoplay attempt. This is what beats iframe autoplay policies.
+  try {
+    audio.src = SILENT_AUDIO_DATA_URL;
+    audio.loop = true;
+    audio.volume = 0.001;
+    audio.muted = false;
+    const p = audio.play();
+    if (p && typeof p.then === "function") {
+      p.then(() => {
         htmlAudioUnlocked = true;
-        console.log("[Wilson TTS] HTML audio unlocked via gesture");
-      })
-      .catch((error) => {
-        htmlAudioUnlocked = false;
-        console.warn("[Wilson TTS] HTML audio unlock failed:", error);
+        console.log("[Wilson TTS] HTML audio primed (silent loop)");
+      }).catch((err) => {
+        console.warn("[Wilson TTS] HTML audio prime failed:", err);
       });
-    return;
+    } else {
+      htmlAudioUnlocked = true;
+    }
+  } catch (err) {
+    console.warn("[Wilson TTS] HTML audio prime threw:", err);
   }
 
-  resetUnlockedAudio();
-  htmlAudioUnlocked = true;
+  // Also resume any suspended AudioContext on the same gesture.
+  try {
+    const Ctor =
+      (window as unknown as { AudioContext?: typeof AudioContext }).AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (Ctor) {
+      const probe = new Ctor();
+      if (probe.state === "suspended") probe.resume().catch(() => {});
+      // Close shortly so we don't leak — audioBus owns the real one.
+      setTimeout(() => probe.close().catch(() => {}), 50);
+    }
+  } catch {
+    /* noop */
+  }
 }
 
 export function unlockTTS(): void {
