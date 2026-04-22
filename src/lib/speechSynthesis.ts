@@ -522,22 +522,19 @@ export async function speakText(text: string): Promise<void> {
 
   const trimmed = clean.slice(0, 5000);
 
-  // 1. ElevenLabs disabled by user request — skip entirely.
-
-
-  // 2. Google WaveNet (deep British male)
-  const googleBlob = await fetchEdgeFunctionTTS(GOOGLE_TTS_URL, "google-tts", trimmed);
-  if (googleBlob) {
+  // 1. Microsoft Edge Neural (PRIMARY) — unlimited, free, human-grade
+  const neuralBlob = await fetchPreferredMaleTTS(trimmed);
+  if (neuralBlob) {
     try {
-      await playAudioBlob(googleBlob);
-      console.log("[Wilson TTS] Played via Google WaveNet");
+      await playAudioBlob(neuralBlob);
+      console.log("[Wilson TTS] Played via Edge neural male (primary)");
       return;
     } catch (err) {
-      console.warn("[Wilson TTS] Google playback failed:", err);
+      console.warn("[Wilson TTS] Edge neural playback failed:", err);
     }
   }
 
-  // 3. Free Google Translate TTS proxy (server-side mp3, works in iframes)
+  // 2. Free Google Translate TTS proxy (server-side mp3, works in iframes)
   const freeBlob = await fetchFreeTTS(trimmed);
   if (freeBlob) {
     try {
@@ -549,19 +546,19 @@ export async function speakText(text: string): Promise<void> {
     }
   }
 
-  // 4. Microsoft Edge Neural (browser WebSocket — blocked in some iframes)
-  const neuralBlob = await fetchPreferredMaleTTS(trimmed);
-  if (neuralBlob) {
+  // 3. Google WaveNet (only if Cloud key is enabled — usually returns JSON fallback)
+  const googleBlob = await fetchEdgeFunctionTTS(GOOGLE_TTS_URL, "google-tts", trimmed);
+  if (googleBlob) {
     try {
-      await playAudioBlob(neuralBlob);
-      console.log("[Wilson TTS] Played via Edge neural male");
+      await playAudioBlob(googleBlob);
+      console.log("[Wilson TTS] Played via Google WaveNet");
       return;
     } catch (err) {
-      console.warn("[Wilson TTS] Edge neural playback failed:", err);
+      console.warn("[Wilson TTS] Google playback failed:", err);
     }
   }
 
-  // 5. Local browser voice — last resort
+  // 4. Local browser voice — last resort
   try {
     const ok = await speakWithBrowserMaleVoice(trimmed);
     if (ok) return;
