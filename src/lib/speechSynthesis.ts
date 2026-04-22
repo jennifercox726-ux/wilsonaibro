@@ -5,6 +5,8 @@ import { edgeTTSSynthesize } from "@/lib/edgeTTS";
 import { attachAudio, detachAudio } from "@/lib/audioBus";
 
 const FREE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/edge-tts`;
+const ELEVEN_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`;
+const GOOGLE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-tts`;
 const AMERICAN_MALE_VOICE_HINTS = [
   "male",
   "daniel",
