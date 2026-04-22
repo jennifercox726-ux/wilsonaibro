@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Copy, Check, Volume2, Square } from "lucide-react";
 import { toast } from "sonner";
 import { markdownToHtml } from "@/lib/simpleMarkdown";
-import { beginSpeechPlayback, speakText, stopSpeaking, unlockTTS } from "@/lib/speechSynthesis";
+import { speakText, stopSpeaking, unlockTTS } from "@/lib/speechSynthesis";
 import WilsonOrb from "./WilsonOrb";
 
 
@@ -58,16 +58,14 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
       return;
     }
 
-    const primedAudio = beginSpeechPlayback();
     unlockTTS();
-    setSpeaking(true);
+    const started = speakText(cleanContent);
+    setSpeaking(started);
 
-    speakText(cleanContent, primedAudio)
-      .catch((err) => {
-        console.warn("[Wilson TTS] playback failed:", err);
-        toast.error("Voice playback failed — Wilson couldn't start audio on this device.");
-      })
-      .finally(() => setSpeaking(false));
+    if (!started) {
+      console.warn("[Wilson TTS] playback failed: no browser voice available");
+      toast.error("Voice playback failed — no supported male voice is available on this device.");
+    }
   };
 
   // Wire up click-to-copy on rendered code blocks
