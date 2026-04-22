@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Copy, Check, Volume2, Square } from "lucide-react";
 import { toast } from "sonner";
 import { markdownToHtml } from "@/lib/simpleMarkdown";
-import { speakText, stopSpeaking, unlockTTS } from "@/lib/speechSynthesis";
+import { beginSpeechPlayback, speakText, stopSpeaking, unlockTTS } from "@/lib/speechSynthesis";
 import WilsonOrb from "./WilsonOrb";
 
 
@@ -57,12 +57,15 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
       setSpeaking(false);
       return;
     }
+
+    const primedAudio = beginSpeechPlayback();
     unlockTTS();
     setSpeaking(true);
-    speakText(cleanContent)
+
+    speakText(cleanContent, primedAudio)
       .catch((err) => {
-        console.warn("[Wilson TTS] all providers failed:", err);
-        toast.error("Voice playback failed — every TTS provider is offline. Try again in a moment.");
+        console.warn("[Wilson TTS] playback failed:", err);
+        toast.error("Voice playback failed — Wilson couldn't start audio on this device.");
       })
       .finally(() => setSpeaking(false));
   };

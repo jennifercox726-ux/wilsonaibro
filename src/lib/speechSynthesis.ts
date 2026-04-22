@@ -2,6 +2,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { attachAudio, detachAudio } from "@/lib/audioBus";
 
 const FREE_TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/edge-tts`;
+const SILENT_AUDIO_DATA_URL =
+  "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
 
 const AMERICAN_MALE_VOICE_HINTS = [
   "male",
@@ -98,12 +100,13 @@ async function getAvailableVoices(timeoutMs = 1200): Promise<SpeechSynthesisVoic
       synth.addEventListener("voiceschanged", handleVoicesChanged, { once: true });
     }
 
-    const timeoutId = typeof window !== "undefined"
-      ? window.setTimeout(() => {
-          cleanup();
-          resolve(synth.getVoices());
-        }, timeoutMs)
-      : null;
+    const timeoutId =
+      typeof window !== "undefined"
+        ? window.setTimeout(() => {
+            cleanup();
+            resolve(synth.getVoices());
+          }, timeoutMs)
+        : null;
   });
 }
 
@@ -177,7 +180,9 @@ async function speakWithBrowserMaleVoice(text: string): Promise<boolean> {
 
 async function fetchFreeTTS(text: string): Promise<Blob | null> {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
     const resp = await fetch(FREE_TTS_URL, {
       method: "POST",
@@ -251,7 +256,33 @@ function createPlaybackAudio(): HTMLAudioElement {
   return audio;
 }
 
-async function playSingleAudio(audio: HTMLAudioElement, audioUrl: string): Promise<void> {
+export function beginSpeechPlayback(): HTMLAudioElement | null {
+  stopSpeaking();
+
+  const audio = createPlaybackAudio();
+  currentAudio = audio;
+
+  try {
+    audio.src = SILENT_AUDIO_DATA_URL;
+    audio.loop = true;
+    audio.volume = 0.001;
+    audio.muted = false;
+    const playPromise = audio.play();
+    if (playPromise && typeof playPromise.then === "function") {
+      playPromise.catch((err) => {
+        console.warn("[Wilson TTS] priming play failed:", err);
+      });
+    }
+  } catch (err) {
+    console.warn("[Wilson TTS] priming threw:", err);
+  }
+
+  return audio;
+}
+
+async function playFetchedAudio(audio: HTMLAudioElement, audioBlob: Blob): Promise<void> {
+  const audioUrl = URL.createObjectURL(audioBlob);
+  revokeCurrentAudioUrl();
   currentAudio = audio;
   currentAudioUrl = audioUrl;
 
@@ -267,7 +298,11 @@ async function playSingleAudio(audio: HTMLAudioElement, audioUrl: string): Promi
     revokeCurrentAudioUrl();
   };
 
+  audio.loop = false;
+  audio.volume = 1;
+  audio.muted = false;
   audio.src = audioUrl;
+
   const playPromise = audio.play();
   if (playPromise && typeof playPromise.then === "function") {
     await playPromise;
@@ -310,27 +345,21 @@ export function speakTextSync(_text: string): boolean {
   }
 }
 
-export async function speakText(text: string): Promise<void> {
+export async function speakText(text: string, primedAudio?: HTMLAudioElement | null): Promise<void> {
   const clean = stripMarkdown(text);
   if (!clean) return;
 
-  stopSpeaking();
-
   const trimmed = clean.slice(0, 5000);
-
-  // Create the audio element synchronously before any await so playback stays
-  // tied to the user gesture on strict browsers.
-  const audio = createPlaybackAudio();
+  const audio = primedAudio ?? beginSpeechPlayback() ?? createPlaybackAudio();
 
   const blob = await fetchFreeTTS(trimmed);
   if (blob) {
-    const audioUrl = URL.createObjectURL(blob);
     try {
-      await playSingleAudio(audio, audioUrl);
+      await playFetchedAudio(audio, blob);
       return;
     } catch (err) {
-      console.warn("[Wilson TTS] Single-provider audio playback failed:", err);
-      revokeCurrentAudioUrl();
+      console.warn("[Wilson TTS] fetched audio playback failed:", err);
+      stopSpeaking();
     }
   }
 
@@ -349,6 +378,7 @@ export function stopSpeaking(): void {
     currentAudio.onerror = null;
     currentAudio.pause();
     currentAudio.currentTime = 0;
+    currentAudio.removeAttribute("src");
   }
 
   detachAudio(currentAudio ?? undefined);
