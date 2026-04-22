@@ -1,7 +1,8 @@
 // Client-side Edge TTS using a natural-sounding male neural voice via WebSocket
 // This runs in the browser where WebSocket connections to Bing are allowed
 
-const VOICE = "en-AU-WilliamNeural";
+// Deep, warm British male — matches Wilson's McConaughey-meets-British persona
+const VOICE = "en-GB-RyanNeural";
 const TRUSTED_TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4";
 
 function buildSSML(text: string): string {
