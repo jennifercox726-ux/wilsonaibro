@@ -1,9 +1,14 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Copy, Check, Volume2, Square } from "lucide-react";
+import { Copy, Check, Volume2, Square, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { markdownToHtml } from "@/lib/simpleMarkdown";
-import { isSpeaking, speakText, stopSpeaking, unlockTTS } from "@/lib/speechSynthesis";
+import {
+  speakWithBark,
+  stopBark,
+  isBarkSpeaking,
+  subscribeToBark,
+} from "@/lib/barkTTS";
 import WilsonOrb from "./WilsonOrb";
 
 
@@ -27,12 +32,26 @@ function stripChartTags(content: string): string {
 const ChatMessage = ({ message, index }: ChatMessageProps) => {
   const isWilson = message.role === "assistant";
   const [copied, setCopied] = useState(false);
+  const [loadingVoice, setLoadingVoice] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const requestedRef = useRef(false);
 
   const cleanContent = useMemo(
     () => (isWilson ? stripChartTags(message.content) : message.content),
     [message.content, isWilson]
   );
+
+  // Track global Bark playback state
+  useEffect(() => {
+    return subscribeToBark(() => {
+      const playing = isBarkSpeaking();
+      // Only flip our local state if we triggered this playback
+      if (requestedRef.current) {
+        setSpeaking(playing);
+        if (!playing) requestedRef.current = false;
+      }
+    });
+  }, []);
 
   const handleCopy = async () => {
     try {
@@ -51,20 +70,22 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
     }
   };
 
-  const handleSpeak = () => {
-    if (speaking) {
-      stopSpeaking();
+  const handleSpeak = async () => {
+    if (speaking || loadingVoice) {
+      stopBark();
+      requestedRef.current = false;
       setSpeaking(false);
+      setLoadingVoice(false);
       return;
     }
 
-    unlockTTS();
-    const started = speakText(cleanContent);
-    setSpeaking(started);
-
-    if (!started) {
-      console.warn("[Wilson TTS] playback failed: no browser voice available");
-      toast.error("Voice playback failed — no supported male voice is available on this device.");
+    requestedRef.current = true;
+    setLoadingVoice(true);
+    const ok = await speakWithBark(cleanContent);
+    setLoadingVoice(false);
+    if (!ok) {
+      requestedRef.current = false;
+      toast.error("Bark voice unavailable — try again in a moment.");
     }
   };
 
@@ -102,17 +123,7 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
     return () => root.removeEventListener("click", handler);
   }, [cleanContent]);
 
-  useEffect(() => {
-    if (!speaking) return;
-
-    const intervalId = window.setInterval(() => {
-      if (!isSpeaking()) {
-        setSpeaking(false);
-      }
-    }, 200);
-
-    return () => window.clearInterval(intervalId);
-  }, [speaking]);
+  const isActive = speaking || loadingVoice;
 
   return (
     <motion.div
@@ -144,10 +155,15 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
               <button
                 onClick={handleSpeak}
                 className="flex items-center gap-1 px-2 py-1 rounded-full bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-semibold uppercase tracking-wider transition-colors"
-                title={speaking ? "Stop" : "Play voice"}
-                aria-label={speaking ? "Stop voice" : "Play voice"}
+                title={isActive ? "Stop" : "Play voice"}
+                aria-label={isActive ? "Stop voice" : "Play voice"}
               >
-                {speaking ? (
+                {loadingVoice ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Loading
+                  </>
+                ) : speaking ? (
                   <>
                     <Square className="w-3 h-3" />
                     Stop
