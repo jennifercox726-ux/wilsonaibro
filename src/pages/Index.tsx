@@ -10,6 +10,7 @@ import WilsonOrb, { WilsonVibe } from "@/components/WilsonOrb";
 import NeuralNebula from "@/components/NeuralNebula";
 import IOSIframeBanner from "@/components/IOSIframeBanner";
 import { unlockTTS } from "@/lib/speechSynthesis";
+import { speakWithBark, stopBark } from "@/lib/barkTTS";
 import { useReferral } from "@/hooks/useReferral";
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
@@ -274,6 +275,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
   const handleSend = useCallback(
     async (content: string) => {
       unlockTTS();
+      stopBark();
 
       if (!activeChat) {
         await createNewChat();
@@ -392,6 +394,9 @@ const Index = ({ userId, displayName }: IndexProps) => {
                 role: "assistant",
                 content: assistantSoFar,
               }).then();
+
+              // Speak Wilson's reply with the McConaughey × Connery Bark voice.
+              void speakWithBark(assistantSoFar);
             }
             supabase.from("query_logs").insert({
               user_id: userId,
