@@ -13,6 +13,8 @@ const MODEL_ID = "eleven_turbo_v2_5";
 interface TTSRequestBody {
   prompt?: string;
   voiceId?: string;
+  previousText?: string;
+  nextText?: string;
 }
 
 Deno.serve(async (req: Request) => {
@@ -56,9 +58,9 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  if (prompt.length > 1000) {
+  if (prompt.length > 3000) {
     return new Response(
-      JSON.stringify({ error: "`prompt` must be 1000 characters or fewer" }),
+      JSON.stringify({ error: "`prompt` must be 3000 characters or fewer" }),
       {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -67,6 +69,8 @@ Deno.serve(async (req: Request) => {
   }
 
   const voiceId = body.voiceId?.trim() || DEFAULT_VOICE_ID;
+  const previousText = body.previousText?.slice(0, 800);
+  const nextText = body.nextText?.slice(0, 800);
 
   try {
     // Synthesize speech directly. We skip the /v1/voices pre-check because
@@ -82,6 +86,8 @@ Deno.serve(async (req: Request) => {
         body: JSON.stringify({
           text: prompt,
           model_id: MODEL_ID,
+          ...(previousText ? { previous_text: previousText } : {}),
+          ...(nextText ? { next_text: nextText } : {}),
           voice_settings: {
             stability: 0.45,
             similarity_boost: 0.8,
