@@ -76,6 +76,7 @@ Deno.serve(async (req: Request) => {
 
   const voiceId = body.voiceId?.trim() || DEFAULT_VOICE_ID;
 
+  // --- Try ElevenLabs first ---
   try {
     const ttsRes = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
@@ -99,12 +100,80 @@ Deno.serve(async (req: Request) => {
       },
     );
 
-    if (!ttsRes.ok) {
-      const errBody = await ttsRes.text();
-      console.error("ElevenLabs TTS failed", ttsRes.status, errBody);
+    if (ttsRes.ok) {
+      const audioBuffer = await ttsRes.arrayBuffer();
+      const base64 = base64Encode(audioBuffer);
       return new Response(
         JSON.stringify({
-          error: `ElevenLabs TTS failed [${ttsRes.status}]`,
+          audioUrl: `data:audio/mpeg;base64,${base64}`,
+          contentType: "audio/mpeg",
+          provider: "elevenlabs",
+          requestId: null,
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    // ElevenLabs failed — capture details and fall through to Google TTS
+    const errBody = await ttsRes.text();
+    const isQuota = ttsRes.status === 401 || ttsRes.status === 429 ||
+      /quota|credit|exceed/i.test(errBody);
+    console.warn(
+      `ElevenLabs failed [${ttsRes.status}]${isQuota ? " (quota)" : ""}, falling back to Google TTS:`,
+      errBody.slice(0, 200),
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.warn("ElevenLabs threw, falling back to Google TTS:", message);
+  }
+
+  // --- Google TTS fallback ---
+  const GOOGLE_TTS_API_KEY = Deno.env.get("GOOGLE_TTS_API_KEY");
+  if (!GOOGLE_TTS_API_KEY) {
+    return new Response(
+      JSON.stringify({
+        error:
+          "ElevenLabs failed and GOOGLE_TTS_API_KEY is not configured for fallback",
+      }),
+      {
+        status: 502,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
+  }
+
+  try {
+    const googleRes = await fetch(
+      `https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_TTS_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          input: { text: prompt },
+          // Deep British male voice — closest to Wilson's Connery/McConaughey vibe
+          voice: {
+            languageCode: "en-GB",
+            name: "en-GB-Neural2-B",
+            ssmlGender: "MALE",
+          },
+          audioConfig: {
+            audioEncoding: "MP3",
+            speakingRate: 0.95,
+            pitch: -2.0,
+          },
+        }),
+      },
+    );
+
+    if (!googleRes.ok) {
+      const errBody = await googleRes.text();
+      console.error("Google TTS fallback failed", googleRes.status, errBody);
+      return new Response(
+        JSON.stringify({
+          error: `Google TTS fallback failed [${googleRes.status}]`,
           details: errBody,
         }),
         {
@@ -114,14 +183,22 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const audioBuffer = await ttsRes.arrayBuffer();
-    const base64 = base64Encode(audioBuffer);
-    const audioUrl = `data:audio/mpeg;base64,${base64}`;
+    const data = await googleRes.json() as { audioContent?: string };
+    if (!data.audioContent) {
+      return new Response(
+        JSON.stringify({ error: "Google TTS returned no audio" }),
+        {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
 
     return new Response(
       JSON.stringify({
-        audioUrl,
+        audioUrl: `data:audio/mpeg;base64,${data.audioContent}`,
         contentType: "audio/mpeg",
+        provider: "google",
         requestId: null,
       }),
       {
@@ -131,7 +208,7 @@ Deno.serve(async (req: Request) => {
     );
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("Wilson TTS error:", message);
+    console.error("Wilson TTS error (fallback):", message);
     return new Response(
       JSON.stringify({ error: message }),
       {
