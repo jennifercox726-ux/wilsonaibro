@@ -266,7 +266,119 @@ const Index = ({ userId, displayName }: IndexProps) => {
   const handleSend = useCallback(
     async (content: string) => {
       stopElevenLabs();
-...
+
+      if (!activeChat) {
+        await createNewChat();
+        return;
+      }
+
+      const userMsg: Message = {
+        id: generateId(),
+        role: "user",
+        content,
+        timestamp: new Date(),
+      };
+
+      setMessages((prev) => ({
+        ...prev,
+        [activeChat]: [...(prev[activeChat] || []), userMsg],
+      }));
+
+      supabase.from("messages").insert({
+        conversation_id: activeChat,
+        role: "user",
+        content,
+      }).then();
+
+      setChats((prev) =>
+        prev.map((c) => {
+          if (c.id === activeChat && c.title === "New Thread") {
+            const newTitle = content.slice(0, 40) + (content.length > 40 ? "..." : "");
+            supabase.from("conversations").update({ title: newTitle }).eq("id", activeChat).then();
+            return { ...c, title: newTitle };
+          }
+          return c;
+        })
+      );
+
+      setIsThinking(true);
+      const queryStart = Date.now();
+
+      const chatMessages = messages[activeChat] || [];
+      const allAiMessages: AiMsg[] = chatMessages
+        .filter((m) => m.role === "user" || m.role === "assistant")
+        .map((m) => ({ role: m.role, content: m.content }));
+      allAiMessages.push({ role: "user", content });
+      const aiMessages = allAiMessages.slice(-10);
+
+      let assistantSoFar = "";
+
+      const upsertAssistant = (nextChunk: string) => {
+        assistantSoFar += nextChunk;
+        setMessages((prev) => {
+          const current = prev[activeChat] || [];
+          const last = current[current.length - 1];
+          if (last?.role === "assistant" && last.id.startsWith("stream-")) {
+            return {
+              ...prev,
+              [activeChat]: current.map((m, i) =>
+                i === current.length - 1 ? { ...m, content: assistantSoFar } : m
+              ),
+            };
+          }
+          return {
+            ...prev,
+            [activeChat]: [
+              ...current,
+              {
+                id: "stream-" + generateId(),
+                role: "assistant" as const,
+                content: assistantSoFar,
+                timestamp: new Date(),
+              },
+            ],
+          };
+        });
+      };
+
+      try {
+        await streamChat({
+          messages: aiMessages,
+          onDelta: (chunk) => upsertAssistant(chunk),
+          onDone: () => {
+            setIsThinking(false);
+            const responseTimeMs = Date.now() - queryStart;
+            if (assistantSoFar) {
+              const vibeMatch = assistantSoFar.match(/\[VIBE:\s*(excited|calm|tired|dreaming|neutral)\]/i);
+              const dreamMatch = assistantSoFar.match(/\[DREAM_UPDATE:\s*(.+?)\]/i);
+
+              if (vibeMatch) {
+                const newVibe = vibeMatch[1].toLowerCase() as WilsonVibe;
+                setCurrentVibe(newVibe);
+                supabase.from("profiles").update({ emotional_vibe: newVibe }).eq("user_id", userId).then();
+              }
+              if (dreamMatch) {
+                supabase.from("profiles").update({ core_dream: dreamMatch[1].trim() }).eq("user_id", userId).then();
+              }
+
+              const cleanContent = assistantSoFar
+                .replace(/\[VIBE:\s*\w+\]/gi, "")
+                .replace(/\[DREAM_UPDATE:\s*.+?\]/gi, "")
+                .trim();
+
+              if (cleanContent !== assistantSoFar) {
+                setMessages((prev) => {
+                  const current = prev[activeChat] || [];
+                  return {
+                    ...prev,
+                    [activeChat]: current.map((m) =>
+                      m.id.startsWith("stream-") ? { ...m, content: cleanContent } : m
+                    ),
+                  };
+                });
+                assistantSoFar = cleanContent;
+              }
+
               supabase.from("messages").insert({
                 conversation_id: activeChat,
                 role: "assistant",
