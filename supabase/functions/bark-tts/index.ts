@@ -65,10 +65,32 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  const FAL_KEY = Deno.env.get("FAL_KEY");
-  if (!FAL_KEY) {
+  const RAW_FAL_KEY = Deno.env.get("FAL_KEY");
+  if (!RAW_FAL_KEY) {
     return new Response(
       JSON.stringify({ error: "FAL_KEY is not configured" }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
+  }
+  // Strip whitespace, BOM, zero-width chars, and surrounding quotes that often
+  // sneak in via copy-paste. Header values must be pure ASCII (ByteString).
+  const FAL_KEY = RAW_FAL_KEY
+    .replace(/^\uFEFF/, "")
+    .replace(/[\u200B-\u200D\u2028\u2029]/g, "")
+    .trim()
+    .replace(/^["']|["']$/g, "")
+    .trim();
+
+  if (!/^[\x21-\x7E]+$/.test(FAL_KEY)) {
+    console.error("FAL_KEY contains non-ASCII characters or whitespace");
+    return new Response(
+      JSON.stringify({
+        error:
+          "FAL_KEY is malformed (contains invalid characters). Please re-paste the key without quotes or extra whitespace.",
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
