@@ -9,6 +9,7 @@ export interface BarkResult {
 
 let currentAudio: HTMLAudioElement | null = null;
 let currentRequestId = 0;
+let currentAbort: AbortController | null = null;
 
 function stripForSpeech(text: string): string {
   return text
@@ -26,10 +27,17 @@ function stripForSpeech(text: string): string {
     .trim();
 }
 
-export async function generateBarkAudio(prompt: string): Promise<BarkResult> {
+export async function generateBarkAudio(
+  prompt: string,
+  signal?: AbortSignal,
+): Promise<BarkResult> {
   const { data, error } = await supabase.functions.invoke("bark-tts", {
     body: { prompt },
   });
+
+  if (signal?.aborted) {
+    throw new DOMException("Aborted", "AbortError");
+  }
 
   if (error) {
     throw new Error(error.message ?? "Failed to call Bark function");
@@ -40,17 +48,29 @@ export async function generateBarkAudio(prompt: string): Promise<BarkResult> {
   return data as BarkResult;
 }
 
+/**
+ * Hard-stop: aborts any in-flight fal.ai request AND tears down playback
+ * synchronously so the UI feels instant.
+ */
 export function stopBark(): void {
   currentRequestId++;
+
+  if (currentAbort) {
+    try { currentAbort.abort(); } catch { /* noop */ }
+    currentAbort = null;
+  }
+
   if (currentAudio) {
+    const audio = currentAudio;
+    currentAudio = null;
     try {
-      currentAudio.pause();
-      currentAudio.src = "";
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load(); // forces the media element to release the network/decoder
     } catch {
       /* noop */
     }
-    detachAudio(currentAudio);
-    currentAudio = null;
+    detachAudio(audio);
   }
 }
 
@@ -72,22 +92,52 @@ export async function speakWithBark(text: string): Promise<boolean> {
 
   stopBark();
   const reqId = ++currentRequestId;
+  const abort = new AbortController();
+  currentAbort = abort;
 
   try {
-    const { audioUrl } = await generateBarkAudio(clean.slice(0, 600));
-    if (reqId !== currentRequestId) return false;
+    const { audioUrl } = await generateBarkAudio(
+      clean.slice(0, 600),
+      abort.signal,
+    );
+
+    // If a newer call superseded us OR caller aborted, bail out before playback.
+    if (reqId !== currentRequestId || abort.signal.aborted) {
+      return false;
+    }
 
     const audio = new Audio(audioUrl);
     audio.crossOrigin = "anonymous";
     audio.preload = "auto";
-    currentAudio = audio;
 
+    // Wire abort to instantly tear down even mid-play
+    const onAbort = () => {
+      try {
+        audio.pause();
+        audio.removeAttribute("src");
+        audio.load();
+      } catch { /* noop */ }
+      detachAudio(audio);
+    };
+    abort.signal.addEventListener("abort", onAbort, { once: true });
+
+    currentAudio = audio;
     await audio.play();
+
+    // Final guard: state may have changed during the await
+    if (reqId !== currentRequestId || abort.signal.aborted) {
+      onAbort();
+      return false;
+    }
+
     attachAudio(audio);
     return true;
   } catch (err) {
+    if ((err as { name?: string })?.name === "AbortError") return false;
     console.warn("[bark] playback failed:", err);
-    currentAudio = null;
+    if (currentRequestId === reqId) currentAudio = null;
     return false;
+  } finally {
+    if (currentAbort === abort) currentAbort = null;
   }
 }
