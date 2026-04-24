@@ -10,6 +10,10 @@ export interface ElevenLabsResult {
 let currentAudio: HTMLAudioElement | null = null;
 let currentRequestId = 0;
 let currentAbort: AbortController | null = null;
+let playbackUnlockPromise: Promise<void> | null = null;
+
+const SILENT_WAV_DATA_URL =
+  "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
 
 function stripForSpeech(text: string): string {
   return text
@@ -141,6 +145,34 @@ export function subscribeToElevenLabs(listener: () => void): () => void {
   return subscribe(listener);
 }
 
+export async function unlockElevenLabsPlayback(): Promise<void> {
+  if (typeof window === "undefined") return;
+  if (playbackUnlockPromise) return playbackUnlockPromise;
+
+  playbackUnlockPromise = (async () => {
+    const audio = new Audio(SILENT_WAV_DATA_URL);
+    audio.muted = true;
+    audio.playsInline = true;
+
+    try {
+      await audio.play();
+      audio.pause();
+      audio.currentTime = 0;
+    } catch {
+      /* ignore unlock failures; manual play can still work */
+    } finally {
+      audio.removeAttribute("src");
+      audio.load();
+    }
+  })();
+
+  try {
+    await playbackUnlockPromise;
+  } finally {
+    playbackUnlockPromise = null;
+  }
+}
+
 export async function speakWithElevenLabs(text: string): Promise<boolean> {
   const clean = stripForSpeech(text);
   if (!clean) return false;
@@ -151,8 +183,6 @@ export async function speakWithElevenLabs(text: string): Promise<boolean> {
   currentAbort = abort;
 
   const chunks = chunkTextForTTS(clean);
-  // Pre-fetch the first chunk so playback starts ASAP, then stream the rest.
-  const audioUrls: (string | null)[] = new Array(chunks.length).fill(null);
 
   const fetchChunk = async (i: number): Promise<string | null> => {
     try {
@@ -173,31 +203,22 @@ export async function speakWithElevenLabs(text: string): Promise<boolean> {
   };
 
   try {
-    audioUrls[0] = await fetchChunk(0);
-    if (!audioUrls[0]) return false;
-    if (reqId !== currentRequestId || abort.signal.aborted) return false;
+    const chunkRequests: Promise<string | null>[] = chunks.map((_, i) => fetchChunk(i));
 
-    // Kick off remaining chunks in parallel (but cap concurrency to 2)
-    (async () => {
-      for (let i = 1; i < chunks.length; i++) {
-        if (reqId !== currentRequestId || abort.signal.aborted) break;
-        audioUrls[i] = await fetchChunk(i);
-      }
-    })();
+    const firstUrl = await chunkRequests[0];
+    if (!firstUrl) return false;
+    if (reqId !== currentRequestId || abort.signal.aborted) return false;
 
     // Sequential playback
     for (let i = 0; i < chunks.length; i++) {
-      // Wait for this chunk's URL to be ready
-      while (audioUrls[i] === null) {
-        if (reqId !== currentRequestId || abort.signal.aborted) return false;
-        await new Promise((r) => setTimeout(r, 80));
-      }
-      const url = audioUrls[i];
+      const url = i === 0 ? firstUrl : await chunkRequests[i];
+      if (reqId !== currentRequestId || abort.signal.aborted) return false;
       if (!url) return i > 0; // partial success if anything played
 
       const audio = new Audio(url);
       audio.crossOrigin = "anonymous";
       audio.preload = "auto";
+      audio.playsInline = true;
 
       const onAbort = () => {
         try {
@@ -212,9 +233,11 @@ export async function speakWithElevenLabs(text: string): Promise<boolean> {
       abort.signal.addEventListener("abort", onAbort, { once: true });
 
       currentAudio = audio;
+      attachAudio(audio);
       try {
         await audio.play();
       } catch (err) {
+        detachAudio(audio);
         if ((err as { name?: string })?.name === "AbortError") return i > 0;
         throw err;
       }
@@ -222,7 +245,6 @@ export async function speakWithElevenLabs(text: string): Promise<boolean> {
         onAbort();
         return false;
       }
-      attachAudio(audio);
 
       // Wait for this chunk to finish before starting the next
       await new Promise<void>((resolve) => {
