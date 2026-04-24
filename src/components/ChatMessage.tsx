@@ -4,11 +4,11 @@ import { Copy, Check, Volume2, Square, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { markdownToHtml } from "@/lib/simpleMarkdown";
 import {
-  speakWithBark,
-  stopBark,
-  isBarkSpeaking,
-  subscribeToBark,
-} from "@/lib/barkTTS";
+  speakWithElevenLabs,
+  stopElevenLabs,
+  isElevenLabsSpeaking,
+  subscribeToElevenLabs,
+} from "@/lib/elevenLabsTTS";
 import WilsonOrb from "./WilsonOrb";
 
 
@@ -41,38 +41,20 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
     [message.content, isWilson]
   );
 
-  // Track global Bark playback state
+  // Track global ElevenLabs playback state
   useEffect(() => {
-    return subscribeToBark(() => {
-      const playing = isBarkSpeaking();
-      // Only flip our local state if we triggered this playback
+    return subscribeToElevenLabs(() => {
+      const playing = isElevenLabsSpeaking();
       if (requestedRef.current) {
         setSpeaking(playing);
         if (!playing) requestedRef.current = false;
       }
     });
   }, []);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(cleanContent);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      const ta = document.createElement("textarea");
-      ta.value = cleanContent;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      document.body.removeChild(ta);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
+...
   const handleSpeak = async () => {
     if (speaking || loadingVoice) {
-      stopBark();
+      stopElevenLabs();
       requestedRef.current = false;
       setSpeaking(false);
       setLoadingVoice(false);
@@ -81,11 +63,11 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
 
     requestedRef.current = true;
     setLoadingVoice(true);
-    const ok = await speakWithBark(cleanContent);
+    const ok = await speakWithElevenLabs(cleanContent);
     setLoadingVoice(false);
     if (!ok) {
       requestedRef.current = false;
-      toast.error("Bark voice unavailable — try again in a moment.");
+      toast.error("ElevenLabs voice unavailable — try again in a moment.");
     }
   };
 
