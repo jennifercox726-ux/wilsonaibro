@@ -7,7 +7,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const DEFAULT_VOICE_ID = "zGjIP4SZlMnY9m93k97r";
+const DEFAULT_VOICE_ID = "nuUdpqJIinrhTtBwCJ3Q";
 const MODEL_ID = "eleven_turbo_v2_5";
 
 interface TTSRequestBody {
