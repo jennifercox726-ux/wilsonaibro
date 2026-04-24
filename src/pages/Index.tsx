@@ -9,7 +9,6 @@ import ChatInput from "@/components/ChatInput";
 import WilsonOrb, { WilsonVibe } from "@/components/WilsonOrb";
 import NeuralNebula from "@/components/NeuralNebula";
 import IOSIframeBanner from "@/components/IOSIframeBanner";
-import { unlockTTS } from "@/lib/speechSynthesis";
 import { speakWithBark, stopBark } from "@/lib/barkTTS";
 import { useReferral } from "@/hooks/useReferral";
 
@@ -160,14 +159,6 @@ const Index = ({ userId, displayName }: IndexProps) => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
-  useEffect(() => {
-    if (window.speechSynthesis) {
-      window.speechSynthesis.getVoices();
-      window.speechSynthesis.onvoiceschanged = () => {
-        window.speechSynthesis.getVoices();
-      };
-    }
-  }, []);
 
   const loadThreadMessages = useCallback(async (chatId: string): Promise<Message[]> => {
     const { data: msgs, error } = await supabase
@@ -274,7 +265,6 @@ const Index = ({ userId, displayName }: IndexProps) => {
 
   const handleSend = useCallback(
     async (content: string) => {
-      unlockTTS();
       stopBark();
 
       if (!activeChat) {

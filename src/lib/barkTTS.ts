@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { attachAudio, detachAudio } from "@/lib/audioBus";
+import { attachAudio, detachAudio, subscribe, getSpeaking } from "@/lib/audioBus";
 
 export interface BarkResult {
   audioUrl: string;
@@ -40,11 +40,8 @@ export async function generateBarkAudio(prompt: string): Promise<BarkResult> {
   return data as BarkResult;
 }
 
-/**
- * Stop any currently-playing Bark audio.
- */
 export function stopBark(): void {
-  currentRequestId++; // invalidate any in-flight generations
+  currentRequestId++;
   if (currentAudio) {
     try {
       currentAudio.pause();
@@ -57,9 +54,17 @@ export function stopBark(): void {
   }
 }
 
+export function isBarkSpeaking(): boolean {
+  return getSpeaking();
+}
+
+export function subscribeToBark(listener: () => void): () => void {
+  return subscribe(listener);
+}
+
 /**
- * Generate speech with Bark and play it through the audio bus so the orb
- * reacts to amplitude. Cancels any prior in-flight generation/playback.
+ * Generate speech with Bark and play it through the audio bus.
+ * Cancels any prior in-flight generation/playback.
  */
 export async function speakWithBark(text: string): Promise<boolean> {
   const clean = stripForSpeech(text);
@@ -70,7 +75,7 @@ export async function speakWithBark(text: string): Promise<boolean> {
 
   try {
     const { audioUrl } = await generateBarkAudio(clean.slice(0, 600));
-    if (reqId !== currentRequestId) return false; // a newer call superseded us
+    if (reqId !== currentRequestId) return false;
 
     const audio = new Audio(audioUrl);
     audio.crossOrigin = "anonymous";
@@ -82,6 +87,7 @@ export async function speakWithBark(text: string): Promise<boolean> {
     return true;
   } catch (err) {
     console.warn("[bark] playback failed:", err);
+    currentAudio = null;
     return false;
   }
 }
