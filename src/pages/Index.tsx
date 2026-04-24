@@ -9,7 +9,7 @@ import ChatInput from "@/components/ChatInput";
 import WilsonOrb, { WilsonVibe } from "@/components/WilsonOrb";
 import NeuralNebula from "@/components/NeuralNebula";
 import IOSIframeBanner from "@/components/IOSIframeBanner";
-import { speakWithBark, stopBark } from "@/lib/barkTTS";
+import { speakWithElevenLabs, stopElevenLabs } from "@/lib/elevenLabsTTS";
 import { useReferral } from "@/hooks/useReferral";
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
@@ -265,7 +265,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
 
   const handleSend = useCallback(
     async (content: string) => {
-      stopBark();
+      stopElevenLabs();
 
       if (!activeChat) {
         await createNewChat();
@@ -385,8 +385,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
                 content: assistantSoFar,
               }).then();
 
-              // Speak Wilson's reply with the McConaughey × Connery Bark voice.
-              void speakWithBark(assistantSoFar);
+              void speakWithElevenLabs(assistantSoFar);
             }
             supabase.from("query_logs").insert({
               user_id: userId,

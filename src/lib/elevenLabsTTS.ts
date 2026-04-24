@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { attachAudio, detachAudio, subscribe, getSpeaking } from "@/lib/audioBus";
 
-export interface BarkResult {
+export interface ElevenLabsResult {
   audioUrl: string;
   contentType: string;
   requestId: string | null;
@@ -27,11 +27,11 @@ function stripForSpeech(text: string): string {
     .trim();
 }
 
-export async function generateBarkAudio(
+export async function generateElevenLabsAudio(
   prompt: string,
   signal?: AbortSignal,
-): Promise<BarkResult> {
-  const { data, error } = await supabase.functions.invoke("bark-tts", {
+): Promise<ElevenLabsResult> {
+  const { data, error } = await supabase.functions.invoke("elevenlabs-tts", {
     body: { prompt },
   });
 
@@ -40,23 +40,23 @@ export async function generateBarkAudio(
   }
 
   if (error) {
-    throw new Error(error.message ?? "Failed to call Bark function");
+    throw new Error(error.message ?? "Failed to call ElevenLabs function");
   }
   if (!data?.audioUrl) {
-    throw new Error("No audio URL returned from Bark");
+    throw new Error("No audio URL returned from ElevenLabs");
   }
-  return data as BarkResult;
+  return data as ElevenLabsResult;
 }
 
-/**
- * Hard-stop: aborts any in-flight fal.ai request AND tears down playback
- * synchronously so the UI feels instant.
- */
-export function stopBark(): void {
+export function stopElevenLabs(): void {
   currentRequestId++;
 
   if (currentAbort) {
-    try { currentAbort.abort(); } catch { /* noop */ }
+    try {
+      currentAbort.abort();
+    } catch {
+      /* noop */
+    }
     currentAbort = null;
   }
 
@@ -66,7 +66,7 @@ export function stopBark(): void {
     try {
       audio.pause();
       audio.removeAttribute("src");
-      audio.load(); // forces the media element to release the network/decoder
+      audio.load();
     } catch {
       /* noop */
     }
@@ -74,34 +74,29 @@ export function stopBark(): void {
   }
 }
 
-export function isBarkSpeaking(): boolean {
+export function isElevenLabsSpeaking(): boolean {
   return getSpeaking();
 }
 
-export function subscribeToBark(listener: () => void): () => void {
+export function subscribeToElevenLabs(listener: () => void): () => void {
   return subscribe(listener);
 }
 
-/**
- * Generate speech with Bark and play it through the audio bus.
- * Cancels any prior in-flight generation/playback.
- */
-export async function speakWithBark(text: string): Promise<boolean> {
+export async function speakWithElevenLabs(text: string): Promise<boolean> {
   const clean = stripForSpeech(text);
   if (!clean) return false;
 
-  stopBark();
+  stopElevenLabs();
   const reqId = ++currentRequestId;
   const abort = new AbortController();
   currentAbort = abort;
 
   try {
-    const { audioUrl } = await generateBarkAudio(
+    const { audioUrl } = await generateElevenLabsAudio(
       clean.slice(0, 600),
       abort.signal,
     );
 
-    // If a newer call superseded us OR caller aborted, bail out before playback.
     if (reqId !== currentRequestId || abort.signal.aborted) {
       return false;
     }
@@ -110,13 +105,14 @@ export async function speakWithBark(text: string): Promise<boolean> {
     audio.crossOrigin = "anonymous";
     audio.preload = "auto";
 
-    // Wire abort to instantly tear down even mid-play
     const onAbort = () => {
       try {
         audio.pause();
         audio.removeAttribute("src");
         audio.load();
-      } catch { /* noop */ }
+      } catch {
+        /* noop */
+      }
       detachAudio(audio);
     };
     abort.signal.addEventListener("abort", onAbort, { once: true });
@@ -124,7 +120,6 @@ export async function speakWithBark(text: string): Promise<boolean> {
     currentAudio = audio;
     await audio.play();
 
-    // Final guard: state may have changed during the await
     if (reqId !== currentRequestId || abort.signal.aborted) {
       onAbort();
       return false;
@@ -134,7 +129,7 @@ export async function speakWithBark(text: string): Promise<boolean> {
     return true;
   } catch (err) {
     if ((err as { name?: string })?.name === "AbortError") return false;
-    console.warn("[bark] playback failed:", err);
+    console.warn("[elevenlabs] playback failed:", err);
     if (currentRequestId === reqId) currentAudio = null;
     return false;
   } finally {

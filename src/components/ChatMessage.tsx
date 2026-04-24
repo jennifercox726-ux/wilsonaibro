@@ -4,13 +4,12 @@ import { Copy, Check, Volume2, Square, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { markdownToHtml } from "@/lib/simpleMarkdown";
 import {
-  speakWithBark,
-  stopBark,
-  isBarkSpeaking,
-  subscribeToBark,
-} from "@/lib/barkTTS";
+  speakWithElevenLabs,
+  stopElevenLabs,
+  isElevenLabsSpeaking,
+  subscribeToElevenLabs,
+} from "@/lib/elevenLabsTTS";
 import WilsonOrb from "./WilsonOrb";
-
 
 export interface Message {
   id: string;
@@ -24,7 +23,6 @@ interface ChatMessageProps {
   index: number;
 }
 
-// Strip any leftover chart tags from content
 function stripChartTags(content: string): string {
   return content.replace(/<WilsonChart\s+[\s\S]*?\/>/g, "").trim();
 }
@@ -38,14 +36,12 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
 
   const cleanContent = useMemo(
     () => (isWilson ? stripChartTags(message.content) : message.content),
-    [message.content, isWilson]
+    [message.content, isWilson],
   );
 
-  // Track global Bark playback state
   useEffect(() => {
-    return subscribeToBark(() => {
-      const playing = isBarkSpeaking();
-      // Only flip our local state if we triggered this playback
+    return subscribeToElevenLabs(() => {
+      const playing = isElevenLabsSpeaking();
       if (requestedRef.current) {
         setSpeaking(playing);
         if (!playing) requestedRef.current = false;
@@ -72,7 +68,7 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
 
   const handleSpeak = async () => {
     if (speaking || loadingVoice) {
-      stopBark();
+      stopElevenLabs();
       requestedRef.current = false;
       setSpeaking(false);
       setLoadingVoice(false);
@@ -81,15 +77,14 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
 
     requestedRef.current = true;
     setLoadingVoice(true);
-    const ok = await speakWithBark(cleanContent);
+    const ok = await speakWithElevenLabs(cleanContent);
     setLoadingVoice(false);
     if (!ok) {
       requestedRef.current = false;
-      toast.error("Bark voice unavailable — try again in a moment.");
+      toast.error("ElevenLabs voice unavailable — try again in a moment.");
     }
   };
 
-  // Wire up click-to-copy on rendered code blocks
   const proseRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const root = proseRef.current;
@@ -139,14 +134,14 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
         }`}
       >
         {isWilson && (
-          <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary/60 mb-1 block">
+          <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.2em] text-primary/60">
             Wilson
           </span>
         )}
         <div ref={proseRef} className={`wilson-prose text-sm ${isWilson ? "" : "text-foreground/90"}`}>
           <div dangerouslySetInnerHTML={{ __html: markdownToHtml(cleanContent) }} />
         </div>
-        <div className="flex items-center justify-between mt-2 gap-2">
+        <div className="mt-2 flex items-center justify-between gap-2">
           <span className="text-[10px] text-muted-foreground">
             {message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </span>
@@ -154,23 +149,23 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
             {isWilson && (
               <button
                 onClick={handleSpeak}
-                className="flex items-center gap-1 px-2 py-1 rounded-full bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-semibold uppercase tracking-wider transition-colors"
+                className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-primary transition-colors hover:bg-primary/20"
                 title={isActive ? "Stop" : "Play voice"}
                 aria-label={isActive ? "Stop voice" : "Play voice"}
               >
                 {loadingVoice ? (
                   <>
-                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <Loader2 className="h-3 w-3 animate-spin" />
                     Loading
                   </>
                 ) : speaking ? (
                   <>
-                    <Square className="w-3 h-3" />
+                    <Square className="h-3 w-3" />
                     Stop
                   </>
                 ) : (
                   <>
-                    <Volume2 className="w-3 h-3" />
+                    <Volume2 className="h-3 w-3" />
                     Play
                   </>
                 )}
@@ -178,13 +173,13 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
             )}
             <button
               onClick={handleCopy}
-              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-lg hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+              className="rounded-lg p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-muted/50 hover:text-foreground group-hover:opacity-100"
               title="Copy message"
             >
               {copied ? (
-                <Check className="w-3.5 h-3.5 text-primary" />
+                <Check className="h-3.5 w-3.5 text-primary" />
               ) : (
-                <Copy className="w-3.5 h-3.5" />
+                <Copy className="h-3.5 w-3.5" />
               )}
             </button>
           </div>
