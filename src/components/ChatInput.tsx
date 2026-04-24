@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Send, Mic, MicOff } from "lucide-react";
 import { toast } from "sonner";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
+import { unlockElevenLabsPlayback } from "@/lib/elevenLabsTTS";
 
 interface ChatInputProps {
   onSend: (message: string) => void;
@@ -83,8 +84,9 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
     if (error) toast.error(error);
   }, [error]);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!input.trim() || disabled) return;
+    await unlockElevenLabsPlayback();
     if (autoSendTimerRef.current) {
       clearTimeout(autoSendTimerRef.current);
       autoSendTimerRef.current = null;
