@@ -9,7 +9,7 @@ const corsHeaders = {
 };
 
 const FAL_QUEUE_BASE = "https://queue.fal.run";
-const FAL_MODEL = "fal-ai/bark";
+const FAL_MODEL = "fal-ai/bark/text-to-audio";
 
 interface BarkRequestBody {
   prompt?: string;
