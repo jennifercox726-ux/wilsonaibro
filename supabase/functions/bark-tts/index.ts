@@ -1,5 +1,8 @@
-// Bark TTS edge function — calls fal.ai's fal-ai/bark model
-// and returns the generated audio URL to the client.
+// Wilson TTS edge function — uses ElevenLabs (deep male voice) and returns
+// a base64 data URL the client can play directly. Function name kept as
+// "bark-tts" to avoid breaking the existing client wiring.
+
+import { encode as base64Encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,49 +11,14 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const FAL_QUEUE_BASE = "https://queue.fal.run";
-const FAL_MODEL = "fal-ai/bark/text-to-audio";
+// "Brian" — deep, warm, gravelly male voice. Closest match to the
+// McConaughey/Connery drawl Wilson is supposed to have.
+const DEFAULT_VOICE_ID = "nPczCjzI2devNBz1zQrb";
+const MODEL_ID = "eleven_turbo_v2_5";
 
-interface BarkRequestBody {
+interface TTSRequestBody {
   prompt?: string;
-  // Optional Bark-specific knobs (passed through if provided)
-  text_temp?: number;
-  waveform_temp?: number;
-  history_prompt?: string;
-}
-
-async function pollForResult(
-  statusUrl: string,
-  resultUrl: string,
-  apiKey: string,
-  timeoutMs = 120_000,
-): Promise<unknown> {
-  const start = Date.now();
-  const headers = { Authorization: `Key ${apiKey}` };
-
-  while (Date.now() - start < timeoutMs) {
-    const statusRes = await fetch(`${statusUrl}?logs=0`, { headers });
-    if (!statusRes.ok) {
-      const body = await statusRes.text();
-      throw new Error(`fal status check failed [${statusRes.status}]: ${body}`);
-    }
-    const status = await statusRes.json() as { status?: string };
-
-    if (status.status === "COMPLETED") {
-      const resultRes = await fetch(resultUrl, { headers });
-      if (!resultRes.ok) {
-        const body = await resultRes.text();
-        throw new Error(`fal result fetch failed [${resultRes.status}]: ${body}`);
-      }
-      return await resultRes.json();
-    }
-    if (status.status === "FAILED" || status.status === "CANCELLED") {
-      throw new Error(`fal request ${status.status}`);
-    }
-
-    await new Promise((r) => setTimeout(r, 1500));
-  }
-  throw new Error("fal request timed out");
+  voiceId?: string;
 }
 
 Deno.serve(async (req: Request) => {
@@ -65,40 +33,10 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  const RAW_FAL_KEY = Deno.env.get("FAL_KEY");
-  if (!RAW_FAL_KEY) {
+  const ELEVENLABS_API_KEY = Deno.env.get("ELEVENLABS_API_KEY");
+  if (!ELEVENLABS_API_KEY) {
     return new Response(
-      JSON.stringify({ error: "FAL_KEY is not configured" }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
-  }
-  // Strip BOM, zero-width chars, surrounding quotes/whitespace, and any
-  // characters that would break HTTP header serialization (CR, LF, NUL, tabs).
-  // We deliberately keep this permissive — fal.ai keys can contain ":" and
-  // other printable punctuation, and over-strict validation was rejecting
-  // legitimate keys.
-  const FAL_KEY = RAW_FAL_KEY
-    .replace(/^\uFEFF/, "")
-    .replace(/[\u200B-\u200D\u2028\u2029]/g, "")
-    .replace(/[\r\n\t\0]/g, "")
-    .trim()
-    .replace(/^["']|["']$/g, "")
-    .trim();
-
-  // Only reject characters that literally cannot go into an HTTP header value.
-  // (ByteString allows 0x09 and 0x20-0xFF, but we already stripped tabs.)
-  if (!FAL_KEY || /[\r\n\0]/.test(FAL_KEY)) {
-    const codes = Array.from(RAW_FAL_KEY.slice(0, 20)).map((c) =>
-      c.charCodeAt(0).toString(16)
-    ).join(" ");
-    console.error("FAL_KEY unusable. First 20 char codes:", codes);
-    return new Response(
-      JSON.stringify({
-        error: "FAL_KEY is empty or contains line breaks after sanitization.",
-      }),
+      JSON.stringify({ error: "ELEVENLABS_API_KEY is not configured" }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -106,7 +44,7 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  let body: BarkRequestBody;
+  let body: TTSRequestBody;
   try {
     body = await req.json();
   } catch {
@@ -136,34 +74,37 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  // Default voice: Bark "v2/en_speaker_6" — the deepest, warmest English male
-  // preset. Slowed waveform + lower text temperature gives a McConaughey-meets-
-  // Connery drawl: gravelly, charismatic, unhurried.
-  const input: Record<string, unknown> = {
-    prompt,
-    history_prompt: body.history_prompt ?? "v2/en_speaker_6",
-    text_temp: typeof body.text_temp === "number" ? body.text_temp : 0.6,
-    waveform_temp:
-      typeof body.waveform_temp === "number" ? body.waveform_temp : 0.55,
-  };
+  const voiceId = body.voiceId?.trim() || DEFAULT_VOICE_ID;
 
   try {
-    // Submit to fal queue
-    const submitRes = await fetch(`${FAL_QUEUE_BASE}/${FAL_MODEL}`, {
-      method: "POST",
-      headers: {
-        Authorization: `Key ${FAL_KEY}`,
-        "Content-Type": "application/json",
+    const ttsRes = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
+      {
+        method: "POST",
+        headers: {
+          "xi-api-key": ELEVENLABS_API_KEY,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text: prompt,
+          model_id: MODEL_ID,
+          voice_settings: {
+            stability: 0.45,
+            similarity_boost: 0.8,
+            style: 0.55,
+            use_speaker_boost: true,
+            speed: 0.95,
+          },
+        }),
       },
-      body: JSON.stringify(input),
-    });
+    );
 
-    if (!submitRes.ok) {
-      const errBody = await submitRes.text();
-      console.error("fal submit failed", submitRes.status, errBody);
+    if (!ttsRes.ok) {
+      const errBody = await ttsRes.text();
+      console.error("ElevenLabs TTS failed", ttsRes.status, errBody);
       return new Response(
         JSON.stringify({
-          error: `fal submit failed [${submitRes.status}]`,
+          error: `ElevenLabs TTS failed [${ttsRes.status}]`,
           details: errBody,
         }),
         {
@@ -173,53 +114,15 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const submitJson = await submitRes.json() as {
-      request_id?: string;
-      status_url?: string;
-      response_url?: string;
-    };
-
-    if (!submitJson.status_url || !submitJson.response_url) {
-      return new Response(
-        JSON.stringify({
-          error: "Unexpected fal submit response",
-          details: submitJson,
-        }),
-        {
-          status: 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    const result = await pollForResult(
-      submitJson.status_url,
-      submitJson.response_url,
-      FAL_KEY,
-    ) as {
-      audio?: { url?: string; content_type?: string; file_name?: string };
-      audio_url?: string;
-    };
-
-    const audioUrl = result.audio?.url ?? result.audio_url ?? null;
-    if (!audioUrl) {
-      return new Response(
-        JSON.stringify({
-          error: "fal did not return an audio URL",
-          details: result,
-        }),
-        {
-          status: 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
+    const audioBuffer = await ttsRes.arrayBuffer();
+    const base64 = base64Encode(audioBuffer);
+    const audioUrl = `data:audio/mpeg;base64,${base64}`;
 
     return new Response(
       JSON.stringify({
         audioUrl,
-        contentType: result.audio?.content_type ?? "audio/wav",
-        requestId: submitJson.request_id ?? null,
+        contentType: "audio/mpeg",
+        requestId: null,
       }),
       {
         status: 200,
@@ -228,7 +131,7 @@ Deno.serve(async (req: Request) => {
     );
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("Bark generation error:", message);
+    console.error("Wilson TTS error:", message);
     return new Response(
       JSON.stringify({ error: message }),
       {
