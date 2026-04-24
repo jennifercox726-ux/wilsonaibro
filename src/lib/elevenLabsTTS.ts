@@ -30,9 +30,14 @@ function stripForSpeech(text: string): string {
 export async function generateElevenLabsAudio(
   prompt: string,
   signal?: AbortSignal,
+  context?: { previousText?: string; nextText?: string },
 ): Promise<ElevenLabsResult> {
   const { data, error } = await supabase.functions.invoke("elevenlabs-tts", {
-    body: { prompt },
+    body: {
+      prompt,
+      ...(context?.previousText ? { previousText: context.previousText } : {}),
+      ...(context?.nextText ? { nextText: context.nextText } : {}),
+    },
   });
 
   if (signal?.aborted) {
@@ -68,6 +73,38 @@ export async function generateElevenLabsAudio(
     throw new Error("No audio URL returned from ElevenLabs");
   }
   return data as ElevenLabsResult;
+}
+
+/**
+ * Split long text into TTS-friendly chunks at sentence boundaries.
+ * Targets ~600 chars/chunk so the first chunk plays back fast, while still
+ * keeping segments large enough for natural prosody.
+ */
+function chunkTextForTTS(text: string, target = 600, max = 2500): string[] {
+  if (text.length <= max) return [text];
+  // Split at sentence enders, keep the punctuation.
+  const sentences = text.match(/[^.!?…]+[.!?…]+(\s+|$)|[^.!?…]+$/g) ?? [text];
+  const chunks: string[] = [];
+  let buf = "";
+  for (const s of sentences) {
+    const sentence = s.trim();
+    if (!sentence) continue;
+    if (buf.length === 0) {
+      buf = sentence;
+    } else if (buf.length + 1 + sentence.length <= target) {
+      buf += " " + sentence;
+    } else {
+      chunks.push(buf);
+      buf = sentence;
+    }
+    // Hard cap a single chunk if a sentence itself is huge
+    if (buf.length >= max) {
+      chunks.push(buf.slice(0, max));
+      buf = buf.slice(max);
+    }
+  }
+  if (buf) chunks.push(buf);
+  return chunks;
 }
 
 export function stopElevenLabs(): void {
@@ -113,41 +150,95 @@ export async function speakWithElevenLabs(text: string): Promise<boolean> {
   const abort = new AbortController();
   currentAbort = abort;
 
+  const chunks = chunkTextForTTS(clean);
+  // Pre-fetch the first chunk so playback starts ASAP, then stream the rest.
+  const audioUrls: (string | null)[] = new Array(chunks.length).fill(null);
+
+  const fetchChunk = async (i: number): Promise<string | null> => {
+    try {
+      const res = await generateElevenLabsAudio(
+        chunks[i],
+        abort.signal,
+        {
+          previousText: i > 0 ? chunks[i - 1].slice(-400) : undefined,
+          nextText: i < chunks.length - 1 ? chunks[i + 1].slice(0, 400) : undefined,
+        },
+      );
+      return res.audioUrl;
+    } catch (err) {
+      if ((err as { name?: string })?.name === "AbortError") return null;
+      console.warn(`[elevenlabs] chunk ${i} failed:`, err);
+      return null;
+    }
+  };
+
   try {
-    const { audioUrl } = await generateElevenLabsAudio(
-      clean.slice(0, 600),
-      abort.signal,
-    );
+    audioUrls[0] = await fetchChunk(0);
+    if (!audioUrls[0]) return false;
+    if (reqId !== currentRequestId || abort.signal.aborted) return false;
 
-    if (reqId !== currentRequestId || abort.signal.aborted) {
-      return false;
-    }
-
-    const audio = new Audio(audioUrl);
-    audio.crossOrigin = "anonymous";
-    audio.preload = "auto";
-
-    const onAbort = () => {
-      try {
-        audio.pause();
-        audio.removeAttribute("src");
-        audio.load();
-      } catch {
-        /* noop */
+    // Kick off remaining chunks in parallel (but cap concurrency to 2)
+    (async () => {
+      for (let i = 1; i < chunks.length; i++) {
+        if (reqId !== currentRequestId || abort.signal.aborted) break;
+        audioUrls[i] = await fetchChunk(i);
       }
+    })();
+
+    // Sequential playback
+    for (let i = 0; i < chunks.length; i++) {
+      // Wait for this chunk's URL to be ready
+      while (audioUrls[i] === null) {
+        if (reqId !== currentRequestId || abort.signal.aborted) return false;
+        await new Promise((r) => setTimeout(r, 80));
+      }
+      const url = audioUrls[i];
+      if (!url) return i > 0; // partial success if anything played
+
+      const audio = new Audio(url);
+      audio.crossOrigin = "anonymous";
+      audio.preload = "auto";
+
+      const onAbort = () => {
+        try {
+          audio.pause();
+          audio.removeAttribute("src");
+          audio.load();
+        } catch {
+          /* noop */
+        }
+        detachAudio(audio);
+      };
+      abort.signal.addEventListener("abort", onAbort, { once: true });
+
+      currentAudio = audio;
+      try {
+        await audio.play();
+      } catch (err) {
+        if ((err as { name?: string })?.name === "AbortError") return i > 0;
+        throw err;
+      }
+      if (reqId !== currentRequestId || abort.signal.aborted) {
+        onAbort();
+        return false;
+      }
+      attachAudio(audio);
+
+      // Wait for this chunk to finish before starting the next
+      await new Promise<void>((resolve) => {
+        const done = () => {
+          audio.removeEventListener("ended", done);
+          audio.removeEventListener("error", done);
+          resolve();
+        };
+        audio.addEventListener("ended", done, { once: true });
+        audio.addEventListener("error", done, { once: true });
+        abort.signal.addEventListener("abort", done, { once: true });
+      });
       detachAudio(audio);
-    };
-    abort.signal.addEventListener("abort", onAbort, { once: true });
-
-    currentAudio = audio;
-    await audio.play();
-
-    if (reqId !== currentRequestId || abort.signal.aborted) {
-      onAbort();
-      return false;
+      if (reqId !== currentRequestId || abort.signal.aborted) return false;
     }
 
-    attachAudio(audio);
     return true;
   } catch (err) {
     if ((err as { name?: string })?.name === "AbortError") return false;
