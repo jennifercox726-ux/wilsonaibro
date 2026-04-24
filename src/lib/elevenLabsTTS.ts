@@ -152,7 +152,7 @@ export async function unlockElevenLabsPlayback(): Promise<void> {
   playbackUnlockPromise = (async () => {
     const audio = new Audio(SILENT_WAV_DATA_URL);
     audio.muted = true;
-    audio.playsInline = true;
+    (audio as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
 
     try {
       await audio.play();
@@ -218,7 +218,7 @@ export async function speakWithElevenLabs(text: string): Promise<boolean> {
       const audio = new Audio(url);
       audio.crossOrigin = "anonymous";
       audio.preload = "auto";
-      audio.playsInline = true;
+      (audio as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
 
       const onAbort = () => {
         try {
