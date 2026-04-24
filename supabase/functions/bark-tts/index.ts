@@ -11,9 +11,8 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-// "Brian" — deep, warm, gravelly male voice. Closest match to the
-// McConaughey/Connery drawl Wilson is supposed to have.
-const DEFAULT_VOICE_ID = "nPczCjzI2devNBz1zQrb";
+// "Payload" — the voice Wilson is supposed to use.
+const DEFAULT_VOICE_ID = "zGjIP4SZlMnY9m93k97r";
 const MODEL_ID = "eleven_turbo_v2_5";
 
 interface TTSRequestBody {
