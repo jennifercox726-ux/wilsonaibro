@@ -9,7 +9,7 @@ const corsHeaders = {
 };
 
 const FAL_QUEUE_BASE = "https://queue.fal.run";
-const FAL_MODEL = "fal-ai/bark";
+const FAL_MODEL = "fal-ai/bark/text-to-audio";
 
 interface BarkRequestBody {
   prompt?: string;
@@ -75,21 +75,29 @@ Deno.serve(async (req: Request) => {
       },
     );
   }
-  // Strip whitespace, BOM, zero-width chars, and surrounding quotes that often
-  // sneak in via copy-paste. Header values must be pure ASCII (ByteString).
+  // Strip BOM, zero-width chars, surrounding quotes/whitespace, and any
+  // characters that would break HTTP header serialization (CR, LF, NUL, tabs).
+  // We deliberately keep this permissive — fal.ai keys can contain ":" and
+  // other printable punctuation, and over-strict validation was rejecting
+  // legitimate keys.
   const FAL_KEY = RAW_FAL_KEY
     .replace(/^\uFEFF/, "")
     .replace(/[\u200B-\u200D\u2028\u2029]/g, "")
+    .replace(/[\r\n\t\0]/g, "")
     .trim()
     .replace(/^["']|["']$/g, "")
     .trim();
 
-  if (!/^[\x21-\x7E]+$/.test(FAL_KEY)) {
-    console.error("FAL_KEY contains non-ASCII characters or whitespace");
+  // Only reject characters that literally cannot go into an HTTP header value.
+  // (ByteString allows 0x09 and 0x20-0xFF, but we already stripped tabs.)
+  if (!FAL_KEY || /[\r\n\0]/.test(FAL_KEY)) {
+    const codes = Array.from(RAW_FAL_KEY.slice(0, 20)).map((c) =>
+      c.charCodeAt(0).toString(16)
+    ).join(" ");
+    console.error("FAL_KEY unusable. First 20 char codes:", codes);
     return new Response(
       JSON.stringify({
-        error:
-          "FAL_KEY is malformed (contains invalid characters). Please re-paste the key without quotes or extra whitespace.",
+        error: "FAL_KEY is empty or contains line breaks after sanitization.",
       }),
       {
         status: 500,
