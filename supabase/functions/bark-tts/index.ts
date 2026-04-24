@@ -106,14 +106,16 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  const input: Record<string, unknown> = { prompt };
-  if (typeof body.text_temp === "number") input.text_temp = body.text_temp;
-  if (typeof body.waveform_temp === "number") {
-    input.waveform_temp = body.waveform_temp;
-  }
-  if (typeof body.history_prompt === "string" && body.history_prompt) {
-    input.history_prompt = body.history_prompt;
-  }
+  // Default voice: Bark "v2/en_speaker_6" — the deepest, warmest English male
+  // preset. Slowed waveform + lower text temperature gives a McConaughey-meets-
+  // Connery drawl: gravelly, charismatic, unhurried.
+  const input: Record<string, unknown> = {
+    prompt,
+    history_prompt: body.history_prompt ?? "v2/en_speaker_6",
+    text_temp: typeof body.text_temp === "number" ? body.text_temp : 0.6,
+    waveform_temp:
+      typeof body.waveform_temp === "number" ? body.waveform_temp : 0.55,
+  };
 
   try {
     // Submit to fal queue
