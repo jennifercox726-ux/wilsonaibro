@@ -39,6 +39,28 @@ export async function generateElevenLabsAudio(
     throw new DOMException("Aborted", "AbortError");
   }
 
+  // Structured validation error from the edge function
+  if (data && typeof data === "object" && "error" in data && !data.audioUrl) {
+    const code = (data as { code?: string }).code;
+    const errMsg = (data as { error?: string }).error ?? "ElevenLabs error";
+    const actions = (data as { nextActions?: string[] }).nextActions;
+    const voiceId = (data as { voiceId?: string }).voiceId;
+
+    let friendly = errMsg;
+    if (code === "VOICE_NOT_FOUND") {
+      friendly = `Voice "${voiceId}" isn't available on the ElevenLabs account tied to your API key.`;
+    } else if (code === "INVALID_API_KEY") {
+      friendly = "Your ElevenLabs API key is invalid or unauthorized.";
+    }
+    if (actions?.length) {
+      friendly += `\n\nNext steps:\n• ${actions.join("\n• ")}`;
+    }
+
+    const e = new Error(friendly);
+    (e as Error & { code?: string }).code = code;
+    throw e;
+  }
+
   if (error) {
     throw new Error(error.message ?? "Failed to call ElevenLabs function");
   }
