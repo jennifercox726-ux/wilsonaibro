@@ -69,6 +69,84 @@ Deno.serve(async (req: Request) => {
   const voiceId = body.voiceId?.trim() || DEFAULT_VOICE_ID;
 
   try {
+    // Step 1: Validate the voice is accessible with the configured API key
+    const voiceCheck = await fetch(
+      `https://api.elevenlabs.io/v1/voices/${voiceId}`,
+      {
+        method: "GET",
+        headers: { "xi-api-key": elevenLabsApiKey },
+      },
+    );
+
+    if (!voiceCheck.ok) {
+      const detailText = await voiceCheck.text();
+      let detailJson: Record<string, unknown> | null = null;
+      try {
+        detailJson = JSON.parse(detailText);
+      } catch {
+        /* not JSON */
+      }
+
+      if (voiceCheck.status === 401 || voiceCheck.status === 403) {
+        return new Response(
+          JSON.stringify({
+            error: "ElevenLabs API key is invalid or unauthorized",
+            code: "INVALID_API_KEY",
+            voiceId,
+            nextActions: [
+              "Verify the ELEVENLABS_API_KEY secret is correct",
+              "Check the key has not been revoked at https://elevenlabs.io/app/settings/api-keys",
+              "Confirm the key belongs to the account that owns the voice",
+            ],
+            details: detailJson ?? detailText,
+          }),
+          {
+            status: 401,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      if (voiceCheck.status === 404) {
+        return new Response(
+          JSON.stringify({
+            error: `Voice "${voiceId}" was not found on this ElevenLabs account`,
+            code: "VOICE_NOT_FOUND",
+            voiceId,
+            nextActions: [
+              "Open https://elevenlabs.io/app/voice-lab and confirm the voice exists",
+              "If it's a shared/public voice, click 'Add to VoiceLab' first",
+              "Copy the Voice ID from the voice's ⋮ menu and update DEFAULT_VOICE_ID",
+              "Make sure the API key belongs to the same account as the voice",
+            ],
+            details: detailJson ?? detailText,
+          }),
+          {
+            status: 404,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          error: `Voice validation failed [${voiceCheck.status}]`,
+          code: "VOICE_VALIDATION_FAILED",
+          voiceId,
+          nextActions: [
+            "Try again in a moment — ElevenLabs may be rate-limiting or temporarily unavailable",
+            "Check status at https://status.elevenlabs.io",
+          ],
+          details: detailJson ?? detailText,
+        }),
+        {
+          status: voiceCheck.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    // Step 2: Synthesize speech now that the voice is confirmed accessible
     const ttsRes = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
       {
