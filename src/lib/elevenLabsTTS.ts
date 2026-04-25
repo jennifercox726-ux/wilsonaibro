@@ -227,10 +227,10 @@ export async function speakWithElevenLabs(text: string): Promise<boolean> {
       if (reqId !== currentRequestId || abort.signal.aborted) return false;
       if (!url) return i > 0; // partial success if anything played
 
-      const audio = new Audio(url);
-      audio.crossOrigin = "anonymous";
-      audio.preload = "auto";
-      (audio as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
+      const audio = getAudioElement(url, i === 0);
+      if (i === 0 && audio === unlockedPlaybackAudio) {
+        unlockedPlaybackAudio = null;
+      }
 
       const onAbort = () => {
         try {
