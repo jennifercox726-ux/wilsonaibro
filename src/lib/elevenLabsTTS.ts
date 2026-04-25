@@ -173,29 +173,39 @@ export function subscribeToElevenLabs(listener: () => void): () => void {
   return subscribe(listener);
 }
 
-export async function unlockElevenLabsPlayback(): Promise<void> {
+export function primeElevenLabsPlayback(): void {
   if (typeof window === "undefined") return;
-  if (playbackUnlockPromise) return playbackUnlockPromise;
 
-  playbackUnlockPromise = (async () => {
-    // Resume the WebAudio context during this user gesture so iOS/Safari
-    // doesn't drop the first TTS reply into a suspended audio graph.
-    await unlockAudioContext();
-    try {
-      const audio = configureAudioElement(new Audio(SILENT_WAV_DATA_URL));
-      audio.muted = true;
-      await audio.play();
+  // This must run synchronously inside the click/tap handler. Do not put an
+  // await before creating/touching the audio element or iOS Safari discards
+  // the user-gesture permission.
+  if (!unlockedPlaybackAudio) {
+    unlockedPlaybackAudio = configureAudioElement(new Audio(SILENT_WAV_DATA_URL));
+  }
+
+  const audio = unlockedPlaybackAudio;
+  audio.muted = true;
+  audio.play()
+    .then(() => {
       audio.pause();
       audio.currentTime = 0;
       audio.muted = false;
-      audio.removeAttribute("src");
-      audio.load();
-      unlockedPlaybackAudio = audio;
-    } catch {
-      unlockedPlaybackAudio = configureAudioElement(new Audio());
-    }
-  })();
+      playbackUnlocked = true;
+    })
+    .catch(() => {
+      audio.muted = false;
+      playbackUnlocked = false;
+    });
 
+  void unlockAudioContext();
+}
+
+export async function unlockElevenLabsPlayback(): Promise<void> {
+  if (typeof window === "undefined") return;
+  primeElevenLabsPlayback();
+  if (playbackUnlockPromise) return playbackUnlockPromise;
+
+  playbackUnlockPromise = unlockAudioContext().catch(() => {});
   return playbackUnlockPromise;
 }
 
