@@ -168,16 +168,17 @@ export async function unlockElevenLabsPlayback(): Promise<void> {
 
   playbackUnlockPromise = (async () => {
     try {
-      const audio = new Audio(SILENT_WAV_DATA_URL);
+      const audio = configureAudioElement(new Audio(SILENT_WAV_DATA_URL));
       audio.muted = true;
-      (audio as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
       await audio.play();
       audio.pause();
       audio.currentTime = 0;
+      audio.muted = false;
       audio.removeAttribute("src");
       audio.load();
+      unlockedPlaybackAudio = audio;
     } catch {
-      /* ignore unlock failures; manual play can still work */
+      unlockedPlaybackAudio = configureAudioElement(new Audio());
     }
   })();
 
