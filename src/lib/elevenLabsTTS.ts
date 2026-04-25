@@ -11,9 +11,26 @@ let currentAudio: HTMLAudioElement | null = null;
 let currentRequestId = 0;
 let currentAbort: AbortController | null = null;
 let playbackUnlockPromise: Promise<void> | null = null;
+let unlockedPlaybackAudio: HTMLAudioElement | null = null;
 
 const SILENT_WAV_DATA_URL =
   "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+
+function configureAudioElement(audio: HTMLAudioElement): HTMLAudioElement {
+  audio.crossOrigin = "anonymous";
+  audio.preload = "auto";
+  (audio as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
+  return audio;
+}
+
+function getAudioElement(url: string, preferUnlocked: boolean): HTMLAudioElement {
+  const audio = preferUnlocked && unlockedPlaybackAudio ? unlockedPlaybackAudio : new Audio();
+  configureAudioElement(audio);
+  audio.muted = false;
+  audio.src = url;
+  audio.load();
+  return audio;
+}
 
 function stripForSpeech(text: string): string {
   return text
@@ -151,16 +168,17 @@ export async function unlockElevenLabsPlayback(): Promise<void> {
 
   playbackUnlockPromise = (async () => {
     try {
-      const audio = new Audio(SILENT_WAV_DATA_URL);
+      const audio = configureAudioElement(new Audio(SILENT_WAV_DATA_URL));
       audio.muted = true;
-      (audio as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
       await audio.play();
       audio.pause();
       audio.currentTime = 0;
+      audio.muted = false;
       audio.removeAttribute("src");
       audio.load();
+      unlockedPlaybackAudio = audio;
     } catch {
-      /* ignore unlock failures; manual play can still work */
+      unlockedPlaybackAudio = configureAudioElement(new Audio());
     }
   })();
 
@@ -209,10 +227,10 @@ export async function speakWithElevenLabs(text: string): Promise<boolean> {
       if (reqId !== currentRequestId || abort.signal.aborted) return false;
       if (!url) return i > 0; // partial success if anything played
 
-      const audio = new Audio(url);
-      audio.crossOrigin = "anonymous";
-      audio.preload = "auto";
-      (audio as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
+      const audio = getAudioElement(url, i === 0);
+      if (i === 0 && audio === unlockedPlaybackAudio) {
+        unlockedPlaybackAudio = null;
+      }
 
       const onAbort = () => {
         try {
