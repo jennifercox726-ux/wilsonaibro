@@ -8,6 +8,7 @@ import {
   stopElevenLabs,
   isElevenLabsSpeaking,
   subscribeToElevenLabs,
+  primeElevenLabsPlayback,
 } from "@/lib/elevenLabsTTS";
 import WilsonOrb from "./WilsonOrb";
 
