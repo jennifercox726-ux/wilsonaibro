@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { attachAudio, detachAudio, subscribe, getSpeaking } from "@/lib/audioBus";
+import { attachAudio, detachAudio, subscribe, getSpeaking, unlockAudioContext } from "@/lib/audioBus";
 
 export interface ElevenLabsResult {
   audioUrl: string;
@@ -167,6 +167,9 @@ export async function unlockElevenLabsPlayback(): Promise<void> {
   if (playbackUnlockPromise) return playbackUnlockPromise;
 
   playbackUnlockPromise = (async () => {
+    // Resume the WebAudio context during this user gesture so iOS/Safari
+    // doesn't drop the first TTS reply into a suspended audio graph.
+    await unlockAudioContext();
     try {
       const audio = configureAudioElement(new Audio(SILENT_WAV_DATA_URL));
       audio.muted = true;

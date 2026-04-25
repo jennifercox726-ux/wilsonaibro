@@ -78,10 +78,19 @@ export function attachAudio(audio: HTMLAudioElement): void {
     // No WebAudio — still emit speaking state, just no amplitude
     speaking = true;
     emit();
+    // Detach when playback actually ends or errors. Do NOT listen for "pause" —
+    // browsers fire pause events during normal buffering/seeking and that would
+    // silently kill playback.
+    const handleEnd = () => detachAudio(audio);
+    audio.addEventListener("ended", handleEnd, { once: true });
+    audio.addEventListener("error", handleEnd, { once: true });
     return;
   }
 
-  // Resume if suspended (autoplay policies)
+  // Resume the AudioContext synchronously-ish. If the context is suspended
+  // (iOS/Safari autoplay), routing the <audio> through a MediaElementSource
+  // BEFORE resume = silent playback. Kick off resume but don't block: we still
+  // want to wire up the graph immediately so analyser data is correct.
   if (ctx.state === "suspended") {
     ctx.resume().catch(() => {});
   }
@@ -107,15 +116,18 @@ export function attachAudio(audio: HTMLAudioElement): void {
     analyser.connect(ctx.destination);
   } catch (err) {
     console.warn("[audioBus] WebAudio wiring failed:", err);
+    // If WebAudio wiring fails, the <audio> element still plays through the
+    // default output on its own — don't block speaking state.
   }
 
   speaking = true;
   emit();
   startLoop();
 
+  // Only detach on real end-of-playback or error. "pause" fires during normal
+  // buffering and would prematurely kill audio.
   const handleEnd = () => detachAudio(audio);
   audio.addEventListener("ended", handleEnd, { once: true });
-  audio.addEventListener("pause", handleEnd, { once: true });
   audio.addEventListener("error", handleEnd, { once: true });
 }
 
@@ -136,4 +148,21 @@ export function getAmplitude(): number {
 export function subscribe(listener: Listener): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
+}
+
+/**
+ * Eagerly create + resume the AudioContext during a user gesture (e.g. the
+ * first send-button tap). iOS/Safari requires this; otherwise the first TTS
+ * reply will route into a suspended context and play silently.
+ */
+export async function unlockAudioContext(): Promise<void> {
+  const ctx = ensureContext();
+  if (!ctx) return;
+  if (ctx.state === "suspended") {
+    try {
+      await ctx.resume();
+    } catch {
+      /* noop */
+    }
+  }
 }
