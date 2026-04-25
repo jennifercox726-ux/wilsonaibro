@@ -337,308 +337,45 @@
 }
 
 /* ====================================================================== */
-/*  Wilson Opal Orb — iridescent living pearl                              */
+/*  Wilson Fluid — clean droplet image, no overlays                        */
 /* ====================================================================== */
-.opal-orb {
+.wilson-fluid {
   isolation: isolate;
-  transform: translateZ(0);
-}
-.opal-orb__halo,
-.opal-orb__core,
-.opal-orb__iridescence,
-.opal-orb__shimmer,
-.opal-orb__pulse,
-.opal-orb__highlight {
-  position: absolute;
-  inset: 0;
-  border-radius: 9999px;
-  pointer-events: none;
-}
-
-/* Voice-reactive pulse — driven by --opal-amp-* vars from JS */
-.opal-orb__pulse {
-  inset: -25%;
-  background: radial-gradient(
-    circle,
-    hsl(290 100% 80% / 0.55) 0%,
-    hsl(190 100% 75% / 0.35) 30%,
-    hsl(45 100% 75% / 0.2) 50%,
-    transparent 70%
-  );
-  opacity: var(--opal-amp-opacity, 0);
-  transform: scale(var(--opal-amp-scale, 1));
-  filter: blur(var(--opal-amp-blur, 4px)) saturate(180%);
-  transition: opacity 80ms linear, transform 80ms linear, filter 120ms linear;
-  mix-blend-mode: screen;
-}
-
-/* Soft outer halo */
-.opal-orb__halo {
-  inset: -18%;
-  background: radial-gradient(
-    circle,
-    hsl(290 80% 75% / 0.45) 0%,
-    hsl(190 90% 70% / 0.25) 35%,
-    hsl(45 90% 70% / 0.18) 55%,
-    transparent 72%
-  );
-  filter: blur(8px);
-  animation: opal-halo-breathe 5.5s ease-in-out infinite;
-}
-
-/* Photo-textured opal core */
-.opal-orb__core {
-  background-size: 140% 140%;
-  background-position: 50% 50%;
+  transform: translateZ(0) scale(var(--wilson-amp-scale, 1));
+  background-size: cover;
+  background-position: center;
   background-repeat: no-repeat;
-  filter: saturate(115%) contrast(105%);
   box-shadow:
-    inset 0 0 14px hsl(0 0% 100% / 0.35),
-    inset 0 -6px 22px hsl(280 60% 25% / 0.45),
-    0 0 22px hsl(290 70% 60% / 0.4);
-  animation: opal-core-drift 14s ease-in-out infinite;
+    0 0 calc(20px + var(--wilson-amp-glow, 0.35) * 30px)
+      hsl(290 80% 65% / var(--wilson-amp-glow, 0.35)),
+    0 0 calc(40px + var(--wilson-amp-glow, 0.35) * 60px)
+      hsl(190 80% 65% / calc(var(--wilson-amp-glow, 0.35) * 0.6));
+  transition: transform 80ms linear, box-shadow 120ms linear;
 }
 
-/* Animated iridescent color sweep — kept subtle so the fluid texture reads */
-.opal-orb__iridescence {
-  background:
-    conic-gradient(
-      from 0deg,
-      hsl(330 100% 75% / 0.35),
-      hsl(190 100% 70% / 0.3),
-      hsl(50 100% 70% / 0.3),
-      hsl(150 90% 70% / 0.3),
-      hsl(280 100% 75% / 0.35),
-      hsl(330 100% 75% / 0.35)
-    );
-  mix-blend-mode: overlay;
-  opacity: 0.35;
-  filter: blur(6px) saturate(140%);
-  animation: opal-iridescence-spin 14s linear infinite;
+.wilson-fluid--idle {
+  animation: wilson-fluid-breathe 6s ease-in-out infinite;
 }
 
-/* Inner shimmer — soft glassy bloom, doesn't fight the fluid */
-.opal-orb__shimmer {
-  inset: 8%;
-  background:
-    radial-gradient(circle at 30% 30%, hsl(0 0% 100% / 0.4), transparent 40%),
-    radial-gradient(circle at 70% 60%, hsl(190 100% 80% / 0.3), transparent 45%);
-  mix-blend-mode: screen;
-  opacity: 0.5;
-  animation: opal-shimmer-drift 8s ease-in-out infinite;
+.wilson-fluid--thinking {
+  animation: wilson-fluid-breathe 2.4s ease-in-out infinite;
 }
 
-/* Glassy specular highlight */
-.opal-orb__highlight {
-  background:
-    radial-gradient(
-      ellipse 45% 30% at 32% 25%,
-      hsl(0 0% 100% / 0.7),
-      hsl(0 0% 100% / 0) 70%
-    ),
-    radial-gradient(
-      ellipse 20% 8% at 68% 78%,
-      hsl(0 0% 100% / 0.35),
-      transparent 70%
-    );
-  mix-blend-mode: screen;
-  opacity: 0.85;
+.wilson-fluid--speaking {
+  animation: wilson-fluid-pulse 1.6s ease-in-out infinite;
+  filter: saturate(120%) brightness(1.05);
 }
 
-/* Speaking state — fluid intensifies: more saturated, brighter halo, faster drift */
-.opal-orb--speaking .opal-orb__halo {
-  animation-duration: 1.4s;
-  filter: blur(14px) saturate(180%);
-  opacity: 1;
-}
-.opal-orb--speaking .opal-orb__iridescence {
-  animation-duration: 5s;
-  opacity: 0.7;
-  filter: blur(4px) saturate(200%);
-}
-.opal-orb--speaking .opal-orb__shimmer {
-  animation-duration: 2s;
-  opacity: 0.85;
-}
-.opal-orb--speaking .opal-orb__core {
-  animation-duration: 6s;
-  filter: saturate(160%) contrast(115%) brightness(1.1);
-  box-shadow:
-    inset 0 0 18px hsl(0 0% 100% / 0.55),
-    inset 0 -6px 22px hsl(280 70% 40% / 0.55),
-    0 0 38px hsl(290 90% 65% / 0.75),
-    0 0 70px hsl(190 90% 65% / 0.4);
-  transform: scale(var(--opal-amp-scale, 1.02));
+@keyframes wilson-fluid-breathe {
+  0%, 100% { transform: scale(var(--wilson-amp-scale, 1)); }
+  50%      { transform: scale(calc(var(--wilson-amp-scale, 1) * 1.03)); }
 }
 
-/* Thinking state — gentle quickening */
-.opal-orb--thinking .opal-orb__iridescence {
-  animation-duration: 5s;
-  opacity: 0.7;
-}
-.opal-orb--thinking .opal-orb__halo {
-  animation-duration: 2.6s;
-}
-
-@keyframes opal-iridescence-spin {
-  to { transform: rotate(360deg); }
-}
-@keyframes opal-halo-breathe {
-  0%, 100% { transform: scale(1); opacity: 0.7; }
-  50%      { transform: scale(1.08); opacity: 1; }
-}
-@keyframes opal-core-drift {
-  0%, 100% { background-position: 45% 45%; transform: scale(1); }
-  50%      { background-position: 55% 55%; transform: scale(1.02); }
-}
-@keyframes opal-shimmer-drift {
-  0%, 100% { transform: translate(0, 0) scale(1);   opacity: 0.65; }
-  50%      { transform: translate(2%, -2%) scale(1.04); opacity: 0.95; }
+@keyframes wilson-fluid-pulse {
+  0%, 100% { transform: scale(var(--wilson-amp-scale, 1)); }
+  50%      { transform: scale(calc(var(--wilson-amp-scale, 1) * 1.06)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .opal-orb__halo,
-  .opal-orb__core,
-  .opal-orb__iridescence,
-  .opal-orb__shimmer,
-  .opal-bubble { animation: none !important; }
-}
-
-/* ====================================================================== */
-/*  Wilson Orb — Orbiting Gel Bubbles                                      */
-/*  Always visible, intensify when .opal-orb--speaking is active           */
-/* ====================================================================== */
-.opal-orb__bubbles {
-  position: absolute;
-  inset: -20%;
-  pointer-events: none;
-  border-radius: 9999px;
-  z-index: 2;
-  /* Single source of truth for orbit radius. Each bubble multiplies this
-     by its own factor (--r) so we can scale the whole ring at once. */
-  --orbit: 42%;
-}
-
-/* Tighten the ring on phones so bubbles stay visible inside/around the orb */
-@media (max-width: 640px) {
-  .opal-orb__bubbles {
-    inset: -10%;
-    --orbit: 32%;
-  }
-}
-
-.opal-bubble {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  border-radius: 9999px;
-  transform-origin: center;
-  mix-blend-mode: screen;
-  opacity: 0.55;
-  filter: saturate(160%);
-  transition: opacity 400ms ease, filter 400ms ease;
-}
-
-.opal-bubble::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background:
-    radial-gradient(circle at 30% 28%, hsl(0 0% 100% / 0.9), hsl(0 0% 100% / 0) 45%),
-    radial-gradient(circle at 65% 70%, hsl(0 0% 100% / 0.25), transparent 55%);
-}
-
-.opal-bubble--1 {
-  width: 28%; height: 28%; margin: -14% 0 0 -14%;
-  --r: 1.0;
-  background: radial-gradient(circle at 35% 35%, hsl(330 100% 75%), hsl(290 90% 55%) 70%);
-  box-shadow: 0 0 14px hsl(320 100% 60% / 0.55);
-  animation: opal-bubble-orbit-1 11s linear infinite;
-}
-.opal-bubble--2 {
-  width: 22%; height: 22%; margin: -11% 0 0 -11%;
-  --r: 1.25;
-  background: radial-gradient(circle at 30% 30%, hsl(190 100% 80%), hsl(195 100% 55%) 70%);
-  box-shadow: 0 0 12px hsl(190 100% 60% / 0.55);
-  animation: opal-bubble-orbit-2 9s linear infinite;
-}
-.opal-bubble--3 {
-  width: 20%; height: 20%; margin: -10% 0 0 -10%;
-  --r: 1.1;
-  background: radial-gradient(circle at 35% 30%, hsl(45 100% 80%), hsl(25 100% 55%) 70%);
-  box-shadow: 0 0 12px hsl(35 100% 60% / 0.55);
-  animation: opal-bubble-orbit-3 13s linear infinite;
-}
-.opal-bubble--4 {
-  width: 16%; height: 16%; margin: -8% 0 0 -8%;
-  --r: 1.4;
-  background: radial-gradient(circle at 30% 30%, hsl(150 100% 80%), hsl(155 90% 50%) 70%);
-  box-shadow: 0 0 10px hsl(150 100% 55% / 0.5);
-  animation: opal-bubble-orbit-4 15s linear infinite;
-}
-.opal-bubble--5 {
-  width: 12%; height: 12%; margin: -6% 0 0 -6%;
-  --r: 0.85;
-  background: radial-gradient(circle at 30% 30%, hsl(280 100% 85%), hsl(280 100% 60%) 70%);
-  box-shadow: 0 0 8px hsl(280 100% 65% / 0.5);
-  animation: opal-bubble-orbit-5 8s linear infinite;
-}
-.opal-bubble--6 {
-  width: 9%; height: 9%; margin: -4.5% 0 0 -4.5%;
-  --r: 1.5;
-  background: radial-gradient(circle at 30% 30%, hsl(340 100% 88%), hsl(330 100% 65%) 70%);
-  box-shadow: 0 0 6px hsl(330 100% 70% / 0.5);
-  animation: opal-bubble-orbit-6 7s linear infinite;
-}
-.opal-bubble--7 {
-  width: 8%; height: 8%; margin: -4% 0 0 -4%;
-  --r: 1.3;
-  background: radial-gradient(circle at 30% 30%, hsl(180 100% 88%), hsl(185 100% 60%) 70%);
-  box-shadow: 0 0 6px hsl(185 100% 65% / 0.5);
-  animation: opal-bubble-orbit-7 10s linear infinite;
-}
-
-/* Speaking — bubbles get vivid, faster orbits */
-.opal-orb--speaking .opal-bubble {
-  opacity: 0.95;
-  filter: saturate(200%) brightness(1.15);
-}
-.opal-orb--speaking .opal-bubble--1 { animation-duration: 4.5s; }
-.opal-orb--speaking .opal-bubble--2 { animation-duration: 3.8s; }
-.opal-orb--speaking .opal-bubble--3 { animation-duration: 5s; }
-.opal-orb--speaking .opal-bubble--4 { animation-duration: 5.5s; }
-.opal-orb--speaking .opal-bubble--5 { animation-duration: 3.2s; }
-.opal-orb--speaking .opal-bubble--6 { animation-duration: 2.8s; }
-.opal-orb--speaking .opal-bubble--7 { animation-duration: 3.6s; }
-
-/* Each keyframe uses calc(var(--orbit) * var(--r)) so the whole ring scales
-   with the container while preserving each bubble's relative offset. */
-@keyframes opal-bubble-orbit-1 {
-  from { transform: rotate(0deg)   translateX(calc(var(--orbit) * var(--r))) rotate(0deg); }
-  to   { transform: rotate(360deg) translateX(calc(var(--orbit) * var(--r))) rotate(-360deg); }
-}
-@keyframes opal-bubble-orbit-2 {
-  from { transform: rotate(120deg) translateX(calc(var(--orbit) * var(--r))) rotate(-120deg); }
-  to   { transform: rotate(-240deg) translateX(calc(var(--orbit) * var(--r))) rotate(240deg); }
-}
-@keyframes opal-bubble-orbit-3 {
-  from { transform: rotate(45deg)  translateX(calc(var(--orbit) * var(--r))) rotate(-45deg); }
-  to   { transform: rotate(405deg) translateX(calc(var(--orbit) * var(--r))) rotate(-405deg); }
-}
-@keyframes opal-bubble-orbit-4 {
-  from { transform: rotate(200deg) translateX(calc(var(--orbit) * var(--r))) rotate(-200deg); }
-  to   { transform: rotate(-160deg) translateX(calc(var(--orbit) * var(--r))) rotate(160deg); }
-}
-@keyframes opal-bubble-orbit-5 {
-  from { transform: rotate(280deg) translateX(calc(var(--orbit) * var(--r))) rotate(-280deg); }
-  to   { transform: rotate(640deg) translateX(calc(var(--orbit) * var(--r))) rotate(-640deg); }
-}
-@keyframes opal-bubble-orbit-6 {
-  from { transform: rotate(90deg)  translateX(calc(var(--orbit) * var(--r))) rotate(-90deg); }
-  to   { transform: rotate(-270deg) translateX(calc(var(--orbit) * var(--r))) rotate(270deg); }
-}
-@keyframes opal-bubble-orbit-7 {
-  from { transform: rotate(330deg) translateX(calc(var(--orbit) * var(--r))) rotate(-330deg); }
-  to   { transform: rotate(690deg) translateX(calc(var(--orbit) * var(--r))) rotate(-690deg); }
+  .wilson-fluid { animation: none !important; }
 }
