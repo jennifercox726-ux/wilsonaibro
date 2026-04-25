@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Send, Mic, MicOff } from "lucide-react";
 import { toast } from "sonner";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
-import { unlockElevenLabsPlayback } from "@/lib/elevenLabsTTS";
+import { primeElevenLabsPlayback } from "@/lib/elevenLabsTTS";
 
 interface ChatInputProps {
   onSend: (message: string) => void;
@@ -87,8 +87,8 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
   const handleSend = () => {
     const text = input.trim();
     if (!text || disabled) return;
-    // Fire-and-forget audio unlock so a hung promise can never block sending
-    unlockElevenLabsPlayback().catch(() => {});
+    // Must be synchronous in the tap/click handler for iOS Safari.
+    primeElevenLabsPlayback();
     if (autoSendTimerRef.current) {
       clearTimeout(autoSendTimerRef.current);
       autoSendTimerRef.current = null;
@@ -111,6 +111,9 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
     if (isListening) {
       stopListening();
     } else {
+      // Voice auto-send happens later from a timer, so prime audio now while
+      // we're still inside the user's tap gesture.
+      primeElevenLabsPlayback();
       // Seed the base with whatever the user has already typed
       baseInputRef.current = input;
       startListening();

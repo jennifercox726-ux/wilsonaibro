@@ -1,4 +1,3 @@
-import { supabase } from "@/integrations/supabase/client";
 import { attachAudio, detachAudio, subscribe, getSpeaking, unlockAudioContext } from "@/lib/audioBus";
 
 export interface ElevenLabsResult {
@@ -12,6 +11,7 @@ let currentRequestId = 0;
 let currentAbort: AbortController | null = null;
 let playbackUnlockPromise: Promise<void> | null = null;
 let unlockedPlaybackAudio: HTMLAudioElement | null = null;
+let playbackUnlocked = false;
 
 export type SpeakResult = "ok" | "blocked" | "error";
 
@@ -62,47 +62,48 @@ export async function generateElevenLabsAudio(
   signal?: AbortSignal,
   context?: { previousText?: string; nextText?: string },
 ): Promise<ElevenLabsResult> {
-  const { data, error } = await supabase.functions.invoke("elevenlabs-tts", {
-    body: {
+  const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`;
+  const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+  const response = await fetch(functionUrl, {
+    method: "POST",
+    signal,
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "audio/mpeg",
+      ...(publishableKey
+        ? {
+            apikey: publishableKey,
+            Authorization: `Bearer ${publishableKey}`,
+          }
+        : {}),
+    },
+    body: JSON.stringify({
       prompt,
       ...(context?.previousText ? { previousText: context.previousText } : {}),
       ...(context?.nextText ? { nextText: context.nextText } : {}),
-    },
+    }),
   });
 
   if (signal?.aborted) {
     throw new DOMException("Aborted", "AbortError");
   }
 
-  // Structured validation error from the edge function
-  if (data && typeof data === "object" && "error" in data && !data.audioUrl) {
-    const code = (data as { code?: string }).code;
-    const errMsg = (data as { error?: string }).error ?? "ElevenLabs error";
-    const actions = (data as { nextActions?: string[] }).nextActions;
-    const voiceId = (data as { voiceId?: string }).voiceId;
-
-    let friendly = errMsg;
-    if (code === "VOICE_NOT_FOUND") {
-      friendly = `Voice "${voiceId}" isn't available on the ElevenLabs account tied to your API key.`;
-    } else if (code === "INVALID_API_KEY") {
-      friendly = "Your ElevenLabs API key is invalid or unauthorized.";
-    }
-    if (actions?.length) {
-      friendly += `\n\nNext steps:\n• ${actions.join("\n• ")}`;
-    }
-
-    const e = new Error(friendly);
-    (e as Error & { code?: string }).code = code;
-    throw e;
+  if (!response.ok) {
+    const details = await response.text().catch(() => "");
+    throw new Error(details || `ElevenLabs TTS failed [${response.status}]`);
   }
 
-  if (error) {
-    throw new Error(error.message ?? "Failed to call ElevenLabs function");
+  const audioBlob = await response.blob();
+  if (!audioBlob.size) {
+    throw new Error("No audio returned from ElevenLabs");
   }
-  if (!data?.audioUrl) {
-    throw new Error("No audio URL returned from ElevenLabs");
-  }
-  return data as ElevenLabsResult;
+
+  return {
+    audioUrl: URL.createObjectURL(audioBlob),
+    contentType: response.headers.get("Content-Type") ?? "audio/mpeg",
+    requestId: response.headers.get("X-Request-Id"),
+  };
 }
 
 /**
@@ -172,29 +173,39 @@ export function subscribeToElevenLabs(listener: () => void): () => void {
   return subscribe(listener);
 }
 
-export async function unlockElevenLabsPlayback(): Promise<void> {
+export function primeElevenLabsPlayback(): void {
   if (typeof window === "undefined") return;
-  if (playbackUnlockPromise) return playbackUnlockPromise;
 
-  playbackUnlockPromise = (async () => {
-    // Resume the WebAudio context during this user gesture so iOS/Safari
-    // doesn't drop the first TTS reply into a suspended audio graph.
-    await unlockAudioContext();
-    try {
-      const audio = configureAudioElement(new Audio(SILENT_WAV_DATA_URL));
-      audio.muted = true;
-      await audio.play();
+  // This must run synchronously inside the click/tap handler. Do not put an
+  // await before creating/touching the audio element or iOS Safari discards
+  // the user-gesture permission.
+  if (!unlockedPlaybackAudio) {
+    unlockedPlaybackAudio = configureAudioElement(new Audio(SILENT_WAV_DATA_URL));
+  }
+
+  const audio = unlockedPlaybackAudio;
+  audio.muted = true;
+  audio.play()
+    .then(() => {
       audio.pause();
       audio.currentTime = 0;
       audio.muted = false;
-      audio.removeAttribute("src");
-      audio.load();
-      unlockedPlaybackAudio = audio;
-    } catch {
-      unlockedPlaybackAudio = configureAudioElement(new Audio());
-    }
-  })();
+      playbackUnlocked = true;
+    })
+    .catch(() => {
+      audio.muted = false;
+      playbackUnlocked = false;
+    });
 
+  void unlockAudioContext();
+}
+
+export async function unlockElevenLabsPlayback(): Promise<void> {
+  if (typeof window === "undefined") return;
+  primeElevenLabsPlayback();
+  if (playbackUnlockPromise) return playbackUnlockPromise;
+
+  playbackUnlockPromise = unlockAudioContext().catch(() => {});
   return playbackUnlockPromise;
 }
 
