@@ -388,44 +388,44 @@
 
 /* Photo-textured opal core */
 .opal-orb__core {
-  background-size: 130% 130%;
+  background-size: 140% 140%;
   background-position: 50% 50%;
   background-repeat: no-repeat;
+  filter: saturate(115%) contrast(105%);
   box-shadow:
-    inset 0 0 12px hsl(0 0% 100% / 0.4),
-    inset 0 -4px 16px hsl(280 60% 30% / 0.35),
-    0 0 18px hsl(290 70% 60% / 0.35);
+    inset 0 0 14px hsl(0 0% 100% / 0.35),
+    inset 0 -6px 22px hsl(280 60% 25% / 0.45),
+    0 0 22px hsl(290 70% 60% / 0.4);
   animation: opal-core-drift 14s ease-in-out infinite;
 }
 
-/* Animated iridescent color sweep on top of texture */
+/* Animated iridescent color sweep — kept subtle so the fluid texture reads */
 .opal-orb__iridescence {
   background:
     conic-gradient(
       from 0deg,
-      hsl(330 100% 75% / 0.55),
-      hsl(190 100% 70% / 0.45),
-      hsl(50 100% 70% / 0.45),
-      hsl(150 90% 70% / 0.45),
-      hsl(280 100% 75% / 0.55),
-      hsl(330 100% 75% / 0.55)
+      hsl(330 100% 75% / 0.35),
+      hsl(190 100% 70% / 0.3),
+      hsl(50 100% 70% / 0.3),
+      hsl(150 90% 70% / 0.3),
+      hsl(280 100% 75% / 0.35),
+      hsl(330 100% 75% / 0.35)
     );
-  mix-blend-mode: screen;
-  opacity: 0.55;
-  filter: blur(4px) saturate(140%);
-  animation: opal-iridescence-spin 9s linear infinite;
+  mix-blend-mode: overlay;
+  opacity: 0.35;
+  filter: blur(6px) saturate(140%);
+  animation: opal-iridescence-spin 14s linear infinite;
 }
 
-/* Inner shimmer that swirls more aggressively while speaking */
+/* Inner shimmer — soft glassy bloom, doesn't fight the fluid */
 .opal-orb__shimmer {
   inset: 8%;
   background:
-    radial-gradient(circle at 30% 30%, hsl(0 0% 100% / 0.55), transparent 35%),
-    radial-gradient(circle at 70% 60%, hsl(190 100% 80% / 0.5), transparent 40%),
-    radial-gradient(circle at 50% 80%, hsl(330 100% 80% / 0.45), transparent 45%);
+    radial-gradient(circle at 30% 30%, hsl(0 0% 100% / 0.4), transparent 40%),
+    radial-gradient(circle at 70% 60%, hsl(190 100% 80% / 0.3), transparent 45%);
   mix-blend-mode: screen;
-  opacity: 0.7;
-  animation: opal-shimmer-drift 6s ease-in-out infinite;
+  opacity: 0.5;
+  animation: opal-shimmer-drift 8s ease-in-out infinite;
 }
 
 /* Glassy specular highlight */
@@ -433,38 +433,42 @@
   background:
     radial-gradient(
       ellipse 45% 30% at 32% 25%,
-      hsl(0 0% 100% / 0.85),
+      hsl(0 0% 100% / 0.7),
       hsl(0 0% 100% / 0) 70%
     ),
     radial-gradient(
       ellipse 20% 8% at 68% 78%,
-      hsl(0 0% 100% / 0.4),
+      hsl(0 0% 100% / 0.35),
       transparent 70%
     );
   mix-blend-mode: screen;
+  opacity: 0.85;
 }
 
-/* Speaking state — stronger, faster, more vivid */
+/* Speaking state — fluid intensifies: more saturated, brighter halo, faster drift */
 .opal-orb--speaking .opal-orb__halo {
   animation-duration: 1.4s;
-  filter: blur(10px) saturate(160%);
-}
-.opal-orb--speaking .opal-orb__iridescence {
-  animation-duration: 3s;
-  opacity: 0.85;
-  filter: blur(3px) saturate(180%);
-}
-.opal-orb--speaking .opal-orb__shimmer {
-  animation-duration: 1.6s;
+  filter: blur(14px) saturate(180%);
   opacity: 1;
 }
+.opal-orb--speaking .opal-orb__iridescence {
+  animation-duration: 5s;
+  opacity: 0.7;
+  filter: blur(4px) saturate(200%);
+}
+.opal-orb--speaking .opal-orb__shimmer {
+  animation-duration: 2s;
+  opacity: 0.85;
+}
 .opal-orb--speaking .opal-orb__core {
-  animation-duration: 4s;
+  animation-duration: 6s;
+  filter: saturate(160%) contrast(115%) brightness(1.1);
   box-shadow:
-    inset 0 0 14px hsl(0 0% 100% / 0.55),
-    inset 0 -4px 18px hsl(280 70% 40% / 0.5),
-    0 0 32px hsl(290 90% 65% / 0.7),
-    0 0 60px hsl(190 90% 65% / 0.35);
+    inset 0 0 18px hsl(0 0% 100% / 0.55),
+    inset 0 -6px 22px hsl(280 70% 40% / 0.55),
+    0 0 38px hsl(290 90% 65% / 0.75),
+    0 0 70px hsl(190 90% 65% / 0.4);
+  transform: scale(var(--opal-amp-scale, 1.02));
 }
 
 /* Thinking state — gentle quickening */
