@@ -111,6 +111,9 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
     if (isListening) {
       stopListening();
     } else {
+      // Voice auto-send happens later from a timer, so prime audio now while
+      // we're still inside the user's tap gesture.
+      primeElevenLabsPlayback();
       // Seed the base with whatever the user has already typed
       baseInputRef.current = input;
       startListening();
