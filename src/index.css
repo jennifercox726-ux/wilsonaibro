@@ -143,17 +143,64 @@
 }
 
 .aurora-bg {
-  background: linear-gradient(
-    -45deg,
-    hsl(240 15% 3%),
-    hsl(240 20% 6%),
-    hsl(280 30% 8%),
-    hsl(185 20% 6%),
-    hsl(240 15% 3%)
-  );
-  background-size: 400% 400%;
-  animation: aurora-drift 20s ease infinite;
+  position: relative;
+  background:
+    radial-gradient(ellipse 60% 45% at 20% 25%, hsl(190 90% 18% / 0.55), transparent 60%),
+    radial-gradient(ellipse 55% 40% at 80% 75%, hsl(25 95% 22% / 0.45), transparent 60%),
+    radial-gradient(ellipse 50% 50% at 60% 30%, hsl(290 85% 18% / 0.5), transparent 65%),
+    linear-gradient(
+      -45deg,
+      hsl(240 18% 3%),
+      hsl(250 22% 6%),
+      hsl(285 30% 8%),
+      hsl(190 25% 6%),
+      hsl(240 18% 3%)
+    );
+  background-size: 100% 100%, 100% 100%, 100% 100%, 400% 400%;
+  animation: aurora-drift 22s ease infinite;
+  overflow: hidden;
 }
+
+/* Floating iridescent gel bubbles */
+.aurora-bg::before,
+.aurora-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  z-index: 0;
+}
+.aurora-bg::before {
+  background-image:
+    radial-gradient(circle at 15% 20%, hsl(290 100% 70% / 0.18) 0%, transparent 4%),
+    radial-gradient(circle at 85% 30%, hsl(190 100% 65% / 0.16) 0%, transparent 3.5%),
+    radial-gradient(circle at 30% 80%, hsl(45 100% 65% / 0.18) 0%, transparent 5%),
+    radial-gradient(circle at 75% 70%, hsl(150 90% 60% / 0.15) 0%, transparent 4%),
+    radial-gradient(circle at 50% 10%, hsl(330 100% 70% / 0.14) 0%, transparent 3%),
+    radial-gradient(circle at 10% 60%, hsl(25 100% 65% / 0.16) 0%, transparent 4%);
+  filter: blur(2px) saturate(140%);
+  animation: gel-drift 28s ease-in-out infinite;
+  mix-blend-mode: screen;
+}
+.aurora-bg::after {
+  background-image:
+    radial-gradient(circle at 60% 40%, hsl(280 100% 75% / 0.12) 0%, transparent 6%),
+    radial-gradient(circle at 25% 50%, hsl(195 100% 70% / 0.1) 0%, transparent 5%),
+    radial-gradient(circle at 90% 85%, hsl(45 100% 70% / 0.12) 0%, transparent 6%);
+  filter: blur(8px) saturate(160%);
+  animation: gel-drift 36s ease-in-out infinite reverse;
+  mix-blend-mode: screen;
+}
+
+@keyframes gel-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33%      { transform: translate3d(2%, -3%, 0) scale(1.05); }
+  66%      { transform: translate3d(-3%, 2%, 0) scale(0.97); }
+}
+
+/* Make sure children stack above the gel layer */
+.aurora-bg > * { position: relative; z-index: 1; }
 
 .orb-breathe {
   animation: orb-breathe 4s ease-in-out infinite;
