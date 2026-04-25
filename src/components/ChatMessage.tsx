@@ -76,12 +76,13 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
       return;
     }
 
+    primeElevenLabsPlayback();
     requestedRef.current = true;
     setLoadingVoice(true);
     const result = await speakWithElevenLabs(cleanContent);
     setLoadingVoice(false);
     if (result === "blocked") {
-      // Browser autoplay policy blocked it — silent recovery, the next tap will play.
+      // iOS/Safari blocked autoplay despite priming; do not show a failure toast.
       requestedRef.current = false;
     } else if (result === "error") {
       requestedRef.current = false;
