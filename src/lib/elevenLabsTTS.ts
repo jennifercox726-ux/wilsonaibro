@@ -154,8 +154,9 @@ export function stopElevenLabs(): void {
     currentAudio = null;
     try {
       audio.pause();
-      audio.removeAttribute("src");
-      audio.load();
+      // Don't removeAttribute("src") + load() — that destroys the
+      // gesture-bound element on iOS and the next chunk gets blocked.
+      audio.currentTime = 0;
     } catch {
       /* noop */
     }
