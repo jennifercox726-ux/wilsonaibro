@@ -149,3 +149,20 @@ export function subscribe(listener: Listener): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
+
+/**
+ * Eagerly create + resume the AudioContext during a user gesture (e.g. the
+ * first send-button tap). iOS/Safari requires this; otherwise the first TTS
+ * reply will route into a suspended context and play silently.
+ */
+export async function unlockAudioContext(): Promise<void> {
+  const ctx = ensureContext();
+  if (!ctx) return;
+  if (ctx.state === "suspended") {
+    try {
+      await ctx.resume();
+    } catch {
+      /* noop */
+    }
+  }
+}
