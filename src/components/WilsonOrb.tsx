@@ -60,6 +60,17 @@ const WilsonOrb = React.forwardRef<HTMLDivElement, WilsonOrbProps>(
         {/* Voice-reactive pulse layer */}
         {isSpeaking && <div className="opal-orb__pulse" />}
 
+        {/* Orbiting gel bubbles — always visible, vivid when speaking */}
+        <div className="opal-orb__bubbles" aria-hidden="true">
+          <span className="opal-bubble opal-bubble--1" />
+          <span className="opal-bubble opal-bubble--2" />
+          <span className="opal-bubble opal-bubble--3" />
+          <span className="opal-bubble opal-bubble--4" />
+          <span className="opal-bubble opal-bubble--5" />
+          <span className="opal-bubble opal-bubble--6" />
+          <span className="opal-bubble opal-bubble--7" />
+        </div>
+
         {/* Glassy highlight */}
         <div className="opal-orb__highlight" />
       </div>
