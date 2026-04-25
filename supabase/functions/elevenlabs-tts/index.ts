@@ -114,6 +114,18 @@ Deno.serve(async (req: Request) => {
     }
 
     const audioBuffer = await ttsRes.arrayBuffer();
+
+    if (req.headers.get("accept")?.includes("audio/mpeg")) {
+      return new Response(audioBuffer, {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "audio/mpeg",
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+
     const base64 = base64Encode(audioBuffer);
 
     return new Response(

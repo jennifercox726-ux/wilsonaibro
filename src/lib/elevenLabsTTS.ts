@@ -63,47 +63,48 @@ export async function generateElevenLabsAudio(
   signal?: AbortSignal,
   context?: { previousText?: string; nextText?: string },
 ): Promise<ElevenLabsResult> {
-  const { data, error } = await supabase.functions.invoke("elevenlabs-tts", {
-    body: {
+  const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`;
+  const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+  const response = await fetch(functionUrl, {
+    method: "POST",
+    signal,
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "audio/mpeg",
+      ...(publishableKey
+        ? {
+            apikey: publishableKey,
+            Authorization: `Bearer ${publishableKey}`,
+          }
+        : {}),
+    },
+    body: JSON.stringify({
       prompt,
       ...(context?.previousText ? { previousText: context.previousText } : {}),
       ...(context?.nextText ? { nextText: context.nextText } : {}),
-    },
+    }),
   });
 
   if (signal?.aborted) {
     throw new DOMException("Aborted", "AbortError");
   }
 
-  // Structured validation error from the edge function
-  if (data && typeof data === "object" && "error" in data && !data.audioUrl) {
-    const code = (data as { code?: string }).code;
-    const errMsg = (data as { error?: string }).error ?? "ElevenLabs error";
-    const actions = (data as { nextActions?: string[] }).nextActions;
-    const voiceId = (data as { voiceId?: string }).voiceId;
-
-    let friendly = errMsg;
-    if (code === "VOICE_NOT_FOUND") {
-      friendly = `Voice "${voiceId}" isn't available on the ElevenLabs account tied to your API key.`;
-    } else if (code === "INVALID_API_KEY") {
-      friendly = "Your ElevenLabs API key is invalid or unauthorized.";
-    }
-    if (actions?.length) {
-      friendly += `\n\nNext steps:\n• ${actions.join("\n• ")}`;
-    }
-
-    const e = new Error(friendly);
-    (e as Error & { code?: string }).code = code;
-    throw e;
+  if (!response.ok) {
+    const details = await response.text().catch(() => "");
+    throw new Error(details || `ElevenLabs TTS failed [${response.status}]`);
   }
 
-  if (error) {
-    throw new Error(error.message ?? "Failed to call ElevenLabs function");
+  const audioBlob = await response.blob();
+  if (!audioBlob.size) {
+    throw new Error("No audio returned from ElevenLabs");
   }
-  if (!data?.audioUrl) {
-    throw new Error("No audio URL returned from ElevenLabs");
-  }
-  return data as ElevenLabsResult;
+
+  return {
+    audioUrl: URL.createObjectURL(audioBlob),
+    contentType: response.headers.get("Content-Type") ?? "audio/mpeg",
+    requestId: response.headers.get("X-Request-Id"),
+  };
 }
 
 /**
