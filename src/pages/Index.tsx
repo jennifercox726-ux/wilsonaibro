@@ -567,6 +567,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
           </p>
         </div>
       </div>
+      </div>
     </div>
   );
 };
