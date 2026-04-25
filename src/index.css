@@ -73,9 +73,18 @@
     @apply border-border;
   }
 
-  body {
+  html, body, #root {
     @apply bg-background text-foreground font-sans;
+    min-height: 100%;
+  }
+
+  body {
     font-family: 'Syne', sans-serif;
+    background-image: url('/app-background.gif');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
   }
 
   code, pre, .font-mono {
