@@ -22,8 +22,22 @@ const App = () => {
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      // CRITICAL: Only swap the session reference when the *identity* actually
+      // changes. Supabase fires TOKEN_REFRESHED / USER_UPDATED / INITIAL_SESSION
+      // periodically (and at random moments mid-stream). If we always call
+      // setSession(nextSession), <Index> remounts because its `userId` /
+      // `displayName` props get a fresh object reference — wiping all chat
+      // state and snapping the user back to the landing/auth screen.
+      setSession((prev: { user?: { id?: string } } | null) => {
+        const prevId = prev?.user?.id ?? null;
+        const nextId = nextSession?.user?.id ?? null;
+        if (event === "SIGNED_OUT") return null;
+        if (prevId !== nextId) return nextSession;
+        // Same user — keep the existing reference so React doesn't re-render
+        // every consumer that depends on the session object.
+        return prev;
+      });
     });
 
     return () => subscription.unsubscribe();
