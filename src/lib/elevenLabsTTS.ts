@@ -12,6 +12,7 @@ let currentRequestId = 0;
 let currentAbort: AbortController | null = null;
 let playbackUnlockPromise: Promise<void> | null = null;
 let unlockedPlaybackAudio: HTMLAudioElement | null = null;
+let playbackUnlocked = false;
 
 export type SpeakResult = "ok" | "blocked" | "error";
 
