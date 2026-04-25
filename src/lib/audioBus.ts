@@ -30,6 +30,14 @@ function ensureContext() {
   return audioCtx;
 }
 
+function shouldBypassWebAudio(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const isSafari = /^((?!chrome|android|crios|fxios).)*safari/i.test(ua);
+  return isIOS || isSafari;
+}
+
 function tick() {
   if (!analyser || !dataArray) {
     rafId = null;
@@ -73,14 +81,23 @@ export function attachAudio(audio: HTMLAudioElement): void {
   }
   activeAudio = audio;
 
+  if (shouldBypassWebAudio()) {
+    // iOS/Safari can silence playback when a media element is rerouted through
+    // WebAudio after a delayed network request. Keep speech state working and
+    // skip amplitude analysis on those browsers.
+    speaking = true;
+    emit();
+    const handleEnd = () => detachAudio(audio);
+    audio.addEventListener("ended", handleEnd, { once: true });
+    audio.addEventListener("error", handleEnd, { once: true });
+    return;
+  }
+
   const ctx = ensureContext();
   if (!ctx) {
     // No WebAudio — still emit speaking state, just no amplitude
     speaking = true;
     emit();
-    // Detach when playback actually ends or errors. Do NOT listen for "pause" —
-    // browsers fire pause events during normal buffering/seeking and that would
-    // silently kill playback.
     const handleEnd = () => detachAudio(audio);
     audio.addEventListener("ended", handleEnd, { once: true });
     audio.addEventListener("error", handleEnd, { once: true });
