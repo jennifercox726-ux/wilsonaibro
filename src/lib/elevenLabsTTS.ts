@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { attachAudio, detachAudio, subscribe, getSpeaking } from "@/lib/audioBus";
+import { attachAudio, detachAudio, subscribe, getSpeaking, unlockAudioContext } from "@/lib/audioBus";
 
 export interface ElevenLabsResult {
   audioUrl: string;
