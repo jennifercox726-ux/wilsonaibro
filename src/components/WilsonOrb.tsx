@@ -1,5 +1,5 @@
 import React from "react";
-import opalTexture from "@/assets/wilson-opal.jpeg";
+import opalTexture from "@/assets/wilson-fluid.webp";
 import { useWilsonAudio } from "@/hooks/useWilsonAudio";
 
 export type WilsonVibe = "neutral" | "excited" | "calm" | "tired" | "dreaming";
