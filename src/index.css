@@ -143,99 +143,20 @@
 }
 
 .aurora-bg {
-  position: relative;
-  background:
-    radial-gradient(ellipse 60% 45% at 20% 25%, hsl(190 90% 18% / 0.55), transparent 60%),
-    radial-gradient(ellipse 55% 40% at 80% 75%, hsl(25 95% 22% / 0.45), transparent 60%),
-    radial-gradient(ellipse 50% 50% at 60% 30%, hsl(290 85% 18% / 0.5), transparent 65%),
-    linear-gradient(
-      -45deg,
-      hsl(240 18% 3%),
-      hsl(250 22% 6%),
-      hsl(285 30% 8%),
-      hsl(190 25% 6%),
-      hsl(240 18% 3%)
-    );
-  background-size: 100% 100%, 100% 100%, 100% 100%, 400% 400%;
-  animation: aurora-drift 22s ease infinite;
-  overflow: hidden;
+  background: linear-gradient(
+    -45deg,
+    hsl(240 15% 3%),
+    hsl(240 20% 6%),
+    hsl(280 30% 8%),
+    hsl(185 20% 6%),
+    hsl(240 15% 3%)
+  );
+  background-size: 400% 400%;
+  animation: aurora-drift 20s ease infinite;
 }
 
-/* Floating iridescent gel bubbles — desktop / capable devices */
-.aurora-bg::before,
-.aurora-bg::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-repeat: no-repeat;
-  z-index: 0;
-  /* Promote to its own GPU layer so the parent doesn't repaint */
-  will-change: transform;
-  transform: translateZ(0);
-  backface-visibility: hidden;
-}
-.aurora-bg::before {
-  background-image:
-    radial-gradient(circle at 15% 20%, hsl(290 100% 70% / 0.18) 0%, transparent 4%),
-    radial-gradient(circle at 85% 30%, hsl(190 100% 65% / 0.16) 0%, transparent 3.5%),
-    radial-gradient(circle at 30% 80%, hsl(45 100% 65% / 0.18) 0%, transparent 5%),
-    radial-gradient(circle at 75% 70%, hsl(150 90% 60% / 0.15) 0%, transparent 4%),
-    radial-gradient(circle at 50% 10%, hsl(330 100% 70% / 0.14) 0%, transparent 3%),
-    radial-gradient(circle at 10% 60%, hsl(25 100% 65% / 0.16) 0%, transparent 4%);
-  filter: blur(2px) saturate(140%);
-  animation: gel-drift 28s ease-in-out infinite;
-  mix-blend-mode: screen;
-}
-.aurora-bg::after {
-  background-image:
-    radial-gradient(circle at 60% 40%, hsl(280 100% 75% / 0.12) 0%, transparent 6%),
-    radial-gradient(circle at 25% 50%, hsl(195 100% 70% / 0.1) 0%, transparent 5%),
-    radial-gradient(circle at 90% 85%, hsl(45 100% 70% / 0.12) 0%, transparent 6%);
-  filter: blur(8px) saturate(160%);
-  animation: gel-drift 36s ease-in-out infinite reverse;
-  mix-blend-mode: screen;
-}
-
-@keyframes gel-drift {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  33%      { transform: translate3d(2%, -3%, 0) scale(1.05); }
-  66%      { transform: translate3d(-3%, 2%, 0) scale(0.97); }
-}
-
-/* Make sure children stack above the gel layer */
-.aurora-bg > * { position: relative; z-index: 1; }
-
-/* ---------------------------------------------------------------- */
-/*  Mobile / coarse-pointer optimization                             */
-/*  Drop the expensive filter+blend pipeline that murders iOS FPS.   */
-/*  Keep the look with a static, lighter bubble field and a slow,    */
-/*  transform-only drift on a single layer.                          */
-/* ---------------------------------------------------------------- */
-@media (max-width: 768px), (pointer: coarse) {
-  .aurora-bg {
-    /* Slow the master gradient cycle and let the browser rasterize once */
-    animation-duration: 40s;
-    background-size: 100% 100%, 100% 100%, 100% 100%, 200% 200%;
-  }
-  .aurora-bg::before {
-    /* Cheaper: no blur, no saturate, no blend — just colored dots */
-    filter: none;
-    mix-blend-mode: normal;
-    opacity: 0.85;
-    animation-duration: 60s;
-  }
-  .aurora-bg::after {
-    /* Drop the second, blurred bubble layer entirely on phones */
-    display: none;
-  }
-}
-
-/* Honor user motion preferences globally */
 @media (prefers-reduced-motion: reduce) {
-  .aurora-bg,
-  .aurora-bg::before,
-  .aurora-bg::after { animation: none !important; }
+  .aurora-bg { animation: none; }
 }
 
 .orb-breathe {
@@ -575,5 +496,125 @@
   .opal-orb__halo,
   .opal-orb__core,
   .opal-orb__iridescence,
-  .opal-orb__shimmer { animation: none !important; }
+  .opal-orb__shimmer,
+  .opal-bubble { animation: none !important; }
+}
+
+/* ====================================================================== */
+/*  Wilson Orb — Orbiting Gel Bubbles                                      */
+/*  Always visible, intensify when .opal-orb--speaking is active           */
+/* ====================================================================== */
+.opal-orb__bubbles {
+  position: absolute;
+  inset: -40%;
+  pointer-events: none;
+  border-radius: 9999px;
+  z-index: 2;
+}
+
+.opal-bubble {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 9999px;
+  transform-origin: center;
+  mix-blend-mode: screen;
+  opacity: 0.55;
+  filter: saturate(160%);
+  transition: opacity 400ms ease, filter 400ms ease;
+}
+
+.opal-bubble::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 30% 28%, hsl(0 0% 100% / 0.9), hsl(0 0% 100% / 0) 45%),
+    radial-gradient(circle at 65% 70%, hsl(0 0% 100% / 0.25), transparent 55%);
+}
+
+.opal-bubble--1 {
+  width: 28%; height: 28%; margin: -14% 0 0 -14%;
+  background: radial-gradient(circle at 35% 35%, hsl(330 100% 75%), hsl(290 90% 55%) 70%);
+  box-shadow: 0 0 14px hsl(320 100% 60% / 0.55);
+  animation: opal-bubble-orbit-1 11s linear infinite;
+}
+.opal-bubble--2 {
+  width: 22%; height: 22%; margin: -11% 0 0 -11%;
+  background: radial-gradient(circle at 30% 30%, hsl(190 100% 80%), hsl(195 100% 55%) 70%);
+  box-shadow: 0 0 12px hsl(190 100% 60% / 0.55);
+  animation: opal-bubble-orbit-2 9s linear infinite;
+}
+.opal-bubble--3 {
+  width: 20%; height: 20%; margin: -10% 0 0 -10%;
+  background: radial-gradient(circle at 35% 30%, hsl(45 100% 80%), hsl(25 100% 55%) 70%);
+  box-shadow: 0 0 12px hsl(35 100% 60% / 0.55);
+  animation: opal-bubble-orbit-3 13s linear infinite;
+}
+.opal-bubble--4 {
+  width: 16%; height: 16%; margin: -8% 0 0 -8%;
+  background: radial-gradient(circle at 30% 30%, hsl(150 100% 80%), hsl(155 90% 50%) 70%);
+  box-shadow: 0 0 10px hsl(150 100% 55% / 0.5);
+  animation: opal-bubble-orbit-4 15s linear infinite;
+}
+.opal-bubble--5 {
+  width: 12%; height: 12%; margin: -6% 0 0 -6%;
+  background: radial-gradient(circle at 30% 30%, hsl(280 100% 85%), hsl(280 100% 60%) 70%);
+  box-shadow: 0 0 8px hsl(280 100% 65% / 0.5);
+  animation: opal-bubble-orbit-5 8s linear infinite;
+}
+.opal-bubble--6 {
+  width: 9%; height: 9%; margin: -4.5% 0 0 -4.5%;
+  background: radial-gradient(circle at 30% 30%, hsl(340 100% 88%), hsl(330 100% 65%) 70%);
+  box-shadow: 0 0 6px hsl(330 100% 70% / 0.5);
+  animation: opal-bubble-orbit-6 7s linear infinite;
+}
+.opal-bubble--7 {
+  width: 8%; height: 8%; margin: -4% 0 0 -4%;
+  background: radial-gradient(circle at 30% 30%, hsl(180 100% 88%), hsl(185 100% 60%) 70%);
+  box-shadow: 0 0 6px hsl(185 100% 65% / 0.5);
+  animation: opal-bubble-orbit-7 10s linear infinite;
+}
+
+/* Speaking — bubbles get vivid, faster orbits */
+.opal-orb--speaking .opal-bubble {
+  opacity: 0.95;
+  filter: saturate(200%) brightness(1.15);
+}
+.opal-orb--speaking .opal-bubble--1 { animation-duration: 4.5s; }
+.opal-orb--speaking .opal-bubble--2 { animation-duration: 3.8s; }
+.opal-orb--speaking .opal-bubble--3 { animation-duration: 5s; }
+.opal-orb--speaking .opal-bubble--4 { animation-duration: 5.5s; }
+.opal-orb--speaking .opal-bubble--5 { animation-duration: 3.2s; }
+.opal-orb--speaking .opal-bubble--6 { animation-duration: 2.8s; }
+.opal-orb--speaking .opal-bubble--7 { animation-duration: 3.6s; }
+
+@keyframes opal-bubble-orbit-1 {
+  from { transform: rotate(0deg)   translateX(58%) rotate(0deg); }
+  to   { transform: rotate(360deg) translateX(58%) rotate(-360deg); }
+}
+@keyframes opal-bubble-orbit-2 {
+  from { transform: rotate(120deg) translateX(72%) rotate(-120deg); }
+  to   { transform: rotate(-240deg) translateX(72%) rotate(240deg); }
+}
+@keyframes opal-bubble-orbit-3 {
+  from { transform: rotate(45deg)  translateX(65%) rotate(-45deg); }
+  to   { transform: rotate(405deg) translateX(65%) rotate(-405deg); }
+}
+@keyframes opal-bubble-orbit-4 {
+  from { transform: rotate(200deg) translateX(80%) rotate(-200deg); }
+  to   { transform: rotate(-160deg) translateX(80%) rotate(160deg); }
+}
+@keyframes opal-bubble-orbit-5 {
+  from { transform: rotate(280deg) translateX(50%) rotate(-280deg); }
+  to   { transform: rotate(640deg) translateX(50%) rotate(-640deg); }
+}
+@keyframes opal-bubble-orbit-6 {
+  from { transform: rotate(90deg)  translateX(85%) rotate(-90deg); }
+  to   { transform: rotate(-270deg) translateX(85%) rotate(270deg); }
+}
+@keyframes opal-bubble-orbit-7 {
+  from { transform: rotate(330deg) translateX(75%) rotate(-330deg); }
+  to   { transform: rotate(690deg) translateX(75%) rotate(-690deg); }
 }
