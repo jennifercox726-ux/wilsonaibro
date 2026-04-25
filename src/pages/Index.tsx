@@ -11,6 +11,15 @@ import NeuralNebula from "@/components/NeuralNebula";
 import IOSIframeBanner from "@/components/IOSIframeBanner";
 import { speakWithElevenLabs, stopElevenLabs } from "@/lib/elevenLabsTTS";
 import { useReferral } from "@/hooks/useReferral";
+import appBackground from "@/assets/app-background.gif";
+
+const appBgStyle: React.CSSProperties = {
+  backgroundImage: `url(${appBackground})`,
+  backgroundSize: "cover",
+  backgroundPosition: "center",
+  backgroundRepeat: "no-repeat",
+  backgroundAttachment: "fixed",
+};
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
@@ -454,14 +463,19 @@ const Index = ({ userId, displayName }: IndexProps) => {
 
   if (!loaded) {
     return (
-      <div className="h-screen flex items-center justify-center aurora-bg">
-        <WilsonOrb size="lg" isThinking />
+      <div className="h-screen flex items-center justify-center aurora-bg" style={appBgStyle}>
+        <div className="absolute inset-0 bg-background/55 backdrop-blur-sm" aria-hidden="true" />
+        <div className="relative z-10">
+          <WilsonOrb size="lg" isThinking />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="h-screen flex overflow-hidden aurora-bg">
+    <div className="h-screen flex overflow-hidden aurora-bg relative" style={appBgStyle}>
+      <div className="absolute inset-0 bg-background/55 backdrop-blur-sm pointer-events-none z-0" aria-hidden="true" />
+      <div className="relative z-10 flex flex-1 overflow-hidden">
       <IOSIframeBanner />
       <ChatSidebar
         chats={chats}
@@ -552,6 +566,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
             v2.0 // Authored by Architect Jenny
           </p>
         </div>
+      </div>
       </div>
     </div>
   );
