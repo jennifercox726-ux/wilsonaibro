@@ -13,6 +13,8 @@ let currentAbort: AbortController | null = null;
 let playbackUnlockPromise: Promise<void> | null = null;
 let unlockedPlaybackAudio: HTMLAudioElement | null = null;
 
+export type SpeakResult = "ok" | "blocked" | "error";
+
 const SILENT_WAV_DATA_URL =
   "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
 
@@ -23,8 +25,15 @@ function configureAudioElement(audio: HTMLAudioElement): HTMLAudioElement {
   return audio;
 }
 
-function getAudioElement(url: string, preferUnlocked: boolean): HTMLAudioElement {
-  const audio = preferUnlocked && unlockedPlaybackAudio ? unlockedPlaybackAudio : new Audio();
+/**
+ * Always reuse the same <audio> element that was unlocked during the user
+ * gesture. iOS Safari ties autoplay permission to the specific element it
+ * saw the gesture on — creating a fresh `new Audio()` per chunk reliably
+ * throws NotAllowedError on the 2nd+ chunk.
+ */
+function getPlaybackAudio(url: string): HTMLAudioElement {
+  const audio = unlockedPlaybackAudio ?? configureAudioElement(new Audio());
+  unlockedPlaybackAudio = audio;
   configureAudioElement(audio);
   audio.muted = false;
   audio.src = url;
@@ -188,14 +197,21 @@ export async function unlockElevenLabsPlayback(): Promise<void> {
   return playbackUnlockPromise;
 }
 
-export async function speakWithElevenLabs(text: string): Promise<boolean> {
+export async function speakWithElevenLabs(text: string): Promise<SpeakResult> {
   const clean = stripForSpeech(text);
-  if (!clean) return false;
+  if (!clean) return "error";
 
   stopElevenLabs();
   const reqId = ++currentRequestId;
   const abort = new AbortController();
   currentAbort = abort;
+
+  // Synchronously prepare the playback element inside the caller's user
+  // gesture so iOS keeps the autoplay permission alive across the awaits
+  // below. (See SpeechSynthesis/HTMLMediaElement gesture-binding pattern.)
+  if (!unlockedPlaybackAudio) {
+    unlockedPlaybackAudio = configureAudioElement(new Audio());
+  }
 
   const chunks = chunkTextForTTS(clean);
 
@@ -217,29 +233,26 @@ export async function speakWithElevenLabs(text: string): Promise<boolean> {
     }
   };
 
+  let blockedByBrowser = false;
+
   try {
     const chunkRequests: Promise<string | null>[] = chunks.map((_, i) => fetchChunk(i));
 
     const firstUrl = await chunkRequests[0];
-    if (!firstUrl) return false;
-    if (reqId !== currentRequestId || abort.signal.aborted) return false;
+    if (!firstUrl) return "error";
+    if (reqId !== currentRequestId || abort.signal.aborted) return "error";
 
-    // Sequential playback
+    // Sequential playback — always reuse the same unlocked element
     for (let i = 0; i < chunks.length; i++) {
       const url = i === 0 ? firstUrl : await chunkRequests[i];
-      if (reqId !== currentRequestId || abort.signal.aborted) return false;
-      if (!url) return i > 0; // partial success if anything played
+      if (reqId !== currentRequestId || abort.signal.aborted) return "error";
+      if (!url) return i > 0 ? "ok" : "error";
 
-      const audio = getAudioElement(url, i === 0);
-      if (i === 0 && audio === unlockedPlaybackAudio) {
-        unlockedPlaybackAudio = null;
-      }
+      const audio = getPlaybackAudio(url);
 
       const onAbort = () => {
         try {
           audio.pause();
-          audio.removeAttribute("src");
-          audio.load();
         } catch {
           /* noop */
         }
@@ -253,12 +266,21 @@ export async function speakWithElevenLabs(text: string): Promise<boolean> {
         await audio.play();
       } catch (err) {
         detachAudio(audio);
-        if ((err as { name?: string })?.name === "AbortError") return i > 0;
-        throw err;
+        const name = (err as { name?: string })?.name;
+        if (name === "AbortError") return i > 0 ? "ok" : "error";
+        if (name === "NotAllowedError") {
+          // Browser blocked autoplay (gesture lost) — caller should silently
+          // surface a "tap to play" hint, not a generic error.
+          console.info("[elevenlabs] playback blocked by browser autoplay policy");
+          blockedByBrowser = true;
+          return i > 0 ? "ok" : "blocked";
+        }
+        console.warn("[elevenlabs] audio.play() rejected:", err);
+        return i > 0 ? "ok" : "error";
       }
       if (reqId !== currentRequestId || abort.signal.aborted) {
         onAbort();
-        return false;
+        return "error";
       }
 
       // Wait for this chunk to finish before starting the next
@@ -273,15 +295,15 @@ export async function speakWithElevenLabs(text: string): Promise<boolean> {
         abort.signal.addEventListener("abort", done, { once: true });
       });
       detachAudio(audio);
-      if (reqId !== currentRequestId || abort.signal.aborted) return false;
+      if (reqId !== currentRequestId || abort.signal.aborted) return "error";
     }
 
-    return true;
+    return "ok";
   } catch (err) {
-    if ((err as { name?: string })?.name === "AbortError") return false;
+    if ((err as { name?: string })?.name === "AbortError") return "error";
     console.warn("[elevenlabs] playback failed:", err);
     if (currentRequestId === reqId) currentAudio = null;
-    return false;
+    return blockedByBrowser ? "blocked" : "error";
   } finally {
     if (currentAbort === abort) currentAbort = null;
   }
