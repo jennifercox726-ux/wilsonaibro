@@ -225,7 +225,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
 
     if (error || !data) {
       toast.error("Failed to create thread");
-      return;
+      return null;
     }
 
     const id = data.id;
@@ -246,6 +246,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
     setMessages((prev) => ({ ...prev, [id]: [greetingMsg] }));
     setActiveChat(id);
     setSidebarOpen(false);
+    return { id, greetingMsg };
   }, [userId, referral, displayName, chats.length]);
 
   const handleSelectChat = useCallback(async (id: string) => {
@@ -267,9 +268,14 @@ const Index = ({ userId, displayName }: IndexProps) => {
     async (content: string) => {
       stopElevenLabs();
 
-      if (!activeChat) {
-        await createNewChat();
-        return;
+      let targetChatId = activeChat;
+      let seededMessages: Message[] = [];
+
+      if (!targetChatId) {
+        const newChat = await createNewChat();
+        if (!newChat) return;
+        targetChatId = newChat.id;
+        seededMessages = [newChat.greetingMsg];
       }
 
       const userMsg: Message = {
@@ -281,20 +287,20 @@ const Index = ({ userId, displayName }: IndexProps) => {
 
       setMessages((prev) => ({
         ...prev,
-        [activeChat]: [...(prev[activeChat] || []), userMsg],
+        [targetChatId]: [...(prev[targetChatId] || seededMessages), userMsg],
       }));
 
       supabase.from("messages").insert({
-        conversation_id: activeChat,
+        conversation_id: targetChatId,
         role: "user",
         content,
       }).then();
 
       setChats((prev) =>
         prev.map((c) => {
-          if (c.id === activeChat && c.title === "New Thread") {
+          if (c.id === targetChatId && c.title === "New Thread") {
             const newTitle = content.slice(0, 40) + (content.length > 40 ? "..." : "");
-            supabase.from("conversations").update({ title: newTitle }).eq("id", activeChat).then();
+            supabase.from("conversations").update({ title: newTitle }).eq("id", targetChatId).then();
             return { ...c, title: newTitle };
           }
           return c;
@@ -304,7 +310,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
       setIsThinking(true);
       const queryStart = Date.now();
 
-      const chatMessages = messages[activeChat] || [];
+      const chatMessages = messages[targetChatId] || seededMessages;
       const allAiMessages: AiMsg[] = chatMessages
         .filter((m) => m.role === "user" || m.role === "assistant")
         .map((m) => ({ role: m.role, content: m.content }));
@@ -316,19 +322,19 @@ const Index = ({ userId, displayName }: IndexProps) => {
       const upsertAssistant = (nextChunk: string) => {
         assistantSoFar += nextChunk;
         setMessages((prev) => {
-          const current = prev[activeChat] || [];
+          const current = prev[targetChatId] || seededMessages;
           const last = current[current.length - 1];
           if (last?.role === "assistant" && last.id.startsWith("stream-")) {
             return {
               ...prev,
-              [activeChat]: current.map((m, i) =>
+              [targetChatId]: current.map((m, i) =>
                 i === current.length - 1 ? { ...m, content: assistantSoFar } : m
               ),
             };
           }
           return {
             ...prev,
-            [activeChat]: [
+              [targetChatId]: [
               ...current,
               {
                 id: "stream-" + generateId(),
@@ -368,10 +374,10 @@ const Index = ({ userId, displayName }: IndexProps) => {
 
               if (cleanContent !== assistantSoFar) {
                 setMessages((prev) => {
-                  const current = prev[activeChat] || [];
+                  const current = prev[targetChatId] || seededMessages;
                   return {
                     ...prev,
-                    [activeChat]: current.map((m) =>
+                    [targetChatId]: current.map((m) =>
                       m.id.startsWith("stream-") ? { ...m, content: cleanContent } : m
                     ),
                   };
@@ -380,7 +386,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
               }
 
               supabase.from("messages").insert({
-                conversation_id: activeChat,
+                conversation_id: targetChatId,
                 role: "assistant",
                 content: assistantSoFar,
               }).then();
@@ -389,7 +395,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
             }
             supabase.from("query_logs").insert({
               user_id: userId,
-              conversation_id: activeChat,
+              conversation_id: targetChatId,
               query_text: content,
               query_length: content.length,
               response_length: assistantSoFar.length,
@@ -414,7 +420,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
         }
         supabase.from("query_logs").insert({
           user_id: userId,
-          conversation_id: activeChat,
+          conversation_id: targetChatId,
           query_text: content,
           query_length: content.length,
           response_length: 0,
