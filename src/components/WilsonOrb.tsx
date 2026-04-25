@@ -1,5 +1,5 @@
 import React from "react";
-import opalTexture from "@/assets/wilson-fluid.webp";
+import wilsonFluid from "@/assets/wilson-fluid.webp";
 import { useWilsonAudio } from "@/hooks/useWilsonAudio";
 
 export type WilsonVibe = "neutral" | "excited" | "calm" | "tired" | "dreaming";
@@ -24,56 +24,23 @@ const WilsonOrb = React.forwardRef<HTMLDivElement, WilsonOrbProps>(
     const isSpeaking = speaking ?? audioSpeaking;
     const intensity = isSpeaking ? "speaking" : isThinking ? "thinking" : "idle";
 
-    // Live amplitude (0..1) drives an extra glow scale + brightness boost
-    const reactiveScale = 1 + amplitude * 0.18;
-    const reactiveOpacity = 0.55 + amplitude * 0.45;
-    const reactiveBlur = 2 + amplitude * 6;
+    // Live amplitude (0..1) drives a gentle scale + glow boost while speaking
+    const reactiveScale = 1 + amplitude * 0.08;
+    const reactiveGlow = 0.35 + amplitude * 0.45;
 
     return (
       <div
         ref={ref}
-        className={`opal-orb opal-orb--${intensity} ${sizeMap[size]} relative flex-shrink-0 rounded-full`}
+        className={`wilson-fluid wilson-fluid--${intensity} ${sizeMap[size]} relative flex-shrink-0 rounded-full overflow-hidden`}
         style={
           {
-            "--opal-amp-scale": reactiveScale,
-            "--opal-amp-opacity": reactiveOpacity,
-            "--opal-amp-blur": `${reactiveBlur}px`,
+            "--wilson-amp-scale": reactiveScale,
+            "--wilson-amp-glow": reactiveGlow,
+            backgroundImage: `url(${wilsonFluid})`,
           } as React.CSSProperties
         }
         aria-hidden="true"
-      >
-        {/* Outer halo */}
-        <div className="opal-orb__halo" />
-
-        {/* Core opal sphere with photo texture */}
-        <div
-          className="opal-orb__core"
-          style={{ backgroundImage: `url(${opalTexture})` }}
-        />
-
-        {/* Animated iridescent color sweep */}
-        <div className="opal-orb__iridescence" />
-
-        {/* Inner shimmer that swirls while speaking */}
-        <div className="opal-orb__shimmer" />
-
-        {/* Voice-reactive pulse layer */}
-        {isSpeaking && <div className="opal-orb__pulse" />}
-
-        {/* Orbiting gel bubbles — always visible, vivid when speaking */}
-        <div className="opal-orb__bubbles" aria-hidden="true">
-          <span className="opal-bubble opal-bubble--1" />
-          <span className="opal-bubble opal-bubble--2" />
-          <span className="opal-bubble opal-bubble--3" />
-          <span className="opal-bubble opal-bubble--4" />
-          <span className="opal-bubble opal-bubble--5" />
-          <span className="opal-bubble opal-bubble--6" />
-          <span className="opal-bubble opal-bubble--7" />
-        </div>
-
-        {/* Glassy highlight */}
-        <div className="opal-orb__highlight" />
-      </div>
+      />
     );
   }
 );
