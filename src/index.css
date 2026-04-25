@@ -73,18 +73,22 @@
     @apply border-border;
   }
 
-  html, body, #root {
-    @apply bg-background text-foreground font-sans;
+  html {
+    @apply text-foreground font-sans;
     min-height: 100%;
-  }
-
-  body {
-    font-family: 'Syne', sans-serif;
+    background-color: hsl(var(--background));
     background-image: url('/app-background.gif');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
     background-attachment: fixed;
+  }
+
+  body, #root {
+    background: transparent !important;
+    min-height: 100%;
+    color: hsl(var(--foreground));
+    font-family: 'Syne', sans-serif;
   }
 
   code, pre, .font-mono {
