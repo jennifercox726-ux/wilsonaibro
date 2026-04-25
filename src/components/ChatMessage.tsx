@@ -77,9 +77,12 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
 
     requestedRef.current = true;
     setLoadingVoice(true);
-    const ok = await speakWithElevenLabs(cleanContent);
+    const result = await speakWithElevenLabs(cleanContent);
     setLoadingVoice(false);
-    if (!ok) {
+    if (result === "blocked") {
+      // Browser autoplay policy blocked it — silent recovery, the next tap will play.
+      requestedRef.current = false;
+    } else if (result === "error") {
       requestedRef.current = false;
       toast.error("ElevenLabs voice unavailable — try again in a moment.");
     }
