@@ -84,15 +84,17 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
     if (error) toast.error(error);
   }, [error]);
 
-  const handleSend = async () => {
-    if (!input.trim() || disabled) return;
-    await unlockElevenLabsPlayback();
+  const handleSend = () => {
+    const text = input.trim();
+    if (!text || disabled) return;
+    // Fire-and-forget audio unlock so a hung promise can never block sending
+    unlockElevenLabsPlayback().catch(() => {});
     if (autoSendTimerRef.current) {
       clearTimeout(autoSendTimerRef.current);
       autoSendTimerRef.current = null;
     }
     if (isListening) stopListening();
-    onSend(input.trim());
+    onSend(text);
     setInput("");
     baseInputRef.current = "";
     resetTranscript();

@@ -150,27 +150,21 @@ export async function unlockElevenLabsPlayback(): Promise<void> {
   if (playbackUnlockPromise) return playbackUnlockPromise;
 
   playbackUnlockPromise = (async () => {
-    const audio = new Audio(SILENT_WAV_DATA_URL);
-    audio.muted = true;
-    (audio as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
-
     try {
+      const audio = new Audio(SILENT_WAV_DATA_URL);
+      audio.muted = true;
+      (audio as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
       await audio.play();
       audio.pause();
       audio.currentTime = 0;
-    } catch {
-      /* ignore unlock failures; manual play can still work */
-    } finally {
       audio.removeAttribute("src");
       audio.load();
+    } catch {
+      /* ignore unlock failures; manual play can still work */
     }
   })();
 
-  try {
-    await playbackUnlockPromise;
-  } finally {
-    playbackUnlockPromise = null;
-  }
+  return playbackUnlockPromise;
 }
 
 export async function speakWithElevenLabs(text: string): Promise<boolean> {
