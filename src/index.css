@@ -161,7 +161,7 @@
   overflow: hidden;
 }
 
-/* Floating iridescent gel bubbles */
+/* Floating iridescent gel bubbles — desktop / capable devices */
 .aurora-bg::before,
 .aurora-bg::after {
   content: "";
@@ -170,6 +170,10 @@
   pointer-events: none;
   background-repeat: no-repeat;
   z-index: 0;
+  /* Promote to its own GPU layer so the parent doesn't repaint */
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 .aurora-bg::before {
   background-image:
@@ -201,6 +205,38 @@
 
 /* Make sure children stack above the gel layer */
 .aurora-bg > * { position: relative; z-index: 1; }
+
+/* ---------------------------------------------------------------- */
+/*  Mobile / coarse-pointer optimization                             */
+/*  Drop the expensive filter+blend pipeline that murders iOS FPS.   */
+/*  Keep the look with a static, lighter bubble field and a slow,    */
+/*  transform-only drift on a single layer.                          */
+/* ---------------------------------------------------------------- */
+@media (max-width: 768px), (pointer: coarse) {
+  .aurora-bg {
+    /* Slow the master gradient cycle and let the browser rasterize once */
+    animation-duration: 40s;
+    background-size: 100% 100%, 100% 100%, 100% 100%, 200% 200%;
+  }
+  .aurora-bg::before {
+    /* Cheaper: no blur, no saturate, no blend — just colored dots */
+    filter: none;
+    mix-blend-mode: normal;
+    opacity: 0.85;
+    animation-duration: 60s;
+  }
+  .aurora-bg::after {
+    /* Drop the second, blurred bubble layer entirely on phones */
+    display: none;
+  }
+}
+
+/* Honor user motion preferences globally */
+@media (prefers-reduced-motion: reduce) {
+  .aurora-bg,
+  .aurora-bg::before,
+  .aurora-bg::after { animation: none !important; }
+}
 
 .orb-breathe {
   animation: orb-breathe 4s ease-in-out infinite;
