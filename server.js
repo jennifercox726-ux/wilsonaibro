@@ -1,4 +1,4 @@
-const stripe = require('stripe')('INSERT_YOUR_STRIPE_SECRET_KEY_HERE'); // <--- NEON SIGN 1
+const stripe = require('stripe')(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); // <--- NEON SIGN 
 const express = require('express');
 const app = express();
 app.use(express.static('public'));
