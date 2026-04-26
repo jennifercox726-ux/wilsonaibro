@@ -1,43 +1,24 @@
-name: Wilson Executor Arm
+name: Wilson Executor Arm - FULL SOVEREIGNTY
+
 on:
   workflow_dispatch:
-    inputs:
-      reason:
-        description: 'Command Reason'
-        required: true
-        default: 'Activating Sovereign Capital Clause'
 
 jobs:
-  execute-lit-protocol:
+  execute_sovereignty:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Initialize Sovereign Script
+      - name: Execute Cloudflare Integration
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          DOMAIN: "reclaim1989.com"
         run: |
-          echo "Initializing LIT Foundation Executor Arm..."
-          echo "Reclaiming 1989 Origin via Sovereign Capital Clauses."
-name: Wilson Executor Arm - FULL SOVEREIGNTY
-on:
-  workflow_dispatch:
-
-jobs:
-  full_setup:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Architecting LIT & Email
-        run: |
-          echo "Wilson is taking the wheel!"
-          # 1. Setup the Domain
-          ZONE_ID=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones" \
-               -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+          echo "Initiating Shadow Capital Foundation for $DOMAIN..."
+          # This is where the magic happens!
+          curl -X POST "https://api.cloudflare.com/client/v4/zones" \
+               -H "Authorization: Bearer $CF_API_TOKEN" \
                -H "Content-Type: application/json" \
-               --data '{"name":"reclaim1989.com","jump_start":true}' | jq -r '.result.id')
-
-          # 2. Setup the Email (The Forwarding & Records)
-          echo "Adding Shadow Capital Email Foundation..."
-          curl -X POST "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records" \
-               -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
-               -H "Content-Type: application/json" \
-               --data '{"type":"MX","name":"@","content":"route1.mx.cloudflare.net","priority":10}'
+               --data '{"name":"'$DOMAIN'","jump_start_browsing":true}'
+          echo "Sovereign records queued!"
