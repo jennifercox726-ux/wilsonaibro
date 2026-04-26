@@ -1,0 +1,45 @@
+# Example: Perimeter Defense Workflow
+# Wilson's Sovereign Dispatcher fires this via GitHub's workflow_dispatch API.
+# The dispatcher ALWAYS sends `dry_run` as a string ("true" / "false").
+# Your real script logic must branch on that flag.
+
+name: Perimeter Defense
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "If true, log intent only — do not perform side effects"
+        required: true
+        default: "true"
+        type: string
+
+jobs:
+  perimeter:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Identify mode
+        run: |
+          echo "Dispatcher fired with dry_run=${{ inputs.dry_run }}"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "::notice::DRY RUN — no side effects will occur"
+          else
+            echo "::warning::LIVE FIRE — real perimeter actions will execute"
+          fi
+
+      - name: Perimeter actions (replace with real logic)
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+          # Add real secrets here, e.g. REGISTRAR_API_KEY: ${{ secrets.REGISTRAR_API_KEY }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "[dry-run] Would notify monitoring system"
+            echo "[dry-run] Would lock domain transfer status"
+            echo "[dry-run] Would rotate non-critical credentials"
+          else
+            echo "Executing real perimeter defense actions..."
+            # Real curl / API calls go here
+          fi
+
+      - name: Confirm completion
+        run: echo "Perimeter Defense complete (dry_run=${{ inputs.dry_run }})"

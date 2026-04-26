@@ -2,3 +2,6 @@ project_id = "qpvffcwvnldxebswwdsx"
 
 [functions.sentinel-check]
 verify_jwt = false
+
+[functions.confirm-dispatch]
+verify_jwt = false
