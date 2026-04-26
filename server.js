@@ -7,7 +7,7 @@ const app = express();
 const path = require('path');
 
 // 1. YOUR SECRET KEY GOES HERE (The one you just "rolled" in Stripe)
-const stripe = require('stripe')('REPLACE_THIS_WITH_YOUR_NEW_SECRET_KEY');
+const stripe = require('stripe')('sk_test');
 
 app.use(express.static('public')); // This looks for your HTML files
 app.use(express.json());
