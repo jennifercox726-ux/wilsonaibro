@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, LogOut } from "lucide-react";
+import { Menu, LogOut, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ChatSidebar, { Chat } from "@/components/ChatSidebar";
@@ -9,6 +9,7 @@ import ChatInput from "@/components/ChatInput";
 import WilsonOrb, { WilsonVibe } from "@/components/WilsonOrb";
 import NeuralNebula from "@/components/NeuralNebula";
 import IOSIframeBanner from "@/components/IOSIframeBanner";
+import SovereigntyPanel from "@/components/SovereigntyPanel";
 import { speakWithElevenLabs, stopElevenLabs } from "@/lib/elevenLabsTTS";
 import { useReferral } from "@/hooks/useReferral";
 
@@ -150,6 +151,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
   const [isThinking, setIsThinking] = useState(false);
   const [currentVibe, setCurrentVibe] = useState<WilsonVibe>("neutral");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sovereigntyOpen, setSovereigntyOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [loadingChatId, setLoadingChatId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -490,6 +492,13 @@ const Index = ({ userId, displayName }: IndexProps) => {
             </p>
           </div>
           <button
+            onClick={() => setSovereigntyOpen(true)}
+            className="p-2 rounded-xl hover:bg-muted/50 text-muted-foreground transition-colors"
+            title="Sovereignty Sentinel"
+          >
+            <Shield className="w-4 h-4" />
+          </button>
+          <button
             onClick={handleLogout}
             className="p-2 rounded-xl hover:bg-muted/50 text-muted-foreground transition-colors"
             title="Sign out"
@@ -497,6 +506,11 @@ const Index = ({ userId, displayName }: IndexProps) => {
             <LogOut className="w-4 h-4" />
           </button>
         </header>
+        <SovereigntyPanel
+          userId={userId}
+          isOpen={sovereigntyOpen}
+          onClose={() => setSovereigntyOpen(false)}
+        />
 
         <div className="flex-1 overflow-y-auto px-4 py-6">
           {!activeChat ? (
