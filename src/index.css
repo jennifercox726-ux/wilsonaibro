@@ -490,39 +490,6 @@
   filter: saturate(120%) brightness(1.05);
 }
 
-/* Glow on a non-blending pseudo behind the image — renders identically
-   in Firefox (which drops drop-shadow under mix-blend-mode) and doesn't
-   get washed out by the `screen` blend on the parent. */
-.wilson-fluid::before {
-  content: "";
-  position: absolute;
-  inset: -20%;
-  z-index: -1;
-  border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    hsl(290 80% 65% / calc(var(--wilson-amp-glow, 0.35) * 0.55)) 0%,
-    hsl(190 80% 65% / calc(var(--wilson-amp-glow, 0.35) * 0.25)) 40%,
-    transparent 70%
-  );
-  mix-blend-mode: normal;
-  pointer-events: none;
-  transition: opacity 120ms linear;
-}
-
-.wilson-fluid--idle {
-  animation: wilson-fluid-breathe 6s ease-in-out infinite;
-}
-
-.wilson-fluid--thinking {
-  animation: wilson-fluid-breathe 2.4s ease-in-out infinite;
-}
-
-.wilson-fluid--speaking {
-  animation: wilson-fluid-pulse 1.6s ease-in-out infinite;
-  /* Preserve contrast crush; layer saturation on top */
-  filter: contrast(1.08) brightness(1.0) saturate(120%);
-}
 
 @keyframes wilson-fluid-breathe {
   0%, 100% { transform: scale(var(--wilson-amp-scale, 1)); }
