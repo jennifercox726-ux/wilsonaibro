@@ -151,7 +151,7 @@ const DispatcherSection = ({ userId }: DispatcherSectionProps) => {
 
   const statusColor = (status: string) => {
     if (status === "dispatched") return "text-primary";
-    if (status === "pending_confirmation") return "text-yellow-400";
+    if (status === "pending_confirmation") return "text-warning";
     if (status === "failed") return "text-destructive";
     return "text-muted-foreground";
   };
@@ -211,7 +211,7 @@ const DispatcherSection = ({ userId }: DispatcherSectionProps) => {
               onClick={() => setNewTier("confirm")}
               className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold ${
                 newTier === "confirm"
-                  ? "bg-yellow-400/15 text-yellow-300 border border-yellow-400/30"
+                  ? "bg-warning/15 text-warning border border-warning/30"
                   : "bg-background/30 text-muted-foreground border border-border/20"
               }`}
             >
@@ -242,7 +242,7 @@ const DispatcherSection = ({ userId }: DispatcherSectionProps) => {
                     className={`text-[9px] px-1.5 py-0.5 rounded ${
                       wf.tier === "auto"
                         ? "bg-primary/15 text-primary"
-                        : "bg-yellow-400/15 text-yellow-300"
+                        : "bg-warning/15 text-warning"
                     }`}
                   >
                     {wf.tier === "auto" ? "AUTO" : "CONFIRM"}
@@ -346,8 +346,8 @@ const DispatcherSection = ({ userId }: DispatcherSectionProps) => {
         )}
       </div>
 
-      <div className="rounded-lg p-2.5 bg-yellow-400/5 border border-yellow-400/20">
-        <p className="text-[10px] text-yellow-300/90 flex items-start gap-1.5">
+      <div className="rounded-lg p-2.5 bg-warning/5 border border-warning/20">
+        <p className="text-[10px] text-warning/90 flex items-start gap-1.5">
           <ShieldAlert className="w-3 h-3 shrink-0 mt-0.5" />
           <span>
             Confirm-tier emails to sentinels are staged. Until your sender domain is verified,
