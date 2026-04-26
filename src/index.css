@@ -212,37 +212,138 @@
   animation: iridescent 8s ease-in-out infinite;
 }
 
-/* Thought block styling — gel-glass surfaces */
-.thought-block {
-  background:
-    radial-gradient(ellipse at 20% 10%, hsl(0 0% 100% / 0.06), transparent 50%),
-    linear-gradient(
-      135deg,
-      hsl(240 12% 7% / 0.85),
-      hsl(240 15% 10% / 0.65)
-    );
-  backdrop-filter: blur(24px) saturate(140%);
-  -webkit-backdrop-filter: blur(24px) saturate(140%);
-  border: 1px solid hsl(185 90% 55% / 0.15);
-  box-shadow:
-    inset 0 1px 0 hsl(0 0% 100% / 0.08),
-    0 8px 32px hsl(240 30% 2% / 0.4);
+/* ====================================================================== */
+/*  Chat bubbles — gel-glass surfaces wrapped in an animated rainbow LED   */
+/*  halo. The halo lives on a ::before pseudo-element so it can sit        */
+/*  *behind* the bubble (z-index: -1) without being clipped by the         */
+/*  bubble's rounded corners or background. We use a conic-gradient that   */
+/*  rotates via a custom @property-driven keyframe so the rainbow flows    */
+/*  around the perimeter like an LED strip.                                */
+/* ====================================================================== */
+@property --led-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
 }
 
+.thought-block,
 .thought-block-wilson {
+  position: relative;
+  isolation: isolate;
+  border-radius: 1rem; /* matches rounded-2xl so the LED halo aligns */
+}
+
+/* The rainbow LED halo */
+.thought-block::before,
+.thought-block-wilson::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  z-index: -1;
+  border-radius: inherit;
+  padding: 2px;
+  background: conic-gradient(
+    from var(--led-angle),
+    hsl(0 90% 60%),
+    hsl(40 95% 60%),
+    hsl(60 95% 60%),
+    hsl(140 80% 55%),
+    hsl(190 90% 60%),
+    hsl(220 90% 65%),
+    hsl(280 85% 65%),
+    hsl(320 90% 65%),
+    hsl(0 90% 60%)
+  );
+  /* Mask trick: keep only a 2px ring (the padding area) so the conic
+     gradient becomes a glowing border instead of a filled rectangle. */
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  filter: blur(0.4px) saturate(140%);
+  opacity: 0.9;
+  animation: led-rotate 6s linear infinite;
+  pointer-events: none;
+}
+
+/* Soft outer bloom — a second pseudo for the diffused rainbow light spill */
+.thought-block::after,
+.thought-block-wilson::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  z-index: -2;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--led-angle),
+    hsl(0 90% 60% / 0.35),
+    hsl(40 95% 60% / 0.35),
+    hsl(60 95% 60% / 0.35),
+    hsl(140 80% 55% / 0.35),
+    hsl(190 90% 60% / 0.35),
+    hsl(220 90% 65% / 0.35),
+    hsl(280 85% 65% / 0.35),
+    hsl(320 90% 65% / 0.35),
+    hsl(0 90% 60% / 0.35)
+  );
+  filter: blur(14px);
+  opacity: 0.55;
+  animation: led-rotate 6s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes led-rotate {
+  to { --led-angle: 360deg; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thought-block::before,
+  .thought-block::after,
+  .thought-block-wilson::before,
+  .thought-block-wilson::after {
+    animation: none;
+  }
+}
+
+/* Inner gel-glass surface — user bubble */
+.thought-block {
   background:
-    radial-gradient(ellipse at 30% 0%, hsl(290 80% 60% / 0.12), transparent 55%),
-    radial-gradient(ellipse at 80% 100%, hsl(190 90% 55% / 0.1), transparent 55%),
+    radial-gradient(ellipse at 20% 10%, hsl(0 0% 100% / 0.08), transparent 55%),
     linear-gradient(
       135deg,
-      hsl(185 30% 8% / 0.85),
-      hsl(280 25% 10% / 0.7)
+      hsl(240 14% 8% / 0.92),
+      hsl(240 18% 11% / 0.78)
     );
-  border: 1px solid hsl(290 80% 60% / 0.2);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  border: 1px solid hsl(0 0% 100% / 0.06);
   box-shadow:
     inset 0 1px 0 hsl(0 0% 100% / 0.1),
-    0 8px 32px hsl(280 30% 5% / 0.45),
-    0 0 24px hsl(290 80% 50% / 0.08);
+    inset 0 -1px 0 hsl(0 0% 0% / 0.3),
+    0 12px 40px hsl(240 30% 2% / 0.55);
+}
+
+/* Inner gel-glass surface — Wilson bubble (slightly cooler tint) */
+.thought-block-wilson {
+  background:
+    radial-gradient(ellipse at 30% 0%, hsl(290 80% 60% / 0.14), transparent 60%),
+    radial-gradient(ellipse at 80% 100%, hsl(190 90% 55% / 0.12), transparent 60%),
+    linear-gradient(
+      135deg,
+      hsl(185 28% 8% / 0.9),
+      hsl(280 24% 11% / 0.78)
+    );
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  border: 1px solid hsl(0 0% 100% / 0.06);
+  box-shadow:
+    inset 0 1px 0 hsl(0 0% 100% / 0.12),
+    inset 0 -1px 0 hsl(0 0% 0% / 0.3),
+    0 12px 40px hsl(280 30% 5% / 0.55);
 }
 
 /* Scrollbar styling */
