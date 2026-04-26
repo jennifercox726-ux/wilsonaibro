@@ -4,6 +4,7 @@ import { Send, Mic, MicOff } from "lucide-react";
 import { toast } from "sonner";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
 import { primeElevenLabsPlayback } from "@/lib/elevenLabsTTS";
+import { setListening, emitRipple } from "@/lib/listeningBus";
 
 interface ChatInputProps {
   onSend: (message: string) => void;
@@ -79,6 +80,12 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
     }
   }, [isListening]);
 
+  // Broadcast mic state to the orb so it can pulse cyan while we record
+  useEffect(() => {
+    setListening(isListening);
+    return () => setListening(false);
+  }, [isListening]);
+
   // Surface errors via toast
   useEffect(() => {
     if (error) toast.error(error);
@@ -94,6 +101,7 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
       autoSendTimerRef.current = null;
     }
     if (isListening) stopListening();
+    emitRipple();
     onSend(text);
     setInput("");
     baseInputRef.current = "";
