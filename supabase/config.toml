@@ -1,1 +1,4 @@
 project_id = "qpvffcwvnldxebswwdsx"
+
+[functions.sentinel-check]
+verify_jwt = false

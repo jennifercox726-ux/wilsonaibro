@@ -147,6 +147,69 @@ export type Database = {
           },
         ]
       }
+      sovereignty_sentinels: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          name: string
+          notified_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          notified_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          notified_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      sovereignty_status: {
+        Row: {
+          check_in_window_hours: number
+          created_at: string
+          id: string
+          last_ping: string
+          protocol_triggered: boolean
+          triggered_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          check_in_window_hours?: number
+          created_at?: string
+          id?: string
+          last_ping?: string
+          protocol_triggered?: boolean
+          triggered_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          check_in_window_hours?: number
+          created_at?: string
+          id?: string
+          last_ping?: string
+          protocol_triggered?: boolean
+          triggered_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
