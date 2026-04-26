@@ -38,6 +38,156 @@ export type Database = {
         }
         Relationships: []
       }
+      dispatch_confirmations: {
+        Row: {
+          consumed_at: string | null
+          created_at: string
+          dispatch_log_id: string
+          expires_at: string
+          id: string
+          sentinel_id: string
+          token: string
+          user_id: string
+        }
+        Insert: {
+          consumed_at?: string | null
+          created_at?: string
+          dispatch_log_id: string
+          expires_at: string
+          id?: string
+          sentinel_id: string
+          token: string
+          user_id: string
+        }
+        Update: {
+          consumed_at?: string | null
+          created_at?: string
+          dispatch_log_id?: string
+          expires_at?: string
+          id?: string
+          sentinel_id?: string
+          token?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dispatch_confirmations_dispatch_log_id_fkey"
+            columns: ["dispatch_log_id"]
+            isOneToOne: false
+            referencedRelation: "dispatch_log"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispatch_confirmations_sentinel_id_fkey"
+            columns: ["sentinel_id"]
+            isOneToOne: false
+            referencedRelation: "sovereignty_sentinels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dispatch_log: {
+        Row: {
+          confirmed_by_sentinel_id: string | null
+          created_at: string
+          dispatched_at: string | null
+          error_message: string | null
+          github_response: string | null
+          github_status_code: number | null
+          id: string
+          inputs: Json
+          status: Database["public"]["Enums"]["dispatch_status"]
+          trigger_source: Database["public"]["Enums"]["dispatch_trigger_source"]
+          updated_at: string
+          user_id: string
+          workflow_id: string
+        }
+        Insert: {
+          confirmed_by_sentinel_id?: string | null
+          created_at?: string
+          dispatched_at?: string | null
+          error_message?: string | null
+          github_response?: string | null
+          github_status_code?: number | null
+          id?: string
+          inputs?: Json
+          status: Database["public"]["Enums"]["dispatch_status"]
+          trigger_source: Database["public"]["Enums"]["dispatch_trigger_source"]
+          updated_at?: string
+          user_id: string
+          workflow_id: string
+        }
+        Update: {
+          confirmed_by_sentinel_id?: string | null
+          created_at?: string
+          dispatched_at?: string | null
+          error_message?: string | null
+          github_response?: string | null
+          github_status_code?: number | null
+          id?: string
+          inputs?: Json
+          status?: Database["public"]["Enums"]["dispatch_status"]
+          trigger_source?: Database["public"]["Enums"]["dispatch_trigger_source"]
+          updated_at?: string
+          user_id?: string
+          workflow_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dispatch_log_confirmed_by_sentinel_id_fkey"
+            columns: ["confirmed_by_sentinel_id"]
+            isOneToOne: false
+            referencedRelation: "sovereignty_sentinels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispatch_log_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "dispatch_workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dispatch_workflows: {
+        Row: {
+          armed: boolean
+          created_at: string
+          description: string | null
+          display_name: string
+          id: string
+          ref: string
+          tier: Database["public"]["Enums"]["dispatch_tier"]
+          updated_at: string
+          user_id: string
+          workflow_file: string
+        }
+        Insert: {
+          armed?: boolean
+          created_at?: string
+          description?: string | null
+          display_name: string
+          id?: string
+          ref?: string
+          tier?: Database["public"]["Enums"]["dispatch_tier"]
+          updated_at?: string
+          user_id: string
+          workflow_file: string
+        }
+        Update: {
+          armed?: boolean
+          created_at?: string
+          description?: string | null
+          display_name?: string
+          id?: string
+          ref?: string
+          tier?: Database["public"]["Enums"]["dispatch_tier"]
+          updated_at?: string
+          user_id?: string
+          workflow_file?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           content: string
@@ -246,6 +396,18 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
+      dispatch_status:
+        | "pending_confirmation"
+        | "dispatched"
+        | "failed"
+        | "expired"
+        | "cancelled"
+      dispatch_tier: "auto" | "confirm"
+      dispatch_trigger_source:
+        | "manual"
+        | "test_fire"
+        | "sentinel_auto"
+        | "sentinel_confirmed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -374,6 +536,20 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user"],
+      dispatch_status: [
+        "pending_confirmation",
+        "dispatched",
+        "failed",
+        "expired",
+        "cancelled",
+      ],
+      dispatch_tier: ["auto", "confirm"],
+      dispatch_trigger_source: [
+        "manual",
+        "test_fire",
+        "sentinel_auto",
+        "sentinel_confirmed",
+      ],
     },
   },
 } as const
