@@ -80,11 +80,6 @@
     @apply text-foreground font-sans;
     min-height: 100%;
     background-color: hsl(var(--background));
-    background-image: url('/app-background.gif');
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    background-attachment: fixed;
   }
 
   body, #root {
@@ -92,6 +87,21 @@
     min-height: 100%;
     color: hsl(var(--foreground));
     font-family: 'Syne', sans-serif;
+  }
+
+  /* Seamless full-viewport background: paints once behind everything,
+     no tiling, no fixed-attachment seams on mobile */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background-color: hsl(var(--background));
+    background-image: url('/app-background.gif');
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+    pointer-events: none;
   }
 
   code, pre, .font-mono {
