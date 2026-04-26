@@ -10,6 +10,7 @@ import Auth from "./pages/Auth.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import Analytics from "./pages/Analytics.tsx";
 import ConfirmDispatch from "./pages/ConfirmDispatch.tsx";
+import BackgroundDebugOverlay from "./components/BackgroundDebugOverlay";
 
 const queryClient = new QueryClient();
 
@@ -57,6 +58,7 @@ const App = () => {
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <BackgroundDebugOverlay />
         <BrowserRouter>
           <Routes>
             <Route
