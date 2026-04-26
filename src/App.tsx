@@ -9,6 +9,7 @@ import Index from "./pages/Index.tsx";
 import Auth from "./pages/Auth.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import Analytics from "./pages/Analytics.tsx";
+import ConfirmDispatch from "./pages/ConfirmDispatch.tsx";
 
 const queryClient = new QueryClient();
 
@@ -81,6 +82,7 @@ const App = () => {
                 )
               }
             />
+            <Route path="/confirm-dispatch" element={<ConfirmDispatch />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
