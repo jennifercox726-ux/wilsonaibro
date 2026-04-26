@@ -97,7 +97,7 @@
     inset: 0;
     z-index: -1;
     background-color: hsl(var(--background));
-    background-image: url('/app-background.gif');
+    background-image: url('/app-background.jpg');
     background-size: cover;
     background-position: center center;
     background-repeat: no-repeat;
