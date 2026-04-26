@@ -1,5 +1,5 @@
 import React from "react";
-import wilsonFluid from "@/assets/wilson-fluid.webp";
+import wilsonFluid from "@/assets/wilson-fluid.gif";
 import { useWilsonAudio } from "@/hooks/useWilsonAudio";
 
 export type WilsonVibe = "neutral" | "excited" | "calm" | "tired" | "dreaming";
@@ -31,7 +31,7 @@ const WilsonOrb = React.forwardRef<HTMLDivElement, WilsonOrbProps>(
     return (
       <div
         ref={ref}
-        className={`wilson-fluid wilson-fluid--${intensity} ${sizeMap[size]} relative flex-shrink-0 rounded-full overflow-hidden`}
+        className={`wilson-fluid wilson-fluid--${intensity} ${sizeMap[size]} relative flex-shrink-0`}
         style={
           {
             "--wilson-amp-scale": reactiveScale,

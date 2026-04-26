@@ -358,15 +358,13 @@
 .wilson-fluid {
   isolation: isolate;
   transform: translateZ(0) scale(var(--wilson-amp-scale, 1));
-  background-size: cover;
+  background-color: transparent;
+  background-size: contain;
   background-position: center;
   background-repeat: no-repeat;
-  box-shadow:
-    0 0 calc(20px + var(--wilson-amp-glow, 0.35) * 30px)
-      hsl(290 80% 65% / var(--wilson-amp-glow, 0.35)),
-    0 0 calc(40px + var(--wilson-amp-glow, 0.35) * 60px)
-      hsl(190 80% 65% / calc(var(--wilson-amp-glow, 0.35) * 0.6));
-  transition: transform 80ms linear, box-shadow 120ms linear;
+  transition: transform 80ms linear, filter 120ms linear;
+  filter: drop-shadow(0 0 calc(8px + var(--wilson-amp-glow, 0.35) * 14px)
+    hsl(290 80% 65% / calc(var(--wilson-amp-glow, 0.35) * 0.6)));
 }
 
 .wilson-fluid--idle {
