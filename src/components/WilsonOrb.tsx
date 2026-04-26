@@ -1,5 +1,5 @@
 import React from "react";
-import wilsonFluid from "@/assets/wilson-fluid.gif";
+import wilsonFluid from "@/assets/wilson-fluid.png";
 import { useWilsonAudio } from "@/hooks/useWilsonAudio";
 
 export type WilsonVibe = "neutral" | "excited" | "calm" | "tired" | "dreaming";
