@@ -442,17 +442,9 @@
 }
 
 /* ====================================================================== */
-/*  Wilson Fluid — droplet image with cross-browser-safe transparency      */
-/*                                                                         */
-/*  The GIF has baked-in black. `mix-blend-mode: screen` knocks pure       */
-/*  black to transparent. Cross-browser quirks handled below:              */
-/*  - Safari/WebKit: needs explicit stacking context (position+z-index)    */
-/*    on the blending element, otherwise the blend leaks through every    */
-/*    ancestor.                                                            */
-/*  - Firefox: `filter: drop-shadow()` + `mix-blend-mode` on the same      */
-/*    element drops the shadow — glow moved to a non-blending ::before.    */
-/*  - All engines: GIF compression leaves near-black artifacts that show   */
-/*    as faint boxes under `screen`. `contrast/brightness` crushes them.   */
+/*  Wilson Fluid — true transparent PNG, no blend-mode hacks needed.       */
+/*  The asset has a real alpha channel so the bubble silhouette is clean   */
+/*  on any background (dark, light, gradient, video, etc.).                */
 /* ====================================================================== */
 .wilson-fluid {
   position: relative;
@@ -464,15 +456,11 @@
   background-size: contain;
   background-position: center;
   background-repeat: no-repeat;
-  mix-blend-mode: screen;
-  /* Crush near-black GIF artifacts so `screen` knocks them out cleanly */
-  filter: contrast(1.08) brightness(0.96);
   transition: transform 80ms linear;
 }
 
-/* Glow on a non-blending pseudo behind the image — renders identically
-   in Firefox (which drops drop-shadow under mix-blend-mode) and doesn't
-   get washed out by the `screen` blend on the parent. */
+/* Glow on a non-blending pseudo behind the image — gives the bubble a
+   soft iridescent halo without depending on filter quirks. */
 .wilson-fluid::before {
   content: "";
   position: absolute;
@@ -485,7 +473,6 @@
     hsl(190 80% 65% / calc(var(--wilson-amp-glow, 0.35) * 0.25)) 40%,
     transparent 70%
   );
-  mix-blend-mode: normal;
   pointer-events: none;
   transition: opacity 120ms linear;
 }
@@ -500,9 +487,9 @@
 
 .wilson-fluid--speaking {
   animation: wilson-fluid-pulse 1.6s ease-in-out infinite;
-  /* Preserve contrast crush; layer saturation on top */
-  filter: contrast(1.08) brightness(1.0) saturate(120%);
+  filter: saturate(120%) brightness(1.05);
 }
+
 
 @keyframes wilson-fluid-breathe {
   0%, 100% { transform: scale(var(--wilson-amp-scale, 1)); }
