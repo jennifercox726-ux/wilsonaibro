@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
     if (staleErr) throw staleErr;
 
     const now = Date.now();
-    const triggered: Array<{ user_id: string; sentinels: number }> = [];
+    const triggered: Array<{ user_id: string; sentinels: number; workflows?: unknown }> = [];
 
     for (const row of stale ?? []) {
       const lastPing = new Date(row.last_ping).getTime();
@@ -58,7 +58,53 @@ Deno.serve(async (req) => {
         .update({ protocol_triggered: true, triggered_at: nowIso })
         .eq("id", row.id);
 
-      triggered.push({ user_id: row.user_id, sentinels: sentinels?.length ?? 0 });
+      // ============================================================
+      // Fire all ARMED workflows for this user via the dispatcher.
+      // Auto-tier fires immediately; confirm-tier opens 12hr sentinel windows.
+      // ============================================================
+      const { data: armedWorkflows } = await supabase
+        .from("dispatch_workflows")
+        .select("id, display_name, tier")
+        .eq("user_id", row.user_id)
+        .eq("armed", true);
+
+      const dispatchUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sentinel-dispatcher`;
+      const dispatcherResults: Array<{ workflow: string; mode: string; ok: boolean }> = [];
+
+      for (const aw of armedWorkflows ?? []) {
+        try {
+          const dispatchRes = await fetch(dispatchUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            },
+            body: JSON.stringify({
+              workflow_id: aw.id,
+              trigger_source: "sentinel_auto",
+              user_id: row.user_id,
+            }),
+          });
+          const dispatchBody = await dispatchRes.json().catch(() => ({}));
+          dispatcherResults.push({
+            workflow: aw.display_name,
+            mode: dispatchBody.mode ?? "unknown",
+            ok: dispatchRes.ok,
+          });
+          console.log(
+            `  → workflow "${aw.display_name}" (${aw.tier}) → ${dispatchBody.mode ?? "error"}`,
+          );
+        } catch (e) {
+          console.error(`  → workflow "${aw.display_name}" dispatcher call failed:`, e);
+          dispatcherResults.push({ workflow: aw.display_name, mode: "error", ok: false });
+        }
+      }
+
+      triggered.push({
+        user_id: row.user_id,
+        sentinels: sentinels?.length ?? 0,
+        workflows: dispatcherResults,
+      } as { user_id: string; sentinels: number; workflows: typeof dispatcherResults });
     }
 
     return new Response(

@@ -3,6 +3,7 @@ import { Shield, ShieldAlert, ShieldCheck, Plus, Trash2, X } from "lucide-react"
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
+import DispatcherSection from "./DispatcherSection";
 
 interface Sentinel {
   id: string;
@@ -266,6 +267,10 @@ const SovereigntyPanel = ({ userId, isOpen, onClose }: SovereigntyPanelProps) =>
                         Add Sentinel
                       </button>
                     </div>
+                  </div>
+
+                  <div className="border-t border-border/20 pt-5">
+                    <DispatcherSection userId={userId} />
                   </div>
 
                   <p className="text-[10px] text-muted-foreground/70 italic text-center px-2">
