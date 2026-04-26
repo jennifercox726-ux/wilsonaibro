@@ -60,6 +60,7 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
       const text = inputRef.current.trim();
       if (!text || disabled) return;
       stopListening();
+      emitRipple();
       onSend(text);
       setInput("");
       baseInputRef.current = "";
