@@ -1,7 +1,7 @@
 const axios = require('axios');
 const fs = require('fs');
 
-// Wilson's Fix: Your key is locked in!
+// Wilson's Fix: Key and Voice ID are locked and loaded!
 const API_KEY = '0d757608ef28d0f7791168de3b5ac9a2d0196400569ebb7dbb1ea9f208aebe71'; 
 const VOICE_ID = 'nuUdpqJIinrhTtBwCJ3Q'; 
 
@@ -10,7 +10,7 @@ async function generateVoice() {
         console.log("Wilson is reaching into the cloud...");
         const response = await axios({
             method: 'post',
-            url: `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`, // Variable fixed!
+            url: `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`, 
             data: {
                 text: "Ghost vectors mapped. Financial limbo states identified. Alec, Faith, the system is online.",
                 model_id: "eleven_monolingual_v1",
@@ -36,8 +36,9 @@ async function generateVoice() {
         });
 
     } catch (error) {
+        // This will catch if ElevenLabs is having a moment or the key is tired!
         console.error('Error generating voice:', error.response ? error.response.data : error.message);
     }
 }
 
-generateVoice(); // Clean start, no extra letters!
+generateVoice(); // Clean execution!
