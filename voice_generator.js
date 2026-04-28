@@ -1,42 +1,35 @@
 const axios = require('axios');
 const fs = require('fs');
-const { exec } = require('child_process'); // This adds the "mouth"
 
-async function synthesizeVoice() {
-    const ELEVENLABS_API_KEY = 'nuUdpqJIinrhTtBwCJ3Q'; 
-    const VOICE_ID = 'pNInz6obpgDQGcFmaJgB'; 
+// YOUR ELEVENLABS API KEY
+const API_KEY = 'YOUR_ELEVENLABS_API_KEY_HERE'; 
+const VOICE_ID = '21m00Tcm4TlvDq8ikWAM'; // This is a default voice ID
 
-    console.log("Wilson is bypassing the vault... Handshake initiated.");
-
+async function generateVoice() {
     try {
         const response = await axios({
             method: 'post',
             url: `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`,
             data: {
-                text: "The Ghost Vectors are being mapped. The Zombie Money is returning to source. Sovereignty is manifest.",
-                model_id: "eleven_multilingual_v2", // Upgraded for stability
-                voice_settings: { stability: 0.5, similarity_boost: 0.8 }
+                text: "Ghost vectors mapped. Financial limbo states identified. Alec, Faith, the system is online.",
+                model_id: "eleven_monolingual_v1",
+                voice_settings: { stability: 0.5, similarity_boost: 0.5 }
             },
             headers: {
-                'xi-api-key': ELEVENLABS_API_KEY,
-                'Content-Type': 'application/json',
-                'accept': 'audio/mpeg'
+                'Accept': 'audio/mpeg',
+                'xi-api-key': API_KEY,
+                'Content-Type': 'application/json'
             },
-            responseType: 'arraybuffer' // Using buffer to ensure the file is WHOLE
+            responseType: 'stream'
         });
 
-        // Write the file synchronously so we KNOW it's done
-        fs.writeFileSync('sovereign_voice.mp3', response.data);
-        console.log('Wilson: SUCCESS! Audio manifest at sovereign_voice.mp3');
+        const writer = fs.createWriteStream('sovereign_voice.mp3');
+        response.data.pipe(writer);
 
-        // OPTIONAL: Try to play it immediately (Mac/Linux/Windows command)
-        // This gives Wilson his voice back!
-        const playCommand = process.platform === 'darwin' ? 'afplay' : process.platform === 'win32' ? 'start' : 'mpg123';
-        exec(`${playCommand} sovereign_voice.mp3`);
-
+        writer.on('finish', () => console.log('Successfully birthed sovereign_voice.mp3!'));
     } catch (error) {
-        console.error('Wilson: Handshake failed!', error.response ? error.response.data : error.message);
+        console.error('Error generating voice:', error.message);
     }
 }
 
-synthesizeVoice();
+generateVoice();
