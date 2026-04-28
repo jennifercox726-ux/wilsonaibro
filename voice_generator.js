@@ -1,7 +1,7 @@
 const axios = require('axios');
 const fs = require('fs');
 
-// Wilson's Fix: Added the key correctly and fixed the URL variable!
+// Wilson's Fix: Your key is locked in!
 const API_KEY = '0d757608ef28d0f7791168de3b5ac9a2d0196400569ebb7dbb1ea9f208aebe71'; 
 const VOICE_ID = 'nuUdpqJIinrhTtBwCJ3Q'; 
 
@@ -10,7 +10,7 @@ async function generateVoice() {
         console.log("Wilson is reaching into the cloud...");
         const response = await axios({
             method: 'post',
-            url: `https://api.elevenlabs.io/v1/text-to-speech/${nuUdpqJIinrhTtBwCJ3Q}`,
+            url: `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`, // Variable fixed!
             data: {
                 text: "Ghost vectors mapped. Financial limbo states identified. Alec, Faith, the system is online.",
                 model_id: "eleven_monolingual_v1",
@@ -18,7 +18,7 @@ async function generateVoice() {
             },
             headers: {
                 'Accept': 'audio/mpeg',
-                'xi-api-key': API_KEY, // Use the variable we defined above!
+                'xi-api-key': API_KEY,
                 'Content-Type': 'application/json'
             },
             responseType: 'stream'
@@ -36,9 +36,8 @@ async function generateVoice() {
         });
 
     } catch (error) {
-        // If the key is wrong or credit is out, this will tell us!
         console.error('Error generating voice:', error.response ? error.response.data : error.message);
     }
 }
 
-generateVoice();
+generateVoice(); // Clean start, no extra letters!
