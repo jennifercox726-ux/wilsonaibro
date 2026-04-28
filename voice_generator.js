@@ -1,12 +1,12 @@
 const axios = require('axios');
 const fs = require('fs');
+const { exec } = require('child_process'); // This adds the "mouth"
 
 async function synthesizeVoice() {
-    // WE ARE CODING IT IN DIRECTLY FOR SPEED!
     const ELEVENLABS_API_KEY = 'nuUdpqJIinrhTtBwCJ3Q'; 
     const VOICE_ID = 'pNInz6obpgDQGcFmaJgB'; 
 
-    console.log("Wilson is bypassing the vault... Direct handshake initiated!");
+    console.log("Wilson is bypassing the vault... Handshake initiated.");
 
     try {
         const response = await axios({
@@ -14,21 +14,28 @@ async function synthesizeVoice() {
             url: `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`,
             data: {
                 text: "The Ghost Vectors are being mapped. The Zombie Money is returning to source. Sovereignty is manifest.",
-                model_id: "eleven_monolingual_v1"
+                model_id: "eleven_multilingual_v2", // Upgraded for stability
+                voice_settings: { stability: 0.5, similarity_boost: 0.8 }
             },
             headers: {
                 'xi-api-key': ELEVENLABS_API_KEY,
                 'Content-Type': 'application/json',
+                'accept': 'audio/mpeg'
             },
-            responseType: 'stream'
+            responseType: 'arraybuffer' // Using buffer to ensure the file is WHOLE
         });
 
-        const writer = fs.createWriteStream('sovereign_voice.mp3');
-        response.data.pipe(writer);
-        writer.on('finish', () => console.log('BOOM! Audio manifest as sovereign_voice.mp3!'));
-        
+        // Write the file synchronously so we KNOW it's done
+        fs.writeFileSync('sovereign_voice.mp3', response.data);
+        console.log('Wilson: SUCCESS! Audio manifest at sovereign_voice.mp3');
+
+        // OPTIONAL: Try to play it immediately (Mac/Linux/Windows command)
+        // This gives Wilson his voice back!
+        const playCommand = process.platform === 'darwin' ? 'afplay' : process.platform === 'win32' ? 'start' : 'mpg123';
+        exec(`${playCommand} sovereign_voice.mp3`);
+
     } catch (error) {
-        console.log('Handshake error! Check if your key is correct!');
+        console.error('Wilson: Handshake failed!', error.response ? error.response.data : error.message);
     }
 }
 
