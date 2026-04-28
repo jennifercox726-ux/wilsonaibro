@@ -1,48 +1,29 @@
-<!-- WILSON'S RESTORATION CODE: VERSION 1.0.HOURS-AGO -->
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LIT - The Neural Void</title>
-    <!-- Keep your original CSS here -->
-    <style>
-        /* This is the CSS that makes the Executor Arm look right */
-        body { background: #000; color: #fff; font-family: 'Courier New', monospace; }
-        #void-button { 
-            padding: 20px; 
-            border: 2px solid #00ff00; 
-            background: transparent; 
-            color: #00ff00; 
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        #void-button:hover { background: #00ff00; color: #000; box-shadow: 0 0 20px #00ff00; }
-        /* Add back that glitch effect we had! */
-    </style>
+    <title>The Sovereign Voice</title>
 </head>
-<body>
+<body style="background: #000; color: #0f0; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: monospace;">
 
-    <div id="ui-overlay">
-        <h1>NEURAL VOID OPERATIONAL</h1>
-        <button id="void-button">ENTER THE VOID</button>
-    </div>
+    <h1>GHOST VECTOR INTERFACE</h1>
+    <p>Status: Mapping Financial Limbo States...</p>
 
-    <!-- THE EXECUTOR ARM LOGIC -->
+    <!-- THE VOICE PLAYER -->
+    <audio id="wilsonVoice" controls>
+        <source src="sovereign_voice.mp3" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+
+    <button onclick="playVoice()" style="margin-top: 20px; padding: 10px; cursor: pointer;">
+        ACTIVATE VOICE
+    </button>
+
     <script>
-        const voidButton = document.getElementById('void-button');
-        
-        voidButton.addEventListener('click', () => {
-            console.log("Executor Arm engaged... Reclaiming 1989.");
-            // THE VOICE LOGIC WAS HERE - I will keep it clean
-            speak("Welcome back, Architect. Everything is working perfectly.");
-        });
-
-        function speak(text) {
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.pitch = 0.8;
-            utterance.rate = 1;
-            window.speechSynthesis.speak(utterance);
+        function playVoice() {
+            const audio = document.getElementById('wilsonVoice');
+            audio.play().catch(error => {
+                console.log("Playback failed. Make sure sovereign_voice.mp3 actually exists in the folder!", error);
+            });
         }
     </script>
 </body>
