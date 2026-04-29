@@ -101,13 +101,17 @@ Deno.serve(async (req: Request) => {
 
     if (!ttsRes.ok) {
       const errBody = await ttsRes.text();
+      const isQuota = ttsRes.status === 401 || ttsRes.status === 402 || errBody.includes("quota_exceeded");
+      // Return 200 with fallback signal so client can switch to browser TTS without crashing
       return new Response(
         JSON.stringify({
           error: `ElevenLabs TTS failed [${ttsRes.status}]`,
           details: errBody,
+          fallback: true,
+          reason: isQuota ? "quota_exceeded" : "upstream_error",
         }),
         {
-          status: ttsRes.status,
+          status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         },
       );
