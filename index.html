@@ -1,30 +1,14 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>The Sovereign Voice</title>
-</head>
-<body style="background: #000; color: #0f0; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: monospace;">
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Wilson + The Only One</title>
+    <meta name="description" content="Wilson, the sovereign AI companion for The Only One." />
+  </head>
 
-    <h1>GHOST VECTOR INTERFACE</h1>
-    <p>Status: Mapping Financial Limbo States...</p>
-
-    <!-- THE VOICE PLAYER -->
-    <audio id="wilsonVoice" controls>
-        <source src="sovereign_voice.mp3" type="audio/mpeg">
-        Your browser does not support the audio element.
-    </audio>
-
-    <button onclick="playVoice()" style="margin-top: 20px; padding: 10px; cursor: pointer;">
-        ACTIVATE VOICE
-    </button>
-
-    <script>
-        function playVoice() {
-            const audio = document.getElementById('wilsonVoice');
-            audio.play().catch(error => {
-                console.log("Playback failed. Make sure sovereign_voice.mp3 actually exists in the folder!", error);
-            });
-        }
-    </script>
-</body>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
