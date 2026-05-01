@@ -150,6 +150,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
   const [messages, setMessages] = useState<Record<string, Message[]>>({});
   const [isThinking, setIsThinking] = useState(false);
   const [currentVibe, setCurrentVibe] = useState<WilsonVibe>("neutral");
+  const [coreDream, setCoreDream] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sovereigntyOpen, setSovereigntyOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
