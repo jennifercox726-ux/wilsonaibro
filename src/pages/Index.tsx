@@ -201,10 +201,13 @@ const Index = ({ userId, displayName }: IndexProps) => {
           referral_source: referral.source,
         },
         { onConflict: "user_id" }
-      ).select("emotional_vibe").single();
+      ).select("emotional_vibe, core_dream").single();
 
       if (profileData?.emotional_vibe) {
         setCurrentVibe(profileData.emotional_vibe as WilsonVibe);
+      }
+      if (profileData?.core_dream) {
+        setCoreDream(profileData.core_dream);
       }
 
       setLoaded(true);
