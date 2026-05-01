@@ -94,6 +94,20 @@ export async function generateElevenLabsAudio(
     throw new Error(details || `ElevenLabs TTS failed [${response.status}]`);
   }
 
+  // Edge function returns JSON (200) with { fallback: true } when ElevenLabs
+  // is out of credits / rate-limited. Detect and signal the caller to shunt
+  // to browser SpeechSynthesis instead of trying to play JSON as audio.
+  const ct = response.headers.get("Content-Type") ?? "";
+  if (ct.includes("application/json")) {
+    const payload = await response.json().catch(() => ({}));
+    if (payload?.fallback) {
+      const reason = payload.reason ?? "upstream_error";
+      console.info(`[elevenlabs] capacity shunt -> browser TTS (${reason})`);
+      throw new FallbackNeededError(reason);
+    }
+    throw new Error(payload?.error || "ElevenLabs returned unexpected JSON");
+  }
+
   const audioBlob = await response.blob();
   if (!audioBlob.size) {
     throw new Error("No audio returned from ElevenLabs");
@@ -101,9 +115,56 @@ export async function generateElevenLabsAudio(
 
   return {
     audioUrl: URL.createObjectURL(audioBlob),
-    contentType: response.headers.get("Content-Type") ?? "audio/mpeg",
+    contentType: ct || "audio/mpeg",
     requestId: response.headers.get("X-Request-Id"),
   };
+}
+
+export class FallbackNeededError extends Error {
+  reason: string;
+  constructor(reason: string) {
+    super(`elevenlabs_fallback:${reason}`);
+    this.name = "FallbackNeededError";
+    this.reason = reason;
+  }
+}
+
+/**
+ * Browser SpeechSynthesis shunt. Used when ElevenLabs is out of credits or
+ * rate-limited so Wilson keeps talking instead of going silent.
+ */
+function speakViaBrowser(text: string, signal: AbortSignal): Promise<SpeakResult> {
+  return new Promise((resolve) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      resolve("error");
+      return;
+    }
+    try {
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.rate = 1.1;
+      utter.pitch = 1.05;
+      utter.volume = 1;
+      const voices = window.speechSynthesis.getVoices();
+      const preferred =
+        voices.find((v) => /en-GB.*(Ryan|Daniel|Male)/i.test(`${v.lang} ${v.name}`)) ||
+        voices.find((v) => v.lang === "en-GB") ||
+        voices.find((v) => v.lang?.startsWith("en"));
+      if (preferred) utter.voice = preferred;
+
+      const onAbort = () => {
+        try { window.speechSynthesis.cancel(); } catch { /* noop */ }
+        resolve("error");
+      };
+      signal.addEventListener("abort", onAbort, { once: true });
+
+      utter.onend = () => resolve("ok");
+      utter.onerror = () => resolve("error");
+      window.speechSynthesis.speak(utter);
+    } catch {
+      resolve("error");
+    }
+  });
 }
 
 /**
