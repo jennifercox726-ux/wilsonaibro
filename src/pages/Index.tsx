@@ -512,6 +512,16 @@ const Index = ({ userId, displayName }: IndexProps) => {
             <LogOut className="w-4 h-4" />
           </button>
         </header>
+        {coreDream && activeChat && (
+          <div className="px-4 py-2 border-b border-border/10 bg-void-surface/20 backdrop-blur-md flex items-center gap-2">
+            <span className="text-[9px] uppercase tracking-[0.2em] font-bold text-primary/70 shrink-0">
+              ✦ Memory Anchor
+            </span>
+            <p className="text-[11px] text-foreground/80 italic truncate" title={coreDream}>
+              {coreDream}
+            </p>
+          </div>
+        )}
         <SovereigntyPanel
           userId={userId}
           isOpen={sovereigntyOpen}
