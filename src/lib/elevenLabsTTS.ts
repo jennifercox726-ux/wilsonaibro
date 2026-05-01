@@ -288,6 +288,8 @@ export async function speakWithElevenLabs(text: string): Promise<SpeakResult> {
 
   const chunks = chunkTextForTTS(clean);
 
+  let needsFallback = false;
+
   const fetchChunk = async (i: number): Promise<string | null> => {
     try {
       const res = await generateElevenLabsAudio(
@@ -301,6 +303,10 @@ export async function speakWithElevenLabs(text: string): Promise<SpeakResult> {
       return res.audioUrl;
     } catch (err) {
       if ((err as { name?: string })?.name === "AbortError") return null;
+      if (err instanceof FallbackNeededError) {
+        needsFallback = true;
+        return null;
+      }
       console.warn(`[elevenlabs] chunk ${i} failed:`, err);
       return null;
     }
@@ -312,6 +318,10 @@ export async function speakWithElevenLabs(text: string): Promise<SpeakResult> {
     const chunkRequests: Promise<string | null>[] = chunks.map((_, i) => fetchChunk(i));
 
     const firstUrl = await chunkRequests[0];
+    if (needsFallback) {
+      // Capacity shunt: speak the full message via browser SpeechSynthesis.
+      return await speakViaBrowser(clean, abort.signal);
+    }
     if (!firstUrl) return "error";
     if (reqId !== currentRequestId || abort.signal.aborted) return "error";
 
