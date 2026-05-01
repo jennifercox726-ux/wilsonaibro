@@ -370,7 +370,9 @@ const Index = ({ userId, displayName }: IndexProps) => {
                 supabase.from("profiles").update({ emotional_vibe: newVibe }).eq("user_id", userId).then();
               }
               if (dreamMatch) {
-                supabase.from("profiles").update({ core_dream: dreamMatch[1].trim() }).eq("user_id", userId).then();
+                const newDream = dreamMatch[1].trim();
+                setCoreDream(newDream);
+                supabase.from("profiles").update({ core_dream: newDream }).eq("user_id", userId).then();
               }
 
               const cleanContent = assistantSoFar
