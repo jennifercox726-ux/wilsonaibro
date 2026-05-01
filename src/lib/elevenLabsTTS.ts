@@ -133,23 +133,58 @@ export class FallbackNeededError extends Error {
  * Browser SpeechSynthesis shunt. Used when ElevenLabs is out of credits or
  * rate-limited so Wilson keeps talking instead of going silent.
  */
-function speakViaBrowser(text: string, signal: AbortSignal): Promise<SpeakResult> {
+async function loadBrowserVoices(): Promise<SpeechSynthesisVoice[]> {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return [];
+  const synth = window.speechSynthesis;
+  const existing = synth.getVoices();
+  if (existing.length > 0) return existing;
+  // Some browsers (Chrome) load voices asynchronously — wait briefly.
   return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve(synth.getVoices());
+    };
+    synth.addEventListener?.("voiceschanged", finish, { once: true });
+    setTimeout(finish, 500);
+  });
+}
+
+function pickWilsonVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | undefined {
+  // Closest match to the ElevenLabs "Payload" male British timbre we use as primary.
+  const tiers: RegExp[] = [
+    /en-GB.*(Daniel|Ryan|Oliver|Arthur|George|Thomas|Male)/i,
+    /(Daniel|Ryan|Oliver|Arthur).*en[-_]?GB/i,
+    /Google UK English Male/i,
+    /Microsoft (Ryan|George|Thomas)/i,
+    /en-GB/i,
+    /en[-_]?(US|AU|IE|CA).*Male/i,
+    /^en/i,
+  ];
+  for (const re of tiers) {
+    const hit = voices.find((v) => re.test(`${v.lang} ${v.name}`));
+    if (hit) return hit;
+  }
+  return voices[0];
+}
+
+function speakViaBrowser(text: string, signal: AbortSignal): Promise<SpeakResult> {
+  return new Promise(async (resolve) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
       resolve("error");
       return;
     }
     try {
       window.speechSynthesis.cancel();
+      const voices = await loadBrowserVoices();
       const utter = new SpeechSynthesisUtterance(text);
-      utter.rate = 1.1;
-      utter.pitch = 1.05;
+      // Tuned to match Wilson's energy: slightly faster, slightly higher pitch.
+      utter.rate = 1.08;
+      utter.pitch = 1.02;
       utter.volume = 1;
-      const voices = window.speechSynthesis.getVoices();
-      const preferred =
-        voices.find((v) => /en-GB.*(Ryan|Daniel|Male)/i.test(`${v.lang} ${v.name}`)) ||
-        voices.find((v) => v.lang === "en-GB") ||
-        voices.find((v) => v.lang?.startsWith("en"));
+      utter.lang = "en-GB";
+      const preferred = pickWilsonVoice(voices);
       if (preferred) utter.voice = preferred;
 
       const onAbort = () => {

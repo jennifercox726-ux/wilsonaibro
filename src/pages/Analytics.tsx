@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, MessageSquare, Users, Clock, AlertTriangle, TrendingUp, Shield, ChevronDown, Loader2, UserPlus } from "lucide-react";
+import { ArrowLeft, MessageSquare, Users, Clock, AlertTriangle, TrendingUp, Shield, ChevronDown, Loader2, UserPlus, Activity, Radio } from "lucide-react";
 import { motion } from "framer-motion";
 import WilsonOrb from "@/components/WilsonOrb";
 
@@ -248,6 +248,108 @@ const Analytics = ({ userId }: { userId: string }) => {
             </button>
           ))}
         </div>
+
+        {/* Cockpit Telemetry — real-time data stream from query_logs */}
+        {logs.length > 0 && (() => {
+          const recent = logs.slice(0, 40);
+          const latencies = recent
+            .map((l) => l.response_time_ms)
+            .filter((m): m is number => typeof m === "number" && m > 0)
+            .reverse(); // oldest -> newest for sparkline
+          const max = Math.max(...latencies, 1);
+          const okCount = recent.filter((l) => (l.response_length || 0) > 0).length;
+          const successPct = recent.length ? Math.round((okCount / recent.length) * 100) : 0;
+          const totalChars = recent.reduce((a, b) => a + (b.response_length || 0), 0);
+          const totalSec = recent.reduce((a, b) => a + (b.response_time_ms || 0), 0) / 1000;
+          const throughput = totalSec > 0 ? Math.round(totalChars / totalSec) : 0;
+          const stream = logs.slice(0, 6);
+          return (
+            <div className="rounded-2xl bg-void-surface/40 backdrop-blur-lg border border-primary/20 p-4 font-mono">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-[10px] uppercase tracking-[0.2em] text-primary flex items-center gap-2">
+                  <Radio className="w-3 h-3 animate-pulse" />
+                  Live Telemetry · last {recent.length} ops
+                </h2>
+                <span className="text-[9px] uppercase tracking-widest text-primary/60">
+                  ◉ stream active
+                </span>
+              </div>
+
+              {/* Latency sparkline */}
+              <div className="mb-3">
+                <div className="flex items-end gap-[2px] h-12">
+                  {latencies.length === 0 ? (
+                    <span className="text-[10px] text-muted-foreground">no latency samples</span>
+                  ) : (
+                    latencies.map((ms, i) => (
+                      <div
+                        key={i}
+                        className="flex-1 bg-primary/60 rounded-sm"
+                        style={{ height: `${Math.max(8, (ms / max) * 100)}%` }}
+                        title={`${(ms / 1000).toFixed(2)}s`}
+                      />
+                    ))
+                  )}
+                </div>
+                <div className="flex justify-between text-[9px] text-muted-foreground/60 mt-1">
+                  <span>latency · ms</span>
+                  <span>peak {(max / 1000).toFixed(2)}s</span>
+                </div>
+              </div>
+
+              {/* Triple readout */}
+              <div className="grid grid-cols-3 gap-2 mb-3 text-center">
+                <div className="bg-background/30 rounded-lg p-2 border border-border/20">
+                  <div className="text-[9px] uppercase tracking-widest text-muted-foreground">Success</div>
+                  <div className={`text-base font-bold ${successPct >= 95 ? "text-primary" : successPct >= 80 ? "text-accent" : "text-destructive"}`}>
+                    {successPct}%
+                  </div>
+                </div>
+                <div className="bg-background/30 rounded-lg p-2 border border-border/20">
+                  <div className="text-[9px] uppercase tracking-widest text-muted-foreground">Throughput</div>
+                  <div className="text-base font-bold text-primary">{throughput}<span className="text-[9px] text-muted-foreground"> ch/s</span></div>
+                </div>
+                <div className="bg-background/30 rounded-lg p-2 border border-border/20">
+                  <div className="text-[9px] uppercase tracking-widest text-muted-foreground">Ops/min</div>
+                  <div className="text-base font-bold text-primary">
+                    {recent.length > 1
+                      ? (() => {
+                          const first = new Date(recent[recent.length - 1].created_at).getTime();
+                          const last = new Date(recent[0].created_at).getTime();
+                          const mins = Math.max(1, (last - first) / 60000);
+                          return (recent.length / mins).toFixed(1);
+                        })()
+                      : "—"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Scrolling event log */}
+              <div className="bg-background/40 rounded-lg p-2 border border-border/20 space-y-0.5 max-h-32 overflow-hidden">
+                <div className="text-[9px] uppercase tracking-widest text-muted-foreground/60 mb-1 flex items-center gap-1">
+                  <Activity className="w-2.5 h-2.5" /> event stream
+                </div>
+                {stream.map((l) => {
+                  const ok = (l.response_length || 0) > 0;
+                  const ms = l.response_time_ms ?? 0;
+                  const t = new Date(l.created_at).toLocaleTimeString([], { hour12: false });
+                  return (
+                    <div key={l.id} className="text-[10px] flex items-center gap-2 truncate">
+                      <span className="text-muted-foreground/60 shrink-0">{t}</span>
+                      <span className={`shrink-0 ${ok ? "text-primary" : "text-destructive"}`}>
+                        {ok ? "OK " : "ERR"}
+                      </span>
+                      <span className="text-muted-foreground/80 shrink-0 w-12">
+                        {ms ? `${ms}ms` : "—"}
+                      </span>
+                      <span className="text-foreground/70 truncate">{l.query_text}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Stat Cards */}
         <div className="grid grid-cols-2 gap-3">

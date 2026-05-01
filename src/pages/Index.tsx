@@ -150,6 +150,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
   const [messages, setMessages] = useState<Record<string, Message[]>>({});
   const [isThinking, setIsThinking] = useState(false);
   const [currentVibe, setCurrentVibe] = useState<WilsonVibe>("neutral");
+  const [coreDream, setCoreDream] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sovereigntyOpen, setSovereigntyOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -200,10 +201,13 @@ const Index = ({ userId, displayName }: IndexProps) => {
           referral_source: referral.source,
         },
         { onConflict: "user_id" }
-      ).select("emotional_vibe").single();
+      ).select("emotional_vibe, core_dream").single();
 
       if (profileData?.emotional_vibe) {
         setCurrentVibe(profileData.emotional_vibe as WilsonVibe);
+      }
+      if (profileData?.core_dream) {
+        setCoreDream(profileData.core_dream);
       }
 
       setLoaded(true);
@@ -366,7 +370,9 @@ const Index = ({ userId, displayName }: IndexProps) => {
                 supabase.from("profiles").update({ emotional_vibe: newVibe }).eq("user_id", userId).then();
               }
               if (dreamMatch) {
-                supabase.from("profiles").update({ core_dream: dreamMatch[1].trim() }).eq("user_id", userId).then();
+                const newDream = dreamMatch[1].trim();
+                setCoreDream(newDream);
+                supabase.from("profiles").update({ core_dream: newDream }).eq("user_id", userId).then();
               }
 
               const cleanContent = assistantSoFar
@@ -506,6 +512,16 @@ const Index = ({ userId, displayName }: IndexProps) => {
             <LogOut className="w-4 h-4" />
           </button>
         </header>
+        {coreDream && activeChat && (
+          <div className="px-4 py-2 border-b border-border/10 bg-void-surface/20 backdrop-blur-md flex items-center gap-2">
+            <span className="text-[9px] uppercase tracking-[0.2em] font-bold text-primary/70 shrink-0">
+              ✦ Memory Anchor
+            </span>
+            <p className="text-[11px] text-foreground/80 italic truncate" title={coreDream}>
+              {coreDream}
+            </p>
+          </div>
+        )}
         <SovereigntyPanel
           userId={userId}
           isOpen={sovereigntyOpen}
