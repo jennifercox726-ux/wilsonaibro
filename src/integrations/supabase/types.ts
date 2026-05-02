@@ -188,6 +188,39 @@ export type Database = {
         }
         Relationships: []
       }
+      message_embeddings: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          embedding: string | null
+          id: string
+          message_id: string | null
+          role: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          message_id?: string | null
+          role: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          message_id?: string | null
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           content: string
@@ -392,6 +425,22 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      match_user_messages: {
+        Args: {
+          _exclude_conversation?: string
+          _match_count?: number
+          _min_similarity?: number
+          _query_embedding: string
+          _user_id: string
+        }
+        Returns: {
+          content: string
+          conversation_id: string
+          created_at: string
+          role: string
+          similarity: number
+        }[]
       }
     }
     Enums: {
