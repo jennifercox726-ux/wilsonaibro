@@ -12,6 +12,7 @@ let currentAbort: AbortController | null = null;
 let playbackUnlockPromise: Promise<void> | null = null;
 let unlockedPlaybackAudio: HTMLAudioElement | null = null;
 let playbackUnlocked = false;
+let speechSynthesisPrimed = false;
 
 export type SpeakResult = "ok" | "blocked" | "error";
 
@@ -292,6 +293,25 @@ export function primeElevenLabsPlayback(): void {
       audio.muted = false;
       playbackUnlocked = false;
     });
+
+  // Prime the browser-native fallback during the same user gesture. Mobile
+  // Safari can block SpeechSynthesis if the first `speak()` happens after the
+  // AI/network round trip, so we open that gate here too.
+  if (!speechSynthesisPrimed && "speechSynthesis" in window) {
+    try {
+      const utter = new SpeechSynthesisUtterance(".");
+      utter.volume = 0;
+      utter.rate = 1;
+      utter.pitch = 1;
+      utter.lang = "en-GB";
+      utter.onend = () => { speechSynthesisPrimed = true; };
+      utter.onerror = () => { speechSynthesisPrimed = false; };
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utter);
+    } catch {
+      speechSynthesisPrimed = false;
+    }
+  }
 
   void unlockAudioContext();
 }
