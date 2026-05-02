@@ -301,6 +301,10 @@ const Index = ({ userId, displayName }: IndexProps) => {
         role: "user",
         content,
       }).then();
+      // Fire-and-forget: embed for semantic memory
+      supabase.functions.invoke("embed-message", {
+        body: { conversation_id: targetChatId, role: "user", content },
+      }).then();
 
       setChats((prev) =>
         prev.map((c) => {
@@ -397,6 +401,10 @@ const Index = ({ userId, displayName }: IndexProps) => {
                 conversation_id: targetChatId,
                 role: "assistant",
                 content: assistantSoFar,
+              }).then();
+              // Fire-and-forget: embed for semantic memory
+              supabase.functions.invoke("embed-message", {
+                body: { conversation_id: targetChatId, role: "assistant", content: assistantSoFar },
               }).then();
 
               void speakWithElevenLabs(assistantSoFar);
