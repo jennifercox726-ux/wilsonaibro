@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, LogOut, Shield } from "lucide-react";
+import { Menu, LogOut, Shield, Volume2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ChatSidebar, { Chat } from "@/components/ChatSidebar";
@@ -10,7 +10,7 @@ import WilsonOrb, { WilsonVibe } from "@/components/WilsonOrb";
 import NeuralNebula from "@/components/NeuralNebula";
 import IOSIframeBanner from "@/components/IOSIframeBanner";
 import SovereigntyPanel from "@/components/SovereigntyPanel";
-import { speakWithElevenLabs, stopElevenLabs } from "@/lib/elevenLabsTTS";
+import { primeElevenLabsPlayback, speakWithElevenLabs, stopElevenLabs } from "@/lib/elevenLabsTTS";
 import { useReferral } from "@/hooks/useReferral";
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
@@ -155,6 +155,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
   const [sovereigntyOpen, setSovereigntyOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [loadingChatId, setLoadingChatId] = useState<string | null>(null);
+  const [audioPrimed, setAudioPrimed] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const referral = useReferral();
 
@@ -465,6 +466,12 @@ const Index = ({ userId, displayName }: IndexProps) => {
     await supabase.auth.signOut();
   };
 
+  const handlePrimeAudio = useCallback(() => {
+    primeElevenLabsPlayback();
+    setAudioPrimed(true);
+    toast.success("Audio gate opened.");
+  }, []);
+
   const currentMessages = activeChat ? messages[activeChat] : undefined;
   const isCurrentThreadLoading = !!activeChat && loadingChatId === activeChat && !currentMessages;
 
@@ -511,6 +518,18 @@ const Index = ({ userId, displayName }: IndexProps) => {
             title="Sovereignty Sentinel"
           >
             <Shield className="w-4 h-4" />
+          </button>
+          <button
+            onClick={handlePrimeAudio}
+            className={`p-2 rounded-xl transition-colors ${
+              audioPrimed
+                ? "bg-primary/15 text-primary"
+                : "hover:bg-muted/50 text-muted-foreground"
+            }`}
+            title={audioPrimed ? "Audio primed" : "Prime audio"}
+            aria-label={audioPrimed ? "Audio primed" : "Prime audio"}
+          >
+            <Volume2 className="w-4 h-4" />
           </button>
           <button
             onClick={handleLogout}
