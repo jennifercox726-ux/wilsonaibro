@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 const DEFAULT_VOICE_ID = "nuUdpqJIinrhTtBwCJ3Q";
-const MODEL_ID = "eleven_turbo_v2_5";
+const MODEL_ID = "eleven_flash_v2_5";
 
 interface TTSRequestBody {
   prompt?: string;

@@ -154,17 +154,21 @@ async function loadBrowserVoices(): Promise<SpeechSynthesisVoice[]> {
 
 function pickWilsonVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | undefined {
   // Closest match to the ElevenLabs "Payload" male British timbre we use as primary.
+  // Prioritize known-good high-quality British male voices on iOS/macOS/Chrome/Edge.
   const tiers: RegExp[] = [
-    /en-GB.*(Daniel|Ryan|Oliver|Arthur|George|Thomas|Male)/i,
-    /(Daniel|Ryan|Oliver|Arthur).*en[-_]?GB/i,
-    /Google UK English Male/i,
-    /Microsoft (Ryan|George|Thomas)/i,
-    /en-GB/i,
-    /en[-_]?(US|AU|IE|CA).*Male/i,
+    /^Daniel$/i,                                   // iOS/macOS premium British male
+    /Daniel.*en[-_]?GB|en[-_]?GB.*Daniel/i,
+    /Google UK English Male/i,                     // Chrome desktop
+    /Microsoft Ryan.*Online.*\(Natural\)/i,        // Edge neural
+    /Microsoft (Ryan|George|Thomas).*en[-_]?GB/i,
+    /Arthur|Oliver/i,                              // iOS 17+ enhanced British males
+    /en-GB.*Male/i,
+    /en-GB/i,                                      // any British voice beats robot default
+    /en[-_]?(IE|AU).*Male/i,
     /^en/i,
   ];
   for (const re of tiers) {
-    const hit = voices.find((v) => re.test(`${v.lang} ${v.name}`));
+    const hit = voices.find((v) => re.test(`${v.lang} ${v.name}`) || re.test(v.name));
     if (hit) return hit;
   }
   return voices[0];
