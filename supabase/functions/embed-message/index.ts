@@ -78,10 +78,11 @@ serve(async (req) => {
 
     const vec = await embed(content, apiKey);
     if (!vec) {
-      return new Response(JSON.stringify({ error: "embed failed" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      // Gateway no longer allows text-embedding-004; degrade gracefully so chat keeps working.
+      return new Response(
+        JSON.stringify({ skipped: true, reason: "embedding_unavailable" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     const { error } = await sb.from("message_embeddings").insert({
