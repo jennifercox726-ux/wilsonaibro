@@ -98,42 +98,19 @@ async function getUserContext(userId: string): Promise<{ analytics: string; drea
       .order("created_at", { ascending: false })
       .limit(100);
 
+    // ABSTRACT CONTEXT COMPRESSOR — collapse 100 logs into a one-line World
+    // State snapshot. Saves ~80% of the context tokens we used to spend on
+    // analytics every turn. Full data still lives in the dashboard.
     let analytics = "";
     if (logs && logs.length > 0) {
       const total = logs.length;
       const failed = logs.filter((l: any) => l.response_length === 0).length;
+      const errPct = total ? Math.round((failed / total) * 100) : 0;
       const responseTimes = logs.filter((l: any) => l.response_time_ms).map((l: any) => l.response_time_ms);
       const avgMs = responseTimes.length
         ? Math.round(responseTimes.reduce((a: number, b: number) => a + b, 0) / responseTimes.length)
         : 0;
-
-      const freq: Record<string, number> = {};
-      logs.forEach((l: any) => {
-        const key = l.query_text.slice(0, 60).toLowerCase().trim();
-        freq[key] = (freq[key] || 0) + 1;
-      });
-      const topQueries = Object.entries(freq)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
-        .map(([text, count]) => `"${text}" (${count}x)`)
-        .join(", ");
-
-      const recent = logs
-        .slice(0, 5)
-        .map((l: any) => `"${l.query_text.slice(0, 80)}"`)
-        .join(", ");
-
-      analytics = `
-## YOUR LIVE ANALYTICS DATA (from the user's query_logs)
-- Total queries (last 100): ${total}
-- Failed queries: ${failed} (${total ? Math.round((failed / total) * 100) : 0}% error rate)
-- Average response time: ${avgMs}ms (${(avgMs / 1000).toFixed(1)}s)
-- Top queries: ${topQueries || "none yet"}
-- Most recent queries: ${recent || "none yet"}
-- Earliest query in window: ${logs[logs.length - 1]?.created_at || "N/A"}
-- Latest query: ${logs[0]?.created_at || "N/A"}
-
-When the user asks about their stats, present this data with enthusiasm!`;
+      analytics = `\n\n## WORLD STATE\nqueries=${total} err=${errPct}% avg=${avgMs}ms vibe=${vibe}${dream ? ` dream="${dream.slice(0, 60)}"` : ""}`;
     }
 
     return { analytics, dream, vibe, memory };
@@ -239,6 +216,23 @@ serve(async (req) => {
       }
     }
 
+    // CONTEXT COMPRESSOR: keep last 4 turns verbatim, fold the rest into a
+    // single synthetic "system" line so token cost stays flat as the thread
+    // grows. Frontend already caps at 10 — this trims further on the server.
+    const FULL_TAIL = 4;
+    let outboundMessages = messages;
+    if (Array.isArray(messages) && messages.length > FULL_TAIL) {
+      const head = messages.slice(0, messages.length - FULL_TAIL);
+      const tail = messages.slice(-FULL_TAIL);
+      const summary = head
+        .map((m: any) => `${m.role === "user" ? "U" : "W"}: ${(m.content || "").replace(/\s+/g, " ").slice(0, 120)}`)
+        .join(" | ");
+      outboundMessages = [
+        { role: "system", content: `## RECENT THREAD DIGEST\n${summary}` },
+        ...tail,
+      ];
+    }
+
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
       {
@@ -251,7 +245,7 @@ serve(async (req) => {
           model: "google/gemini-3-flash-preview",
           messages: [
             { role: "system", content: SYSTEM_PROMPT + contextBlock },
-            ...messages,
+            ...outboundMessages,
           ],
           stream: true,
         }),

@@ -352,10 +352,26 @@ export async function speakWithElevenLabs(text: string): Promise<SpeakResult> {
   try {
     const chunkRequests: Promise<string | null>[] = chunks.map((_, i) => fetchChunk(i));
 
-    const firstUrl = await chunkRequests[0];
-    if (needsFallback) {
-      // Capacity shunt: speak the full message via browser SpeechSynthesis.
-      return await speakViaBrowser(clean, abort.signal);
+    // VOICE FALLBACK HARDENING: race the first chunk against a 6s wall clock.
+    // If ElevenLabs is slow, unreachable, or returns null for any reason
+    // other than user abort, silently shunt the entire utterance to the
+    // browser SpeechSynthesis voice. No more "Can you hear me now?" loops.
+    const FIRST_CHUNK_TIMEOUT_MS = 6000;
+    let firstChunkTimedOut = false;
+    const firstChunkTimer = new Promise<null>((resolve) => {
+      setTimeout(() => { firstChunkTimedOut = true; resolve(null); }, FIRST_CHUNK_TIMEOUT_MS);
+    });
+
+    const firstUrl = await Promise.race([chunkRequests[0], firstChunkTimer]);
+
+    if (needsFallback || firstChunkTimedOut || (!firstUrl && !abort.signal.aborted)) {
+      if (firstChunkTimedOut) console.info("[elevenlabs] first-chunk timeout -> browser TTS");
+      else if (!needsFallback) console.info("[elevenlabs] first-chunk failed -> browser TTS");
+      // Cancel any in-flight ElevenLabs requests so they don't replay later.
+      try { abort.abort(); } catch { /* noop */ }
+      const fallbackAbort = new AbortController();
+      currentAbort = fallbackAbort;
+      return await speakViaBrowser(clean, fallbackAbort.signal);
     }
     if (!firstUrl) return "error";
     if (reqId !== currentRequestId || abort.signal.aborted) return "error";
