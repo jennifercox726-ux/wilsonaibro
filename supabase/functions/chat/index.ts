@@ -216,6 +216,23 @@ serve(async (req) => {
       }
     }
 
+    // CONTEXT COMPRESSOR: keep last 4 turns verbatim, fold the rest into a
+    // single synthetic "system" line so token cost stays flat as the thread
+    // grows. Frontend already caps at 10 — this trims further on the server.
+    const FULL_TAIL = 4;
+    let outboundMessages = messages;
+    if (Array.isArray(messages) && messages.length > FULL_TAIL) {
+      const head = messages.slice(0, messages.length - FULL_TAIL);
+      const tail = messages.slice(-FULL_TAIL);
+      const summary = head
+        .map((m: any) => `${m.role === "user" ? "U" : "W"}: ${(m.content || "").replace(/\s+/g, " ").slice(0, 120)}`)
+        .join(" | ");
+      outboundMessages = [
+        { role: "system", content: `## RECENT THREAD DIGEST\n${summary}` },
+        ...tail,
+      ];
+    }
+
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
       {
@@ -228,7 +245,7 @@ serve(async (req) => {
           model: "google/gemini-3-flash-preview",
           messages: [
             { role: "system", content: SYSTEM_PROMPT + contextBlock },
-            ...messages,
+            ...outboundMessages,
           ],
           stream: true,
         }),
