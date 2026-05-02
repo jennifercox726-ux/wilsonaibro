@@ -176,6 +176,62 @@ serve(async (req) => {
             if (ctx.vibe && ctx.vibe !== "neutral") {
               contextBlock += `\n\n## USER'S CURRENT EMOTIONAL VIBE: ${ctx.vibe.toUpperCase()}\nAdapt your tone accordingly.`;
             }
+
+            // ---- Semantic memory recall -------------------------------
+            // Embed the latest user turn and pull the top-K most similar
+            // past messages from OTHER conversations. Real long-term memory.
+            try {
+              const lastUser = [...messages].reverse().find((m: any) => m?.role === "user");
+              const queryText: string | undefined = lastUser?.content;
+              if (queryText && queryText.trim().length >= 8) {
+                const embedRes = await fetch(
+                  "https://ai.gateway.lovable.dev/v1/embeddings",
+                  {
+                    method: "POST",
+                    headers: {
+                      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+                      "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                      model: "google/text-embedding-004",
+                      input: queryText.slice(0, 8000),
+                    }),
+                  },
+                );
+                if (embedRes.ok) {
+                  const embedJson = await embedRes.json();
+                  const qvec = embedJson?.data?.[0]?.embedding;
+                  if (Array.isArray(qvec)) {
+                    const { data: matches, error: matchErr } = await sb.rpc(
+                      "match_user_messages",
+                      {
+                        _user_id: user.id,
+                        _query_embedding: qvec as unknown as string,
+                        _exclude_conversation: null,
+                        _match_count: 5,
+                        _min_similarity: 0.55,
+                      },
+                    );
+                    if (matchErr) {
+                      console.error("[chat] match rpc error", matchErr);
+                    } else if (matches && matches.length > 0) {
+                      const lines = matches
+                        .map((m: any) => {
+                          const who = m.role === "user" ? "User" : "You (Wilson)";
+                          const snippet = (m.content || "").slice(0, 280).replace(/\s+/g, " ");
+                          return `- [${who}, sim ${m.similarity.toFixed(2)}]: "${snippet}"`;
+                        })
+                        .join("\n");
+                      contextBlock += `\n\n## SEMANTIC MEMORY (relevant excerpts from past conversations)\nThese are real things the user said or you said before that are semantically related to their current message. Use them ONLY if they're actually relevant — don't force callbacks.\n${lines}`;
+                    }
+                  }
+                } else {
+                  console.error("[chat] embed call failed", embedRes.status);
+                }
+              }
+            } catch (e) {
+              console.error("[chat] semantic recall error", e);
+            }
           }
         }
       } catch (e) {
