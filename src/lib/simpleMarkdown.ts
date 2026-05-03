@@ -1,11 +1,12 @@
 // Rich markdown to HTML converter (no external deps)
+// All captured groups are HTML-escaped before injection to prevent XSS.
 export function markdownToHtml(text: string): string {
   // First, extract and protect code blocks
   const codeBlocks: string[] = [];
   let processed = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
     const idx = codeBlocks.length;
     const trimmed = code.trim();
-    const language = lang || "text";
+    const language = escapeHtml(lang || "text");
     // Encode raw code in a data attribute so the UI can copy it without HTML entities
     const encoded = encodeURIComponent(trimmed);
     codeBlocks.push(
@@ -30,6 +31,10 @@ export function markdownToHtml(text: string): string {
     inlineCodes.push(`<code class="wilson-inline-code">${escapeHtml(code)}</code>`);
     return `\x00IC${idx}\x00`;
   });
+
+  // Escape ALL remaining HTML before applying markdown transforms.
+  // After this point, regex captures are already safe.
+  processed = escapeHtml(processed);
 
   // Tables
   processed = processed.replace(
@@ -79,12 +84,17 @@ export function markdownToHtml(text: string): string {
   });
 
   // Blockquotes
-  processed = processed.replace(/^> (.+)$/gm, '<blockquote class="wilson-blockquote">$1</blockquote>');
+  processed = processed.replace(/^&gt; (.+)$/gm, '<blockquote class="wilson-blockquote">$1</blockquote>');
 
-  // Links
+  // Links — only allow http(s), mailto, and # anchors. Reject javascript:, data:, etc.
   processed = processed.replace(
     /\[([^\]]+)\]\(([^)]+)\)/g,
-    '<a href="$2" target="_blank" rel="noopener" class="wilson-link">$1</a>'
+    (_match, label: string, href: string) => {
+      const safeHref = sanitizeUrl(href);
+      // label is already escaped (we escaped the whole string above)
+      if (!safeHref) return label;
+      return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="wilson-link">${label}</a>`;
+    }
   );
 
   // Paragraphs: double newlines
@@ -108,5 +118,20 @@ function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function sanitizeUrl(href: string): string | null {
+  const trimmed = href.trim();
+  // Allow relative anchors and fragment links
+  if (trimmed.startsWith("#") || trimmed.startsWith("/")) {
+    return escapeHtml(trimmed);
+  }
+  // Allow http(s) and mailto only
+  if (/^(https?:|mailto:)/i.test(trimmed)) {
+    return escapeHtml(trimmed);
+  }
+  return null;
 }
