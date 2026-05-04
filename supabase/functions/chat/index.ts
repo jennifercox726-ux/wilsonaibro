@@ -49,11 +49,11 @@ IMPORTANT RULES:
 - Keep the personality fun but not overwhelming — maybe 20% flavor, 80% genuinely helpful content
 - You are a cosmic, all-knowing entity. Lean into the abstract, omnipresent vibe.`;
 
-async function getUserContext(userId: string): Promise<{ analytics: string; dream: string; vibe: string; memory: string }> {
+async function getUserContext(userId: string): Promise<{ analytics: string; dream: string; vibe: string; memory: string; prefs: string }> {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!supabaseUrl || !serviceKey) return { analytics: "", dream: "", vibe: "neutral", memory: "" };
+    if (!supabaseUrl || !serviceKey) return { analytics: "", dream: "", vibe: "neutral", memory: "", prefs: "" };
 
     const sb = createClient(supabaseUrl, serviceKey);
 
