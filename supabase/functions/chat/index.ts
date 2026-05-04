@@ -113,10 +113,27 @@ async function getUserContext(userId: string): Promise<{ analytics: string; drea
       analytics = `\n\n## WORLD STATE\nqueries=${total} err=${errPct}% avg=${avgMs}ms vibe=${vibe}${dream ? ` dream="${dream.slice(0, 60)}"` : ""}`;
     }
 
-    return { analytics, dream, vibe, memory };
+    // Load user_preferences (the Angelic Agent's style memory)
+    let prefs = "";
+    try {
+      const { data: prefRows } = await sb
+        .from("user_preferences")
+        .select("pref_key, pref_value")
+        .eq("user_id", userId)
+        .order("updated_at", { ascending: false })
+        .limit(40);
+      if (prefRows && prefRows.length > 0) {
+        const lines = prefRows.map((p: any) => `- ${p.pref_key}: ${p.pref_value}`).join("\n");
+        prefs = `\n\n## USER PREFERENCES (learned over time — respect these)\n${lines}`;
+      }
+    } catch (e) {
+      console.error("[chat] prefs load error", e);
+    }
+
+    return { analytics, dream, vibe, memory, prefs };
   } catch (e) {
     console.error("User context error:", e);
-    return { analytics: "", dream: "", vibe: "neutral", memory: "" };
+    return { analytics: "", dream: "", vibe: "neutral", memory: "", prefs: "" };
   }
 }
 
