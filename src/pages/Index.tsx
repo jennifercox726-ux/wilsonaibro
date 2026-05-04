@@ -383,6 +383,8 @@ const Index = ({ userId, displayName }: IndexProps) => {
               const cleanContent = assistantSoFar
                 .replace(/\[VIBE:\s*\w+\]/gi, "")
                 .replace(/\[DREAM_UPDATE:\s*.+?\]/gi, "")
+                .replace(/\[PREF:\s*[^\]]+\]/gi, "")
+                .replace(/\[MEMORY:\s*[^\]]+\]/gi, "")
                 .trim();
 
               if (cleanContent !== assistantSoFar) {
@@ -495,6 +497,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
         onDeleteChat={handleDeleteChat}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        userId={userId}
       />
 
       <div className="flex-1 flex flex-col min-w-0">
