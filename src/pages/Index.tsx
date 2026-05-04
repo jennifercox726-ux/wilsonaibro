@@ -497,6 +497,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
         onDeleteChat={handleDeleteChat}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        userId={userId}
       />
 
       <div className="flex-1 flex flex-col min-w-0">
