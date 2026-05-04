@@ -336,6 +336,10 @@ serve(async (req) => {
         let buffer = "";
         let stopReason: string | null = null;
         let sawAnyContent = false;
+        let fullText = "";
+        const authedUserId: string | undefined = (req as any).__authedUserId;
+        const authedSb = (req as any).__authedSb;
+        const LOVABLE_API_KEY_INNER = Deno.env.get("LOVABLE_API_KEY") || "";
 
         const sseChunk = (text: string) => {
           const payload = {
