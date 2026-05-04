@@ -380,7 +380,11 @@ serve(async (req) => {
               try {
                 const parsed = JSON.parse(json);
                 const choice = parsed?.choices?.[0];
-                if (choice?.delta?.content) sawAnyContent = true;
+                const delta = choice?.delta?.content;
+                if (delta) {
+                  sawAnyContent = true;
+                  fullText += delta;
+                }
                 const finish = choice?.finish_reason || choice?.finishReason;
                 if (finish && finish !== "stop" && finish !== "STOP") {
                   stopReason = finish;
@@ -402,6 +406,51 @@ serve(async (req) => {
           console.error("[chat] stream wrapper error:", err);
         } finally {
           controller.close();
+          // Tag write-back: parse [PREF: k=v] and [MEMORY: topic | decision | rationale]
+          if (authedUserId && authedSb && fullText) {
+            try {
+              const prefRe = /\[PREF:\s*([^=\]]+)=([^\]]+)\]/gi;
+              let m: RegExpExecArray | null;
+              const prefRows: { user_id: string; pref_key: string; pref_value: string; source: string }[] = [];
+              while ((m = prefRe.exec(fullText)) !== null) {
+                const key = m[1].trim().toLowerCase().replace(/\s+/g, "_").slice(0, 80);
+                const value = m[2].trim().slice(0, 500);
+                if (key && value) prefRows.push({ user_id: authedUserId, pref_key: key, pref_value: value, source: "wilson_inferred" });
+              }
+              if (prefRows.length > 0) {
+                await authedSb.from("user_preferences").upsert(prefRows, { onConflict: "user_id,pref_key" });
+              }
+
+              const memRe = /\[MEMORY:\s*([^|\]]+)\|([^|\]]+)(?:\|([^\]]+))?\]/gi;
+              const memRows: any[] = [];
+              while ((m = memRe.exec(fullText)) !== null) {
+                const topic = m[1].trim().slice(0, 200);
+                const decision = m[2].trim().slice(0, 1000);
+                const rationale = (m[3] || "").trim().slice(0, 2000);
+                if (topic && decision) {
+                  // Embed topic+decision for semantic recall
+                  let embedding: number[] | null = null;
+                  try {
+                    const er = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
+                      method: "POST",
+                      headers: { Authorization: `Bearer ${LOVABLE_API_KEY_INNER}`, "Content-Type": "application/json" },
+                      body: JSON.stringify({ model: "google/text-embedding-004", input: `${topic}: ${decision}` }),
+                    });
+                    if (er.ok) {
+                      const ej = await er.json();
+                      embedding = ej?.data?.[0]?.embedding ?? null;
+                    }
+                  } catch (_) { /* embed best-effort */ }
+                  memRows.push({ user_id: authedUserId, topic, decision, rationale: rationale || null, embedding: embedding as any });
+                }
+              }
+              if (memRows.length > 0) {
+                await authedSb.from("strategic_memory").insert(memRows);
+              }
+            } catch (e) {
+              console.error("[chat] tag write-back error", e);
+            }
+          }
         }
       },
     });
