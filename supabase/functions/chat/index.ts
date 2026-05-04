@@ -164,6 +164,9 @@ serve(async (req) => {
             if (ctx.memory) {
               contextBlock += ctx.memory;
             }
+            if (ctx.prefs) {
+              contextBlock += ctx.prefs;
+            }
             if (ctx.dream) {
               contextBlock += `\n\n## USER'S CORE DREAM\nThe user's current dream/goal: "${ctx.dream}"\nSubtly tie your advice back to this dream when relevant.`;
             }
