@@ -221,6 +221,23 @@ serve(async (req) => {
                         .join("\n");
                       contextBlock += `\n\n## SEMANTIC MEMORY (relevant excerpts from past conversations)\nThese are real things the user said or you said before that are semantically related to their current message. Use them ONLY if they're actually relevant — don't force callbacks.\n${lines}`;
                     }
+
+                    // ---- Strategic memory recall (PE decisions) ----
+                    const { data: smMatches } = await sb.rpc(
+                      "match_strategic_memory",
+                      {
+                        _user_id: user.id,
+                        _query_embedding: qvec as unknown as string,
+                        _match_count: 5,
+                        _min_similarity: 0.55,
+                      },
+                    );
+                    if (smMatches && smMatches.length > 0) {
+                      const smLines = smMatches
+                        .map((m: any) => `- [${m.topic}] ${m.decision}${m.rationale ? ` — ${m.rationale}` : ""}`)
+                        .join("\n");
+                      contextBlock += `\n\n## STRATEGIC MEMORY (PE decisions you've recorded for this user)\nThese are prior decisions/rationale you should align with:\n${smLines}`;
+                    }
                   }
                 } else {
                   console.error("[chat] embed call failed", embedRes.status);
@@ -229,6 +246,10 @@ serve(async (req) => {
             } catch (e) {
               console.error("[chat] semantic recall error", e);
             }
+
+            // Expose for tag write-back in stream wrapper
+            (req as any).__authedUserId = user.id;
+            (req as any).__authedSb = sb;
           }
         }
       } catch (e) {
