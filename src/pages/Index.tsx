@@ -156,11 +156,20 @@ const Index = ({ userId, displayName }: IndexProps) => {
   const [coreDream, setCoreDream] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sovereigntyOpen, setSovereigntyOpen] = useState(false);
+  const [vibeTrackerOpen, setVibeTrackerOpen] = useState(false);
+  const [ghostModeOpen, setGhostModeOpen] = useState(false);
+  const [ghostMode, setGhostMode] = useState<GhostModeState>(() => loadGhostMode());
   const [loaded, setLoaded] = useState(false);
   const [loadingChatId, setLoadingChatId] = useState<string | null>(null);
   const [audioPrimed, setAudioPrimed] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const referral = useReferral();
+
+  useEffect(() => {
+    const handler = (e: Event) => setGhostMode((e as CustomEvent).detail);
+    window.addEventListener("ghost-mode-changed", handler);
+    return () => window.removeEventListener("ghost-mode-changed", handler);
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
