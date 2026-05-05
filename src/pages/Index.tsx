@@ -585,6 +585,8 @@ const Index = ({ userId, displayName }: IndexProps) => {
           isOpen={sovereigntyOpen}
           onClose={() => setSovereigntyOpen(false)}
         />
+        <VibeTracker userId={userId} isOpen={vibeTrackerOpen} onClose={() => setVibeTrackerOpen(false)} />
+        <GhostModePanel isOpen={ghostModeOpen} onClose={() => setGhostModeOpen(false)} />
 
         <div className="flex-1 overflow-y-auto px-4 py-6">
           {!activeChat ? (
@@ -611,9 +613,12 @@ const Index = ({ userId, displayName }: IndexProps) => {
             </div>
           ) : (
             <div className="max-w-2xl mx-auto space-y-5">
-              {(currentMessages || []).map((msg, i) => (
-                <ChatMessage key={msg.id} message={msg} index={i} />
-              ))}
+              {(currentMessages || []).map((msg, i) => {
+                const filtered = msg.role === "assistant"
+                  ? { ...msg, content: applyGhostFilter(msg.content, ghostMode) }
+                  : msg;
+                return <ChatMessage key={msg.id} message={filtered} index={i} />;
+              })}
               <AnimatePresence>
                 {isThinking && !(currentMessages || []).some((m) => m.id.startsWith("stream-")) && (
                   <motion.div
