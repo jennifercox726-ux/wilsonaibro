@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, LogOut, Shield, Volume2 } from "lucide-react";
+import { Menu, LogOut, Shield, Volume2, Sparkles, Ghost } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ChatSidebar, { Chat } from "@/components/ChatSidebar";
@@ -10,6 +10,9 @@ import WilsonOrb, { WilsonVibe } from "@/components/WilsonOrb";
 import NeuralNebula from "@/components/NeuralNebula";
 import IOSIframeBanner from "@/components/IOSIframeBanner";
 import SovereigntyPanel from "@/components/SovereigntyPanel";
+import VibeTracker from "@/components/VibeTracker";
+import GhostModePanel from "@/components/GhostModePanel";
+import { applyGhostFilter, loadGhostMode, GhostModeState } from "@/lib/ghostMode";
 import { primeElevenLabsPlayback, speakWithElevenLabs, stopElevenLabs } from "@/lib/elevenLabsTTS";
 import { useReferral } from "@/hooks/useReferral";
 
