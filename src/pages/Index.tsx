@@ -528,6 +528,22 @@ const Index = ({ userId, displayName }: IndexProps) => {
             </p>
           </div>
           <button
+            onClick={() => setVibeTrackerOpen(true)}
+            className="p-2 rounded-xl hover:bg-muted/50 text-muted-foreground transition-colors"
+            title="Vibe Tracker"
+          >
+            <Sparkles className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setGhostModeOpen(true)}
+            className={`p-2 rounded-xl transition-colors ${
+              ghostMode.enabled ? "bg-primary/15 text-primary" : "hover:bg-muted/50 text-muted-foreground"
+            }`}
+            title={ghostMode.enabled ? "Ghost Mode on" : "Ghost Mode"}
+          >
+            <Ghost className="w-4 h-4" />
+          </button>
+          <button
             onClick={() => setSovereigntyOpen(true)}
             className="p-2 rounded-xl hover:bg-muted/50 text-muted-foreground transition-colors"
             title="Sovereignty Sentinel"
