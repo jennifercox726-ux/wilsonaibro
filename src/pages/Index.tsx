@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, LogOut, Shield, Volume2 } from "lucide-react";
+import { Menu, LogOut, Shield, Volume2, Sparkles, Ghost } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ChatSidebar, { Chat } from "@/components/ChatSidebar";
@@ -10,6 +10,9 @@ import WilsonOrb, { WilsonVibe } from "@/components/WilsonOrb";
 import NeuralNebula from "@/components/NeuralNebula";
 import IOSIframeBanner from "@/components/IOSIframeBanner";
 import SovereigntyPanel from "@/components/SovereigntyPanel";
+import VibeTracker from "@/components/VibeTracker";
+import GhostModePanel from "@/components/GhostModePanel";
+import { applyGhostFilter, loadGhostMode, GhostModeState } from "@/lib/ghostMode";
 import { primeElevenLabsPlayback, speakWithElevenLabs, stopElevenLabs } from "@/lib/elevenLabsTTS";
 import { useReferral } from "@/hooks/useReferral";
 
@@ -153,11 +156,20 @@ const Index = ({ userId, displayName }: IndexProps) => {
   const [coreDream, setCoreDream] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sovereigntyOpen, setSovereigntyOpen] = useState(false);
+  const [vibeTrackerOpen, setVibeTrackerOpen] = useState(false);
+  const [ghostModeOpen, setGhostModeOpen] = useState(false);
+  const [ghostMode, setGhostMode] = useState<GhostModeState>(() => loadGhostMode());
   const [loaded, setLoaded] = useState(false);
   const [loadingChatId, setLoadingChatId] = useState<string | null>(null);
   const [audioPrimed, setAudioPrimed] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const referral = useReferral();
+
+  useEffect(() => {
+    const handler = (e: Event) => setGhostMode((e as CustomEvent).detail);
+    window.addEventListener("ghost-mode-changed", handler);
+    return () => window.removeEventListener("ghost-mode-changed", handler);
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -516,6 +528,22 @@ const Index = ({ userId, displayName }: IndexProps) => {
             </p>
           </div>
           <button
+            onClick={() => setVibeTrackerOpen(true)}
+            className="p-2 rounded-xl hover:bg-muted/50 text-muted-foreground transition-colors"
+            title="Vibe Tracker"
+          >
+            <Sparkles className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setGhostModeOpen(true)}
+            className={`p-2 rounded-xl transition-colors ${
+              ghostMode.enabled ? "bg-primary/15 text-primary" : "hover:bg-muted/50 text-muted-foreground"
+            }`}
+            title={ghostMode.enabled ? "Ghost Mode on" : "Ghost Mode"}
+          >
+            <Ghost className="w-4 h-4" />
+          </button>
+          <button
             onClick={() => setSovereigntyOpen(true)}
             className="p-2 rounded-xl hover:bg-muted/50 text-muted-foreground transition-colors"
             title="Sovereignty Sentinel"
@@ -557,6 +585,8 @@ const Index = ({ userId, displayName }: IndexProps) => {
           isOpen={sovereigntyOpen}
           onClose={() => setSovereigntyOpen(false)}
         />
+        <VibeTracker userId={userId} isOpen={vibeTrackerOpen} onClose={() => setVibeTrackerOpen(false)} />
+        <GhostModePanel isOpen={ghostModeOpen} onClose={() => setGhostModeOpen(false)} />
 
         <div className="flex-1 overflow-y-auto px-4 py-6">
           {!activeChat ? (
@@ -583,9 +613,12 @@ const Index = ({ userId, displayName }: IndexProps) => {
             </div>
           ) : (
             <div className="max-w-2xl mx-auto space-y-5">
-              {(currentMessages || []).map((msg, i) => (
-                <ChatMessage key={msg.id} message={msg} index={i} />
-              ))}
+              {(currentMessages || []).map((msg, i) => {
+                const filtered = msg.role === "assistant"
+                  ? { ...msg, content: applyGhostFilter(msg.content, ghostMode) }
+                  : msg;
+                return <ChatMessage key={msg.id} message={filtered} index={i} />;
+              })}
               <AnimatePresence>
                 {isThinking && !(currentMessages || []).some((m) => m.id.startsWith("stream-")) && (
                   <motion.div

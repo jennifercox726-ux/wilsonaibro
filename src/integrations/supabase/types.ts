@@ -522,6 +522,36 @@ export type Database = {
         }
         Relationships: []
       }
+      vibe_logs: {
+        Row: {
+          created_at: string
+          id: string
+          logged_on: string
+          note: string | null
+          updated_at: string
+          user_id: string
+          vibe: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          logged_on?: string
+          note?: string | null
+          updated_at?: string
+          user_id: string
+          vibe: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          logged_on?: string
+          note?: string | null
+          updated_at?: string
+          user_id?: string
+          vibe?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
