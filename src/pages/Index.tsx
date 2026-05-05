@@ -53,10 +53,12 @@ function getGreeting(
 
 async function streamChat({
   messages,
+  councilBriefing,
   onDelta,
   onDone,
 }: {
   messages: AiMsg[];
+  councilBriefing?: string;
   onDelta: (deltaText: string) => void;
   onDone: () => void;
 }) {
@@ -70,7 +72,7 @@ async function streamChat({
       Authorization: `Bearer ${token}`,
       apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
     },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify({ messages, council_briefing: councilBriefing }),
   });
 
   if (!resp.ok) {
