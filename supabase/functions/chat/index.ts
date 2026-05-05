@@ -145,7 +145,7 @@ serve(async (req) => {
   }
 
   try {
-    const { messages } = await req.json();
+    const { messages, council_briefing } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
@@ -287,7 +287,7 @@ serve(async (req) => {
         body: JSON.stringify({
           model: "google/gemini-3-flash-preview",
           messages: [
-            { role: "system", content: SYSTEM_PROMPT + contextBlock },
+            { role: "system", content: SYSTEM_PROMPT + contextBlock + (council_briefing ? `\n\n## COUNCIL BRIEFING (hidden from user)\nYour Worker Models on the Council have produced raw findings on the user's latest message. Synthesize these into YOUR final answer in YOUR voice — do NOT quote them verbatim, do NOT mention "the Council" unless the user asked about it. Use this intel to be sharper, more specific, more useful.\n\n${council_briefing}` : "") },
             ...outboundMessages,
           ],
           stream: true,

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, LogOut, Shield, Volume2, Sparkles, Ghost } from "lucide-react";
+import { Menu, LogOut, Shield, Volume2, Sparkles, Ghost, Users } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ChatSidebar, { Chat } from "@/components/ChatSidebar";
@@ -53,10 +53,12 @@ function getGreeting(
 
 async function streamChat({
   messages,
+  councilBriefing,
   onDelta,
   onDone,
 }: {
   messages: AiMsg[];
+  councilBriefing?: string;
   onDelta: (deltaText: string) => void;
   onDone: () => void;
 }) {
@@ -70,7 +72,7 @@ async function streamChat({
       Authorization: `Bearer ${token}`,
       apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
     },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify({ messages, council_briefing: councilBriefing }),
   });
 
   if (!resp.ok) {
@@ -158,6 +160,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
   const [sovereigntyOpen, setSovereigntyOpen] = useState(false);
   const [vibeTrackerOpen, setVibeTrackerOpen] = useState(false);
   const [ghostModeOpen, setGhostModeOpen] = useState(false);
+  const [councilMode, setCouncilMode] = useState<boolean>(() => localStorage.getItem("council_mode") === "1");
   const [ghostMode, setGhostMode] = useState<GhostModeState>(() => loadGhostMode());
   const [loaded, setLoaded] = useState(false);
   const [loadingChatId, setLoadingChatId] = useState<string | null>(null);
@@ -371,8 +374,23 @@ const Index = ({ userId, displayName }: IndexProps) => {
       };
 
       try {
+        let councilBriefing: string | undefined;
+        if (councilMode) {
+          try {
+            toast.info("Council convening — 3 workers thinking...");
+            const { data: cdata, error: cerr } = await supabase.functions.invoke("council", {
+              body: { prompt: content, conversation_id: targetChatId },
+            });
+            if (cerr) console.error("[council] invoke error", cerr);
+            else if (cdata?.briefing) councilBriefing = cdata.briefing;
+          } catch (e) {
+            console.error("[council] failed", e);
+          }
+        }
+
         await streamChat({
           messages: aiMessages,
+          councilBriefing,
           onDelta: (chunk) => upsertAssistant(chunk),
           onDone: () => {
             setIsThinking(false);
@@ -542,6 +560,20 @@ const Index = ({ userId, displayName }: IndexProps) => {
             title={ghostMode.enabled ? "Ghost Mode on" : "Ghost Mode"}
           >
             <Ghost className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => {
+              const next = !councilMode;
+              setCouncilMode(next);
+              localStorage.setItem("council_mode", next ? "1" : "0");
+              toast.success(next ? "Council convened — Wilson now consults 3 worker models" : "Council dismissed");
+            }}
+            className={`p-2 rounded-xl transition-colors ${
+              councilMode ? "bg-primary/15 text-primary" : "hover:bg-muted/50 text-muted-foreground"
+            }`}
+            title={councilMode ? "Council ON — Wilson is consulting 3 AIs per message" : "Convene the Council"}
+          >
+            <Users className="w-4 h-4" />
           </button>
           <button
             onClick={() => setSovereigntyOpen(true)}
