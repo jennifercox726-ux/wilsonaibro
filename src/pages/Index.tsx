@@ -374,8 +374,23 @@ const Index = ({ userId, displayName }: IndexProps) => {
       };
 
       try {
+        let councilBriefing: string | undefined;
+        if (councilMode) {
+          try {
+            toast.info("Council convening — 3 workers thinking...");
+            const { data: cdata, error: cerr } = await supabase.functions.invoke("council", {
+              body: { prompt: content, conversation_id: targetChatId },
+            });
+            if (cerr) console.error("[council] invoke error", cerr);
+            else if (cdata?.briefing) councilBriefing = cdata.briefing;
+          } catch (e) {
+            console.error("[council] failed", e);
+          }
+        }
+
         await streamChat({
           messages: aiMessages,
+          councilBriefing,
           onDelta: (chunk) => upsertAssistant(chunk),
           onDone: () => {
             setIsThinking(false);
