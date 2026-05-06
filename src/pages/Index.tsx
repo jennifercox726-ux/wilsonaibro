@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, LogOut, Shield, Volume2, Sparkles, Ghost, Users, Coins } from "lucide-react";
+import { Menu, LogOut, Shield, Volume2, Sparkles, Ghost, Users, Coins, LifeBuoy } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ChatSidebar, { Chat } from "@/components/ChatSidebar";
