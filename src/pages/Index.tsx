@@ -161,6 +161,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
   const [vibeTrackerOpen, setVibeTrackerOpen] = useState(false);
   const [ghostModeOpen, setGhostModeOpen] = useState(false);
   const [councilMode, setCouncilMode] = useState<boolean>(() => localStorage.getItem("council_mode") === "1");
+  const [freeVoice, setFreeVoice] = useState<boolean>(() => isFreeVoiceMode());
   const [ghostMode, setGhostMode] = useState<GhostModeState>(() => loadGhostMode());
   const [loaded, setLoaded] = useState(false);
   const [loadingChatId, setLoadingChatId] = useState<string | null>(null);
