@@ -331,6 +331,17 @@ export async function unlockElevenLabsPlayback(): Promise<void> {
   return playbackUnlockPromise;
 }
 
+export function isFreeVoiceMode(): boolean {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem("free_voice_mode") === "1";
+}
+
+export function setFreeVoiceMode(on: boolean): void {
+  if (typeof window === "undefined") return;
+  if (on) localStorage.setItem("free_voice_mode", "1");
+  else localStorage.removeItem("free_voice_mode");
+}
+
 export async function speakWithElevenLabs(text: string): Promise<SpeakResult> {
   const clean = stripForSpeech(text);
   if (!clean) return "error";
@@ -339,6 +350,11 @@ export async function speakWithElevenLabs(text: string): Promise<SpeakResult> {
   const reqId = ++currentRequestId;
   const abort = new AbortController();
   currentAbort = abort;
+
+  // Free Voice Mode: skip ElevenLabs entirely, use browser SpeechSynthesis.
+  if (isFreeVoiceMode()) {
+    return await speakViaBrowser(clean, abort.signal);
+  }
 
   // Synchronously prepare the playback element inside the caller's user
   // gesture so iOS keeps the autoplay permission alive across the awaits
