@@ -13,7 +13,7 @@ import SovereigntyPanel from "@/components/SovereigntyPanel";
 import VibeTracker from "@/components/VibeTracker";
 import GhostModePanel from "@/components/GhostModePanel";
 import { applyGhostFilter, loadGhostMode, GhostModeState } from "@/lib/ghostMode";
-import { primeElevenLabsPlayback, speakWithElevenLabs, stopElevenLabs } from "@/lib/elevenLabsTTS";
+import { primeElevenLabsPlayback, speakWithElevenLabs, stopElevenLabs, isFreeVoiceMode, setFreeVoiceMode } from "@/lib/elevenLabsTTS";
 import { useReferral } from "@/hooks/useReferral";
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
