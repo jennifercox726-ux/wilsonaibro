@@ -577,6 +577,21 @@ const Index = ({ userId, displayName }: IndexProps) => {
             <Users className="w-4 h-4" />
           </button>
           <button
+            onClick={() => {
+              const next = !freeVoice;
+              setFreeVoice(next);
+              setFreeVoiceMode(next);
+              stopElevenLabs();
+              toast.success(next ? "Free Voice Mode ON — using browser TTS, zero credits" : "Payload voice restored");
+            }}
+            className={`p-2 rounded-xl transition-colors ${
+              freeVoice ? "bg-primary/15 text-primary" : "hover:bg-muted/50 text-muted-foreground"
+            }`}
+            title={freeVoice ? "Free Voice ON — browser TTS, no ElevenLabs credits" : "Switch to free browser voice"}
+          >
+            <Coins className="w-4 h-4" />
+          </button>
+          <button
             onClick={() => setSovereigntyOpen(true)}
             className="p-2 rounded-xl hover:bg-muted/50 text-muted-foreground transition-colors"
             title="Sovereignty Sentinel"
