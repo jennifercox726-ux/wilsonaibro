@@ -610,6 +610,14 @@ const Index = ({ userId, displayName }: IndexProps) => {
           >
             <Volume2 className="w-4 h-4" />
           </button>
+          <a
+            href="mailto:support@lovable.dev?subject=Urgent%3A%20Need%20human%20support%20%E2%80%94%20Wilson%20app&body=Hi%20Lovable%20team%2C%20please%20have%20a%20human%20contact%20me%20about%20my%20account.%20Thanks."
+            className="p-2 rounded-xl hover:bg-muted/50 text-muted-foreground transition-colors"
+            title="Talk to a human"
+            aria-label="Talk to a human"
+          >
+            <LifeBuoy className="w-4 h-4" />
+          </a>
           <button
             onClick={handleLogout}
             className="p-2 rounded-xl hover:bg-muted/50 text-muted-foreground transition-colors"
