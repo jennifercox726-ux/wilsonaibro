@@ -1,4 +1,5 @@
 import { attachAudio, detachAudio, subscribe, getSpeaking, unlockAudioContext } from "@/lib/audioBus";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface ElevenLabsResult {
   audioUrl: string;
@@ -67,6 +68,12 @@ export async function generateElevenLabsAudio(
 ): Promise<ElevenLabsResult> {
   const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`;
   const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  const { data: { session } } = await supabase.auth.getSession();
+  const accessToken = session?.access_token;
+
+  if (!accessToken) {
+    throw new FallbackNeededError("auth_required");
+  }
 
   const response = await fetch(functionUrl, {
     method: "POST",
@@ -77,7 +84,7 @@ export async function generateElevenLabsAudio(
       ...(publishableKey
         ? {
             apikey: publishableKey,
-            Authorization: `Bearer ${publishableKey}`,
+            Authorization: `Bearer ${accessToken}`,
           }
         : {}),
     },
