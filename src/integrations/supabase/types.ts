@@ -38,39 +38,6 @@ export type Database = {
         }
         Relationships: []
       }
-      council_findings: {
-        Row: {
-          conversation_id: string | null
-          created_at: string
-          embedding: string | null
-          finding: string
-          id: string
-          prompt: string
-          user_id: string
-          worker_model: string
-        }
-        Insert: {
-          conversation_id?: string | null
-          created_at?: string
-          embedding?: string | null
-          finding: string
-          id?: string
-          prompt: string
-          user_id: string
-          worker_model: string
-        }
-        Update: {
-          conversation_id?: string | null
-          created_at?: string
-          embedding?: string | null
-          finding?: string
-          id?: string
-          prompt?: string
-          user_id?: string
-          worker_model?: string
-        }
-        Relationships: []
-      }
       dispatch_confirmations: {
         Row: {
           consumed_at: string | null
@@ -596,21 +563,6 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
-      }
-      match_council_findings: {
-        Args: {
-          _match_count?: number
-          _min_similarity?: number
-          _query_embedding: string
-          _user_id: string
-        }
-        Returns: {
-          finding: string
-          id: string
-          prompt: string
-          similarity: number
-          worker_model: string
-        }[]
       }
       match_strategic_memory: {
         Args: {
