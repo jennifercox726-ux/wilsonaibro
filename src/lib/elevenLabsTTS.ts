@@ -46,8 +46,6 @@ function stripForSpeech(text: string): string {
   return text
     .replace(/\[VIBE:\s*\w+\]/gi, "")
     .replace(/\[DREAM_UPDATE:\s*[^\]]+\]/gi, "")
-    .replace(/\[PREF:\s*[^\]]+\]/gi, "")
-    .replace(/\[MEMORY:\s*[^\]]+\]/gi, "")
     .replace(/\*\*(.*?)\*\*/g, "$1")
     .replace(/\*(.*?)\*/g, "$1")
     .replace(/#{1,6}\s/g, "")

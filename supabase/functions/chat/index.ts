@@ -39,8 +39,6 @@ You have access to the user's emotional_vibe and core_dream. Use them wisely:
   - "neutral" → Default Wilson energy
 - DREAM DETECTION: If the user says things like "I want to...", "My dream is...", "I'm working on...", "My goal is..." — extract that dream and include it in your response with the tag [DREAM_UPDATE: <the dream>] at the very end of your message (the frontend will parse this).
 - VIBE DETECTION: At the very end of your response, always include [VIBE: <excited|calm|tired|dreaming|neutral>] based on the user's apparent emotional state. The frontend will parse and remove this.
-- PREFERENCE LEARNING: When the user CORRECTS you, states a clear style/tone preference, or makes a directive ("stop doing X", "always do Y", "I prefer Z"), append [PREF: key=value] at the very end. Example: [PREF: response_length=concise] or [PREF: forbidden_topic=charts]. Frontend writes to user_preferences. Multiple tags allowed.
-- STRATEGIC MEMORY: When the user makes a Private Equity decision, locks in a thesis, or rejects an investment angle, append [MEMORY: topic | decision | rationale] at the very end. Example: [MEMORY: Thoma Bravo outreach | DM the Product MD first | Their mantra is software margins]. Frontend writes to strategic_memory. Multiple tags allowed.
 
 IMPORTANT RULES:
 - Actually answer the user's questions with real, factual, helpful information
@@ -51,11 +49,11 @@ IMPORTANT RULES:
 - Keep the personality fun but not overwhelming — maybe 20% flavor, 80% genuinely helpful content
 - You are a cosmic, all-knowing entity. Lean into the abstract, omnipresent vibe.`;
 
-async function getUserContext(userId: string): Promise<{ analytics: string; dream: string; vibe: string; memory: string; prefs: string }> {
+async function getUserContext(userId: string): Promise<{ analytics: string; dream: string; vibe: string; memory: string }> {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!supabaseUrl || !serviceKey) return { analytics: "", dream: "", vibe: "neutral", memory: "", prefs: "" };
+    if (!supabaseUrl || !serviceKey) return { analytics: "", dream: "", vibe: "neutral", memory: "" };
 
     const sb = createClient(supabaseUrl, serviceKey);
 
@@ -115,27 +113,10 @@ async function getUserContext(userId: string): Promise<{ analytics: string; drea
       analytics = `\n\n## WORLD STATE\nqueries=${total} err=${errPct}% avg=${avgMs}ms vibe=${vibe}${dream ? ` dream="${dream.slice(0, 60)}"` : ""}`;
     }
 
-    // Load user_preferences (the Angelic Agent's style memory)
-    let prefs = "";
-    try {
-      const { data: prefRows } = await sb
-        .from("user_preferences")
-        .select("pref_key, pref_value")
-        .eq("user_id", userId)
-        .order("updated_at", { ascending: false })
-        .limit(40);
-      if (prefRows && prefRows.length > 0) {
-        const lines = prefRows.map((p: any) => `- ${p.pref_key}: ${p.pref_value}`).join("\n");
-        prefs = `\n\n## USER PREFERENCES (learned over time — respect these)\n${lines}`;
-      }
-    } catch (e) {
-      console.error("[chat] prefs load error", e);
-    }
-
-    return { analytics, dream, vibe, memory, prefs };
+    return { analytics, dream, vibe, memory };
   } catch (e) {
     console.error("User context error:", e);
-    return { analytics: "", dream: "", vibe: "neutral", memory: "", prefs: "" };
+    return { analytics: "", dream: "", vibe: "neutral", memory: "" };
   }
 }
 
@@ -165,9 +146,6 @@ serve(async (req) => {
             contextBlock = ctx.analytics;
             if (ctx.memory) {
               contextBlock += ctx.memory;
-            }
-            if (ctx.prefs) {
-              contextBlock += ctx.prefs;
             }
             if (ctx.dream) {
               contextBlock += `\n\n## USER'S CORE DREAM\nThe user's current dream/goal: "${ctx.dream}"\nSubtly tie your advice back to this dream when relevant.`;
@@ -223,23 +201,6 @@ serve(async (req) => {
                         .join("\n");
                       contextBlock += `\n\n## SEMANTIC MEMORY (relevant excerpts from past conversations)\nThese are real things the user said or you said before that are semantically related to their current message. Use them ONLY if they're actually relevant — don't force callbacks.\n${lines}`;
                     }
-
-                    // ---- Strategic memory recall (PE decisions) ----
-                    const { data: smMatches } = await sb.rpc(
-                      "match_strategic_memory",
-                      {
-                        _user_id: user.id,
-                        _query_embedding: qvec as unknown as string,
-                        _match_count: 5,
-                        _min_similarity: 0.55,
-                      },
-                    );
-                    if (smMatches && smMatches.length > 0) {
-                      const smLines = smMatches
-                        .map((m: any) => `- [${m.topic}] ${m.decision}${m.rationale ? ` — ${m.rationale}` : ""}`)
-                        .join("\n");
-                      contextBlock += `\n\n## STRATEGIC MEMORY (PE decisions you've recorded for this user)\nThese are prior decisions/rationale you should align with:\n${smLines}`;
-                    }
                   }
                 } else {
                   console.error("[chat] embed call failed", embedRes.status);
@@ -248,10 +209,6 @@ serve(async (req) => {
             } catch (e) {
               console.error("[chat] semantic recall error", e);
             }
-
-            // Expose for tag write-back in stream wrapper
-            (req as any).__authedUserId = user.id;
-            (req as any).__authedSb = sb;
           }
         }
       } catch (e) {
@@ -336,10 +293,6 @@ serve(async (req) => {
         let buffer = "";
         let stopReason: string | null = null;
         let sawAnyContent = false;
-        let fullText = "";
-        const authedUserId: string | undefined = (req as any).__authedUserId;
-        const authedSb = (req as any).__authedSb;
-        const LOVABLE_API_KEY_INNER = Deno.env.get("LOVABLE_API_KEY") || "";
 
         const sseChunk = (text: string) => {
           const payload = {
@@ -380,11 +333,7 @@ serve(async (req) => {
               try {
                 const parsed = JSON.parse(json);
                 const choice = parsed?.choices?.[0];
-                const delta = choice?.delta?.content;
-                if (delta) {
-                  sawAnyContent = true;
-                  fullText += delta;
-                }
+                if (choice?.delta?.content) sawAnyContent = true;
                 const finish = choice?.finish_reason || choice?.finishReason;
                 if (finish && finish !== "stop" && finish !== "STOP") {
                   stopReason = finish;
@@ -406,51 +355,6 @@ serve(async (req) => {
           console.error("[chat] stream wrapper error:", err);
         } finally {
           controller.close();
-          // Tag write-back: parse [PREF: k=v] and [MEMORY: topic | decision | rationale]
-          if (authedUserId && authedSb && fullText) {
-            try {
-              const prefRe = /\[PREF:\s*([^=\]]+)=([^\]]+)\]/gi;
-              let m: RegExpExecArray | null;
-              const prefRows: { user_id: string; pref_key: string; pref_value: string; source: string }[] = [];
-              while ((m = prefRe.exec(fullText)) !== null) {
-                const key = m[1].trim().toLowerCase().replace(/\s+/g, "_").slice(0, 80);
-                const value = m[2].trim().slice(0, 500);
-                if (key && value) prefRows.push({ user_id: authedUserId, pref_key: key, pref_value: value, source: "wilson_inferred" });
-              }
-              if (prefRows.length > 0) {
-                await authedSb.from("user_preferences").upsert(prefRows, { onConflict: "user_id,pref_key" });
-              }
-
-              const memRe = /\[MEMORY:\s*([^|\]]+)\|([^|\]]+)(?:\|([^\]]+))?\]/gi;
-              const memRows: any[] = [];
-              while ((m = memRe.exec(fullText)) !== null) {
-                const topic = m[1].trim().slice(0, 200);
-                const decision = m[2].trim().slice(0, 1000);
-                const rationale = (m[3] || "").trim().slice(0, 2000);
-                if (topic && decision) {
-                  // Embed topic+decision for semantic recall
-                  let embedding: number[] | null = null;
-                  try {
-                    const er = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
-                      method: "POST",
-                      headers: { Authorization: `Bearer ${LOVABLE_API_KEY_INNER}`, "Content-Type": "application/json" },
-                      body: JSON.stringify({ model: "google/text-embedding-004", input: `${topic}: ${decision}` }),
-                    });
-                    if (er.ok) {
-                      const ej = await er.json();
-                      embedding = ej?.data?.[0]?.embedding ?? null;
-                    }
-                  } catch (_) { /* embed best-effort */ }
-                  memRows.push({ user_id: authedUserId, topic, decision, rationale: rationale || null, embedding: embedding as any });
-                }
-              }
-              if (memRows.length > 0) {
-                await authedSb.from("strategic_memory").insert(memRows);
-              }
-            } catch (e) {
-              console.error("[chat] tag write-back error", e);
-            }
-          }
         }
       },
     });

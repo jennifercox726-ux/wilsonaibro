@@ -253,51 +253,6 @@ export type Database = {
           },
         ]
       }
-      pe_drafts: {
-        Row: {
-          created_at: string
-          full_report: string | null
-          id: string
-          impact_summary: string | null
-          profit_summary: string | null
-          raw_input: Json
-          read_at: string | null
-          source: string
-          status: string
-          title: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          full_report?: string | null
-          id?: string
-          impact_summary?: string | null
-          profit_summary?: string | null
-          raw_input?: Json
-          read_at?: string | null
-          source?: string
-          status?: string
-          title?: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          full_report?: string | null
-          id?: string
-          impact_summary?: string | null
-          profit_summary?: string | null
-          raw_input?: Json
-          read_at?: string | null
-          source?: string
-          status?: string
-          title?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       profiles: {
         Row: {
           core_dream: string | null
@@ -438,69 +393,6 @@ export type Database = {
         }
         Relationships: []
       }
-      strategic_memory: {
-        Row: {
-          created_at: string
-          decision: string
-          embedding: string | null
-          id: string
-          rationale: string | null
-          topic: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          decision: string
-          embedding?: string | null
-          id?: string
-          rationale?: string | null
-          topic: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          decision?: string
-          embedding?: string | null
-          id?: string
-          rationale?: string | null
-          topic?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      user_preferences: {
-        Row: {
-          created_at: string
-          id: string
-          pref_key: string
-          pref_value: string
-          source: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          pref_key: string
-          pref_value: string
-          source?: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          pref_key?: string
-          pref_value?: string
-          source?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       user_roles: {
         Row: {
           created_at: string
@@ -522,36 +414,6 @@ export type Database = {
         }
         Relationships: []
       }
-      vibe_logs: {
-        Row: {
-          created_at: string
-          id: string
-          logged_on: string
-          note: string | null
-          updated_at: string
-          user_id: string
-          vibe: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          logged_on?: string
-          note?: string | null
-          updated_at?: string
-          user_id: string
-          vibe: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          logged_on?: string
-          note?: string | null
-          updated_at?: string
-          user_id?: string
-          vibe?: string
-        }
-        Relationships: []
-      }
     }
     Views: {
       [_ in never]: never
@@ -563,21 +425,6 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
-      }
-      match_strategic_memory: {
-        Args: {
-          _match_count?: number
-          _min_similarity?: number
-          _query_embedding: string
-          _user_id: string
-        }
-        Returns: {
-          decision: string
-          id: string
-          rationale: string
-          similarity: number
-          topic: string
-        }[]
       }
       match_user_messages: {
         Args: {

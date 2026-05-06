@@ -5,6 +5,3 @@ verify_jwt = false
 
 [functions.confirm-dispatch]
 verify_jwt = false
-
-[functions.pe-monitor]
-verify_jwt = false
