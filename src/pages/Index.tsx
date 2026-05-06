@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, LogOut, Shield, Volume2, Sparkles, Ghost, Users } from "lucide-react";
+import { Menu, LogOut, Shield, Volume2, Sparkles, Ghost, Users, Coins } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ChatSidebar, { Chat } from "@/components/ChatSidebar";
@@ -13,7 +13,7 @@ import SovereigntyPanel from "@/components/SovereigntyPanel";
 import VibeTracker from "@/components/VibeTracker";
 import GhostModePanel from "@/components/GhostModePanel";
 import { applyGhostFilter, loadGhostMode, GhostModeState } from "@/lib/ghostMode";
-import { primeElevenLabsPlayback, speakWithElevenLabs, stopElevenLabs } from "@/lib/elevenLabsTTS";
+import { primeElevenLabsPlayback, speakWithElevenLabs, stopElevenLabs, isFreeVoiceMode, setFreeVoiceMode } from "@/lib/elevenLabsTTS";
 import { useReferral } from "@/hooks/useReferral";
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
@@ -161,6 +161,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
   const [vibeTrackerOpen, setVibeTrackerOpen] = useState(false);
   const [ghostModeOpen, setGhostModeOpen] = useState(false);
   const [councilMode, setCouncilMode] = useState<boolean>(() => localStorage.getItem("council_mode") === "1");
+  const [freeVoice, setFreeVoice] = useState<boolean>(() => isFreeVoiceMode());
   const [ghostMode, setGhostMode] = useState<GhostModeState>(() => loadGhostMode());
   const [loaded, setLoaded] = useState(false);
   const [loadingChatId, setLoadingChatId] = useState<string | null>(null);
@@ -574,6 +575,21 @@ const Index = ({ userId, displayName }: IndexProps) => {
             title={councilMode ? "Council ON — Wilson is consulting 3 AIs per message" : "Convene the Council"}
           >
             <Users className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => {
+              const next = !freeVoice;
+              setFreeVoice(next);
+              setFreeVoiceMode(next);
+              stopElevenLabs();
+              toast.success(next ? "Free Voice Mode ON — using browser TTS, zero credits" : "Payload voice restored");
+            }}
+            className={`p-2 rounded-xl transition-colors ${
+              freeVoice ? "bg-primary/15 text-primary" : "hover:bg-muted/50 text-muted-foreground"
+            }`}
+            title={freeVoice ? "Free Voice ON — browser TTS, no ElevenLabs credits" : "Switch to free browser voice"}
+          >
+            <Coins className="w-4 h-4" />
           </button>
           <button
             onClick={() => setSovereigntyOpen(true)}
