@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, LogOut, Shield, Volume2 } from "lucide-react";
+import { Menu, LogOut, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ChatSidebar, { Chat } from "@/components/ChatSidebar";
@@ -10,7 +10,7 @@ import WilsonOrb, { WilsonVibe } from "@/components/WilsonOrb";
 import NeuralNebula from "@/components/NeuralNebula";
 import IOSIframeBanner from "@/components/IOSIframeBanner";
 import SovereigntyPanel from "@/components/SovereigntyPanel";
-import { primeElevenLabsPlayback, speakWithElevenLabs, stopElevenLabs } from "@/lib/elevenLabsTTS";
+import { speakWithElevenLabs, stopElevenLabs } from "@/lib/elevenLabsTTS";
 import { useReferral } from "@/hooks/useReferral";
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
@@ -150,12 +150,10 @@ const Index = ({ userId, displayName }: IndexProps) => {
   const [messages, setMessages] = useState<Record<string, Message[]>>({});
   const [isThinking, setIsThinking] = useState(false);
   const [currentVibe, setCurrentVibe] = useState<WilsonVibe>("neutral");
-  const [coreDream, setCoreDream] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sovereigntyOpen, setSovereigntyOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [loadingChatId, setLoadingChatId] = useState<string | null>(null);
-  const [audioPrimed, setAudioPrimed] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const referral = useReferral();
 
@@ -202,13 +200,10 @@ const Index = ({ userId, displayName }: IndexProps) => {
           referral_source: referral.source,
         },
         { onConflict: "user_id" }
-      ).select("emotional_vibe, core_dream").single();
+      ).select("emotional_vibe").single();
 
       if (profileData?.emotional_vibe) {
         setCurrentVibe(profileData.emotional_vibe as WilsonVibe);
-      }
-      if (profileData?.core_dream) {
-        setCoreDream(profileData.core_dream);
       }
 
       setLoaded(true);
@@ -302,10 +297,6 @@ const Index = ({ userId, displayName }: IndexProps) => {
         role: "user",
         content,
       }).then();
-      // Fire-and-forget: embed for semantic memory
-      supabase.functions.invoke("embed-message", {
-        body: { conversation_id: targetChatId, role: "user", content },
-      }).then();
 
       setChats((prev) =>
         prev.map((c) => {
@@ -375,9 +366,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
                 supabase.from("profiles").update({ emotional_vibe: newVibe }).eq("user_id", userId).then();
               }
               if (dreamMatch) {
-                const newDream = dreamMatch[1].trim();
-                setCoreDream(newDream);
-                supabase.from("profiles").update({ core_dream: newDream }).eq("user_id", userId).then();
+                supabase.from("profiles").update({ core_dream: dreamMatch[1].trim() }).eq("user_id", userId).then();
               }
 
               const cleanContent = assistantSoFar
@@ -402,10 +391,6 @@ const Index = ({ userId, displayName }: IndexProps) => {
                 conversation_id: targetChatId,
                 role: "assistant",
                 content: assistantSoFar,
-              }).then();
-              // Fire-and-forget: embed for semantic memory
-              supabase.functions.invoke("embed-message", {
-                body: { conversation_id: targetChatId, role: "assistant", content: assistantSoFar },
               }).then();
 
               void speakWithElevenLabs(assistantSoFar);
@@ -466,12 +451,6 @@ const Index = ({ userId, displayName }: IndexProps) => {
     await supabase.auth.signOut();
   };
 
-  const handlePrimeAudio = useCallback(() => {
-    primeElevenLabsPlayback();
-    setAudioPrimed(true);
-    toast.success("Audio gate opened.");
-  }, []);
-
   const currentMessages = activeChat ? messages[activeChat] : undefined;
   const isCurrentThreadLoading = !!activeChat && loadingChatId === activeChat && !currentMessages;
 
@@ -520,18 +499,6 @@ const Index = ({ userId, displayName }: IndexProps) => {
             <Shield className="w-4 h-4" />
           </button>
           <button
-            onClick={handlePrimeAudio}
-            className={`p-2 rounded-xl transition-colors ${
-              audioPrimed
-                ? "bg-primary/15 text-primary"
-                : "hover:bg-muted/50 text-muted-foreground"
-            }`}
-            title={audioPrimed ? "Audio primed" : "Prime audio"}
-            aria-label={audioPrimed ? "Audio primed" : "Prime audio"}
-          >
-            <Volume2 className="w-4 h-4" />
-          </button>
-          <button
             onClick={handleLogout}
             className="p-2 rounded-xl hover:bg-muted/50 text-muted-foreground transition-colors"
             title="Sign out"
@@ -539,16 +506,6 @@ const Index = ({ userId, displayName }: IndexProps) => {
             <LogOut className="w-4 h-4" />
           </button>
         </header>
-        {coreDream && activeChat && (
-          <div className="px-4 py-2 border-b border-border/10 bg-void-surface/20 backdrop-blur-md flex items-center gap-2">
-            <span className="text-[9px] uppercase tracking-[0.2em] font-bold text-primary/70 shrink-0">
-              ✦ Memory Anchor
-            </span>
-            <p className="text-[11px] text-foreground/80 italic truncate" title={coreDream}>
-              {coreDream}
-            </p>
-          </div>
-        )}
         <SovereigntyPanel
           userId={userId}
           isOpen={sovereigntyOpen}

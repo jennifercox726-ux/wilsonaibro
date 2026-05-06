@@ -12,7 +12,6 @@ let currentAbort: AbortController | null = null;
 let playbackUnlockPromise: Promise<void> | null = null;
 let unlockedPlaybackAudio: HTMLAudioElement | null = null;
 let playbackUnlocked = false;
-let speechSynthesisPrimed = false;
 
 export type SpeakResult = "ok" | "blocked" | "error";
 
@@ -95,20 +94,6 @@ export async function generateElevenLabsAudio(
     throw new Error(details || `ElevenLabs TTS failed [${response.status}]`);
   }
 
-  // Edge function returns JSON (200) with { fallback: true } when ElevenLabs
-  // is out of credits / rate-limited. Detect and signal the caller to shunt
-  // to browser SpeechSynthesis instead of trying to play JSON as audio.
-  const ct = response.headers.get("Content-Type") ?? "";
-  if (ct.includes("application/json")) {
-    const payload = await response.json().catch(() => ({}));
-    if (payload?.fallback) {
-      const reason = payload.reason ?? "upstream_error";
-      console.info(`[elevenlabs] capacity shunt -> browser TTS (${reason})`);
-      throw new FallbackNeededError(reason);
-    }
-    throw new Error(payload?.error || "ElevenLabs returned unexpected JSON");
-  }
-
   const audioBlob = await response.blob();
   if (!audioBlob.size) {
     throw new Error("No audio returned from ElevenLabs");
@@ -116,91 +101,9 @@ export async function generateElevenLabsAudio(
 
   return {
     audioUrl: URL.createObjectURL(audioBlob),
-    contentType: ct || "audio/mpeg",
+    contentType: response.headers.get("Content-Type") ?? "audio/mpeg",
     requestId: response.headers.get("X-Request-Id"),
   };
-}
-
-export class FallbackNeededError extends Error {
-  reason: string;
-  constructor(reason: string) {
-    super(`elevenlabs_fallback:${reason}`);
-    this.name = "FallbackNeededError";
-    this.reason = reason;
-  }
-}
-
-/**
- * Browser SpeechSynthesis shunt. Used when ElevenLabs is out of credits or
- * rate-limited so Wilson keeps talking instead of going silent.
- */
-async function loadBrowserVoices(): Promise<SpeechSynthesisVoice[]> {
-  if (typeof window === "undefined" || !("speechSynthesis" in window)) return [];
-  const synth = window.speechSynthesis;
-  const existing = synth.getVoices();
-  if (existing.length > 0) return existing;
-  // Some browsers (Chrome) load voices asynchronously — wait briefly.
-  return new Promise((resolve) => {
-    let settled = false;
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      resolve(synth.getVoices());
-    };
-    synth.addEventListener?.("voiceschanged", finish, { once: true });
-    setTimeout(finish, 500);
-  });
-}
-
-function pickWilsonVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | undefined {
-  // Closest match to the ElevenLabs "Payload" male British timbre we use as primary.
-  const tiers: RegExp[] = [
-    /en-GB.*(Daniel|Ryan|Oliver|Arthur|George|Thomas|Male)/i,
-    /(Daniel|Ryan|Oliver|Arthur).*en[-_]?GB/i,
-    /Google UK English Male/i,
-    /Microsoft (Ryan|George|Thomas)/i,
-    /en-GB/i,
-    /en[-_]?(US|AU|IE|CA).*Male/i,
-    /^en/i,
-  ];
-  for (const re of tiers) {
-    const hit = voices.find((v) => re.test(`${v.lang} ${v.name}`));
-    if (hit) return hit;
-  }
-  return voices[0];
-}
-
-function speakViaBrowser(text: string, signal: AbortSignal): Promise<SpeakResult> {
-  return new Promise(async (resolve) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      resolve("error");
-      return;
-    }
-    try {
-      window.speechSynthesis.cancel();
-      const voices = await loadBrowserVoices();
-      const utter = new SpeechSynthesisUtterance(text);
-      // Tuned to match Wilson's energy: slightly faster, slightly higher pitch.
-      utter.rate = 1.08;
-      utter.pitch = 1.02;
-      utter.volume = 1;
-      utter.lang = "en-GB";
-      const preferred = pickWilsonVoice(voices);
-      if (preferred) utter.voice = preferred;
-
-      const onAbort = () => {
-        try { window.speechSynthesis.cancel(); } catch { /* noop */ }
-        resolve("error");
-      };
-      signal.addEventListener("abort", onAbort, { once: true });
-
-      utter.onend = () => resolve("ok");
-      utter.onerror = () => resolve("error");
-      window.speechSynthesis.speak(utter);
-    } catch {
-      resolve("error");
-    }
-  });
 }
 
 /**
@@ -294,25 +197,6 @@ export function primeElevenLabsPlayback(): void {
       playbackUnlocked = false;
     });
 
-  // Prime the browser-native fallback during the same user gesture. Mobile
-  // Safari can block SpeechSynthesis if the first `speak()` happens after the
-  // AI/network round trip, so we open that gate here too.
-  if (!speechSynthesisPrimed && "speechSynthesis" in window) {
-    try {
-      const utter = new SpeechSynthesisUtterance(".");
-      utter.volume = 0;
-      utter.rate = 1;
-      utter.pitch = 1;
-      utter.lang = "en-GB";
-      utter.onend = () => { speechSynthesisPrimed = true; };
-      utter.onerror = () => { speechSynthesisPrimed = false; };
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utter);
-    } catch {
-      speechSynthesisPrimed = false;
-    }
-  }
-
   void unlockAudioContext();
 }
 
@@ -343,8 +227,6 @@ export async function speakWithElevenLabs(text: string): Promise<SpeakResult> {
 
   const chunks = chunkTextForTTS(clean);
 
-  let needsFallback = false;
-
   const fetchChunk = async (i: number): Promise<string | null> => {
     try {
       const res = await generateElevenLabsAudio(
@@ -358,10 +240,6 @@ export async function speakWithElevenLabs(text: string): Promise<SpeakResult> {
       return res.audioUrl;
     } catch (err) {
       if ((err as { name?: string })?.name === "AbortError") return null;
-      if (err instanceof FallbackNeededError) {
-        needsFallback = true;
-        return null;
-      }
       console.warn(`[elevenlabs] chunk ${i} failed:`, err);
       return null;
     }
@@ -372,27 +250,7 @@ export async function speakWithElevenLabs(text: string): Promise<SpeakResult> {
   try {
     const chunkRequests: Promise<string | null>[] = chunks.map((_, i) => fetchChunk(i));
 
-    // VOICE FALLBACK HARDENING: race the first chunk against a 6s wall clock.
-    // If ElevenLabs is slow, unreachable, or returns null for any reason
-    // other than user abort, silently shunt the entire utterance to the
-    // browser SpeechSynthesis voice. No more "Can you hear me now?" loops.
-    const FIRST_CHUNK_TIMEOUT_MS = 6000;
-    let firstChunkTimedOut = false;
-    const firstChunkTimer = new Promise<null>((resolve) => {
-      setTimeout(() => { firstChunkTimedOut = true; resolve(null); }, FIRST_CHUNK_TIMEOUT_MS);
-    });
-
-    const firstUrl = await Promise.race([chunkRequests[0], firstChunkTimer]);
-
-    if (needsFallback || firstChunkTimedOut || (!firstUrl && !abort.signal.aborted)) {
-      if (firstChunkTimedOut) console.info("[elevenlabs] first-chunk timeout -> browser TTS");
-      else if (!needsFallback) console.info("[elevenlabs] first-chunk failed -> browser TTS");
-      // Cancel any in-flight ElevenLabs requests so they don't replay later.
-      try { abort.abort(); } catch { /* noop */ }
-      const fallbackAbort = new AbortController();
-      currentAbort = fallbackAbort;
-      return await speakViaBrowser(clean, fallbackAbort.signal);
-    }
+    const firstUrl = await chunkRequests[0];
     if (!firstUrl) return "error";
     if (reqId !== currentRequestId || abort.signal.aborted) return "error";
 

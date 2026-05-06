@@ -98,19 +98,42 @@ async function getUserContext(userId: string): Promise<{ analytics: string; drea
       .order("created_at", { ascending: false })
       .limit(100);
 
-    // ABSTRACT CONTEXT COMPRESSOR — collapse 100 logs into a one-line World
-    // State snapshot. Saves ~80% of the context tokens we used to spend on
-    // analytics every turn. Full data still lives in the dashboard.
     let analytics = "";
     if (logs && logs.length > 0) {
       const total = logs.length;
       const failed = logs.filter((l: any) => l.response_length === 0).length;
-      const errPct = total ? Math.round((failed / total) * 100) : 0;
       const responseTimes = logs.filter((l: any) => l.response_time_ms).map((l: any) => l.response_time_ms);
       const avgMs = responseTimes.length
         ? Math.round(responseTimes.reduce((a: number, b: number) => a + b, 0) / responseTimes.length)
         : 0;
-      analytics = `\n\n## WORLD STATE\nqueries=${total} err=${errPct}% avg=${avgMs}ms vibe=${vibe}${dream ? ` dream="${dream.slice(0, 60)}"` : ""}`;
+
+      const freq: Record<string, number> = {};
+      logs.forEach((l: any) => {
+        const key = l.query_text.slice(0, 60).toLowerCase().trim();
+        freq[key] = (freq[key] || 0) + 1;
+      });
+      const topQueries = Object.entries(freq)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([text, count]) => `"${text}" (${count}x)`)
+        .join(", ");
+
+      const recent = logs
+        .slice(0, 5)
+        .map((l: any) => `"${l.query_text.slice(0, 80)}"`)
+        .join(", ");
+
+      analytics = `
+## YOUR LIVE ANALYTICS DATA (from the user's query_logs)
+- Total queries (last 100): ${total}
+- Failed queries: ${failed} (${total ? Math.round((failed / total) * 100) : 0}% error rate)
+- Average response time: ${avgMs}ms (${(avgMs / 1000).toFixed(1)}s)
+- Top queries: ${topQueries || "none yet"}
+- Most recent queries: ${recent || "none yet"}
+- Earliest query in window: ${logs[logs.length - 1]?.created_at || "N/A"}
+- Latest query: ${logs[0]?.created_at || "N/A"}
+
+When the user asks about their stats, present this data with enthusiasm!`;
     }
 
     return { analytics, dream, vibe, memory };
@@ -153,84 +176,11 @@ serve(async (req) => {
             if (ctx.vibe && ctx.vibe !== "neutral") {
               contextBlock += `\n\n## USER'S CURRENT EMOTIONAL VIBE: ${ctx.vibe.toUpperCase()}\nAdapt your tone accordingly.`;
             }
-
-            // ---- Semantic memory recall -------------------------------
-            // Embed the latest user turn and pull the top-K most similar
-            // past messages from OTHER conversations. Real long-term memory.
-            try {
-              const lastUser = [...messages].reverse().find((m: any) => m?.role === "user");
-              const queryText: string | undefined = lastUser?.content;
-              if (queryText && queryText.trim().length >= 8) {
-                const embedRes = await fetch(
-                  "https://ai.gateway.lovable.dev/v1/embeddings",
-                  {
-                    method: "POST",
-                    headers: {
-                      Authorization: `Bearer ${LOVABLE_API_KEY}`,
-                      "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                      model: "google/text-embedding-004",
-                      input: queryText.slice(0, 8000),
-                    }),
-                  },
-                );
-                if (embedRes.ok) {
-                  const embedJson = await embedRes.json();
-                  const qvec = embedJson?.data?.[0]?.embedding;
-                  if (Array.isArray(qvec)) {
-                    const { data: matches, error: matchErr } = await sb.rpc(
-                      "match_user_messages",
-                      {
-                        _user_id: user.id,
-                        _query_embedding: qvec as unknown as string,
-                        _exclude_conversation: null,
-                        _match_count: 5,
-                        _min_similarity: 0.55,
-                      },
-                    );
-                    if (matchErr) {
-                      console.error("[chat] match rpc error", matchErr);
-                    } else if (matches && matches.length > 0) {
-                      const lines = matches
-                        .map((m: any) => {
-                          const who = m.role === "user" ? "User" : "You (Wilson)";
-                          const snippet = (m.content || "").slice(0, 280).replace(/\s+/g, " ");
-                          return `- [${who}, sim ${m.similarity.toFixed(2)}]: "${snippet}"`;
-                        })
-                        .join("\n");
-                      contextBlock += `\n\n## SEMANTIC MEMORY (relevant excerpts from past conversations)\nThese are real things the user said or you said before that are semantically related to their current message. Use them ONLY if they're actually relevant — don't force callbacks.\n${lines}`;
-                    }
-                  }
-                } else {
-                  console.error("[chat] embed call failed", embedRes.status);
-                }
-              }
-            } catch (e) {
-              console.error("[chat] semantic recall error", e);
-            }
           }
         }
       } catch (e) {
         console.error("Auth context error:", e);
       }
-    }
-
-    // CONTEXT COMPRESSOR: keep last 4 turns verbatim, fold the rest into a
-    // single synthetic "system" line so token cost stays flat as the thread
-    // grows. Frontend already caps at 10 — this trims further on the server.
-    const FULL_TAIL = 4;
-    let outboundMessages = messages;
-    if (Array.isArray(messages) && messages.length > FULL_TAIL) {
-      const head = messages.slice(0, messages.length - FULL_TAIL);
-      const tail = messages.slice(-FULL_TAIL);
-      const summary = head
-        .map((m: any) => `${m.role === "user" ? "U" : "W"}: ${(m.content || "").replace(/\s+/g, " ").slice(0, 120)}`)
-        .join(" | ");
-      outboundMessages = [
-        { role: "system", content: `## RECENT THREAD DIGEST\n${summary}` },
-        ...tail,
-      ];
     }
 
     const response = await fetch(
@@ -245,7 +195,7 @@ serve(async (req) => {
           model: "google/gemini-3-flash-preview",
           messages: [
             { role: "system", content: SYSTEM_PROMPT + contextBlock },
-            ...outboundMessages,
+            ...messages,
           ],
           stream: true,
         }),
