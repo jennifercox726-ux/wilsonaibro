@@ -1,0 +1,30 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 10
+    
+    # Auto-merge rules for Dependabot PRs
+    auto-merge:
+      - match:
+          dependency-type: "all"
+          update-types:
+            - "patch"
+            - "minor"
+        automerge-type: "squash"
+        automerge-options:
+          commit-message-template: "Automated dependency update: {{title}}"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    auto-merge:
+      - match:
+          dependency-type: "all"
+          update-types:
+            - "patch"
+            - "minor"
+        automerge-type: "squash"
