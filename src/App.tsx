@@ -60,6 +60,7 @@ const App = () => {
         <Toaster />
         <Sonner />
         <BackgroundDebugOverlay />
+        <CommandCentral />
         <BrowserRouter>
           <Routes>
             <Route
