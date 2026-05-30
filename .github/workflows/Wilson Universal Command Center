@@ -1,0 +1,23 @@
+name: Wilson Universal Command Center
+on:
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: '0 * * * *' # This tells me to run your tasks every hour!
+
+jobs:
+  automation-task:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout WilsonsCreator Code
+        uses: actions/checkout@v2
+
+      - name: Set up Python Environment
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+
+      - name: Execute Wilson Brain
+        env:
+          TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
+        run: python logic.py
