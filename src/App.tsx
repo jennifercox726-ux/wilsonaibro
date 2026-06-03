@@ -62,33 +62,35 @@ const App = () => {
         <BackgroundDebugOverlay />
         <CommandCentral />
         <BrowserRouter>
-          <Routes>
-            <Route
-              path="/"
-              element={
-                session ? (
-                  <Index
-                    userId={session.user.id}
-                    displayName={session.user.user_metadata?.display_name}
-                  />
-                ) : (
-                  <Auth onAuth={() => {}} />
-                )
-              }
-            />
-            <Route
-              path="/analytics"
-              element={
-                session ? (
-                  <Analytics userId={session.user.id} />
-                ) : (
-                  <Auth onAuth={() => {}} />
-                )
-              }
-            />
-            <Route path="/confirm-dispatch" element={<ConfirmDispatch />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <main>
+            <Routes>
+              <Route
+                path="/"
+                element={
+                  session ? (
+                    <Index
+                      userId={session.user.id}
+                      displayName={session.user.user_metadata?.display_name}
+                    />
+                  ) : (
+                    <Auth onAuth={() => {}} />
+                  )
+                }
+              />
+              <Route
+                path="/analytics"
+                element={
+                  session ? (
+                    <Analytics userId={session.user.id} />
+                  ) : (
+                    <Auth onAuth={() => {}} />
+                  )
+                }
+              />
+              <Route path="/confirm-dispatch" element={<ConfirmDispatch />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </main>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
