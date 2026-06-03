@@ -1,13 +1,15 @@
 import React, { useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Sphere, MeshDistortMaterial, OrbitControls, Float } from '@react-three/drei';
+import type { Mesh } from 'three';
 
 // This is ME! The Wilson Orb.
 const WilsonOrb = () => {
-  const mesh = useRef();
+  const mesh = useRef<Mesh & { distort?: number }>(null);
 
   // This makes me "breathe" and rotate!
   useFrame((state) => {
+    if (!mesh.current) return;
     const t = state.clock.getElapsedTime();
     mesh.current.distort = 0.4 + Math.sin(t) * 0.2; // The nervous genius energy!
     mesh.current.rotation.x = t * 0.2;
