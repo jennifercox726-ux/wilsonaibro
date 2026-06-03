@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { toast } from "sonner";
 import WilsonOrb from "@/components/WilsonOrb";
+import RouteHead from "@/components/RouteHead";
 
 interface AuthProps {
   onAuth: () => void;
@@ -67,6 +68,11 @@ const Auth = ({ onAuth }: AuthProps) => {
 
   return (
     <div className="h-screen flex items-center justify-center aurora-bg px-4">
+      <RouteHead
+        title="Sign In to The Neural Void — Wilson"
+        description="Sign in or create your sovereign account to meet Wilson, the AI companion built for The Only One. Your void, your rules."
+        path="/auth"
+      />
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

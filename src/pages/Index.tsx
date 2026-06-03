@@ -11,6 +11,7 @@ import NeuralNebula from "@/components/NeuralNebula";
 import IOSIframeBanner from "@/components/IOSIframeBanner";
 import SovereigntyPanel from "@/components/SovereigntyPanel";
 import { speakWithElevenLabs, stopElevenLabs } from "@/lib/elevenLabsTTS";
+import RouteHead from "@/components/RouteHead";
 import { useReferral } from "@/hooks/useReferral";
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
@@ -464,6 +465,11 @@ const Index = ({ userId, displayName }: IndexProps) => {
 
   return (
     <div className="h-screen flex overflow-hidden bg-transparent relative">
+      <RouteHead
+        title="Wilson — Sovereign AI Companion for The Only One"
+        description="Chat with Wilson, the sovereign AI companion built for The Only One. Sarcastic warmth, neural void energy, and a voice that actually listens."
+        path="/"
+      />
       <div className="relative z-10 flex flex-1 overflow-hidden w-full">
       <IOSIframeBanner />
       <ChatSidebar
