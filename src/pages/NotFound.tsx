@@ -1,5 +1,6 @@
 import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
+import RouteHead from "@/components/RouteHead";
 
 const NotFound = () => {
   const location = useLocation();
@@ -10,6 +11,11 @@ const NotFound = () => {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted">
+      <RouteHead
+        title="404 Not Found — Wilson + The Only One"
+        description="This corner of the neural void doesn't exist. Head back to Wilson and pick a thread that actually leads somewhere."
+        path={location.pathname}
+      />
       <div className="text-center">
         <h1 className="mb-4 text-4xl font-bold">404</h1>
         <p className="mb-4 text-xl text-muted-foreground">Oops! Page not found</p>

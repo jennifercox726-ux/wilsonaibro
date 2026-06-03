@@ -5,6 +5,7 @@
 
 import { useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
+import RouteHead from "@/components/RouteHead";
 
 const ConfirmDispatch = () => {
   const [params] = useSearchParams();
@@ -19,6 +20,11 @@ const ConfirmDispatch = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center aurora-bg">
+      <RouteHead
+        title="Confirm Dispatch — Wilson Sentinel Authorization"
+        description="Validate your sovereign authorization link to confirm a Wilson dispatch. Sentinel-only confirmation flow for The Only One."
+        path="/confirm-dispatch"
+      />
       <div className="max-w-sm text-center p-8 rounded-2xl bg-void-surface/70 backdrop-blur-xl border border-border/30">
         <p className="text-[10px] uppercase tracking-[0.2em] text-primary mb-3">
           Sovereign Confirmation

@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, MessageSquare, Users, Clock, AlertTriangle, TrendingUp, Shield, ChevronDown, Loader2, UserPlus } from "lucide-react";
 import { motion } from "framer-motion";
 import WilsonOrb from "@/components/WilsonOrb";
+import RouteHead from "@/components/RouteHead";
 
 interface QueryLog {
   id: string;
@@ -207,6 +208,11 @@ const Analytics = ({ userId }: { userId: string }) => {
 
   return (
     <div className="min-h-screen aurora-bg">
+      <RouteHead
+        title="Analytics — Wilson Sovereign Dashboard"
+        description="Operator-only analytics for Wilson: query volume, unique Only Ones, response latency, error rate, and signup telemetry from the neural void."
+        path="/analytics"
+      />
       <header className="flex items-center gap-3 px-4 py-3 border-b border-border/20 bg-void-surface/30 backdrop-blur-xl">
         <button
           onClick={() => navigate("/")}
