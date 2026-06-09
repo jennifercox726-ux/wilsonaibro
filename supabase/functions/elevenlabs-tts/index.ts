@@ -125,6 +125,118 @@ async function synthesizeWithGoogle(prompt: string, apiKey: string): Promise<Uin
   throw new Error(lastError);
 }
 
+function buildEdgeSsml(text: string): string {
+  const escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+
+  return `<speak version='1.0' xml:lang='en-GB'><voice name='${EDGE_TTS_VOICE}'><prosody rate='-5%' pitch='-4%'>${escaped}</prosody></voice></speak>`;
+}
+
+async function getEdgeTtsEndpoint(): Promise<{ endpoint: string; trustedClientToken: string }> {
+  const response = await fetch(
+    `https://dev.microsofttranslator.com/apps/endpoint?api-version=1.0&client=edge&trustedclienttoken=${EDGE_TTS_TOKEN}`,
+    { headers: { "User-Agent": "Mozilla/5.0" } },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Edge TTS endpoint failed [${response.status}]`);
+  }
+
+  const payload = await response.json() as {
+    r?: string;
+    t?: string;
+    endpoint?: string;
+    trustedClientToken?: string;
+  };
+
+  const endpoint = payload.endpoint || payload.r;
+  const trustedClientToken = payload.trustedClientToken || payload.t || EDGE_TTS_TOKEN;
+  if (!endpoint) throw new Error("Edge TTS endpoint missing");
+  return { endpoint, trustedClientToken };
+}
+
+async function synthesizeWithEdge(prompt: string): Promise<Uint8Array> {
+  const { endpoint, trustedClientToken } = await getEdgeTtsEndpoint();
+  const url = new URL(endpoint);
+  url.searchParams.set("TrustedClientToken", trustedClientToken);
+  url.searchParams.set("ConnectionId", crypto.randomUUID().replace(/-/g, ""));
+
+  const ws = new WebSocket(url.toString());
+  ws.binaryType = "arraybuffer";
+
+  const audioChunks: Uint8Array[] = [];
+  let totalLength = 0;
+
+  return await new Promise<Uint8Array>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      try { ws.close(); } catch { /* noop */ }
+      reject(new Error("Edge TTS timed out"));
+    }, 15000);
+
+    const finish = () => {
+      clearTimeout(timeout);
+      if (!totalLength) {
+        reject(new Error("Edge TTS returned no audio"));
+        return;
+      }
+      const merged = new Uint8Array(totalLength);
+      let offset = 0;
+      for (const chunk of audioChunks) {
+        merged.set(chunk, offset);
+        offset += chunk.length;
+      }
+      resolve(merged);
+    };
+
+    ws.onerror = () => {
+      clearTimeout(timeout);
+      reject(new Error("Edge TTS websocket error"));
+    };
+
+    ws.onopen = () => {
+      const requestId = crypto.randomUUID().replace(/-/g, "");
+      const timestamp = new Date().toISOString();
+      ws.send(`X-Timestamp:${timestamp}\r\nContent-Type:application/json; charset=utf-8\r\nPath:speech.config\r\n\r\n${JSON.stringify({ context: { synthesis: { audio: { metadataoptions: { sentenceBoundaryEnabled: false, wordBoundaryEnabled: false }, outputFormat: "audio-24khz-48kbitrate-mono-mp3" } } } })}`);
+      ws.send(`X-RequestId:${requestId}\r\nX-Timestamp:${timestamp}\r\nContent-Type:application/ssml+xml\r\nPath:ssml\r\n\r\n${buildEdgeSsml(prompt)}`);
+    };
+
+    ws.onmessage = (event) => {
+      if (typeof event.data === "string") {
+        if (event.data.includes("Path:turn.end")) {
+          try { ws.close(); } catch { /* noop */ }
+          finish();
+        }
+        return;
+      }
+
+      const data = new Uint8Array(event.data as ArrayBuffer);
+      const marker = new TextEncoder().encode("Path:audio\r\n");
+      let audioStart = -1;
+      for (let i = 0; i <= data.length - marker.length; i++) {
+        let found = true;
+        for (let j = 0; j < marker.length; j++) {
+          if (data[i + j] !== marker[j]) {
+            found = false;
+            break;
+          }
+        }
+        if (found) {
+          audioStart = i + marker.length;
+          break;
+        }
+      }
+      if (audioStart < 0 || audioStart >= data.length) return;
+      const chunk = data.slice(audioStart);
+      audioChunks.push(chunk);
+      totalLength += chunk.length;
+    };
+  });
+}
+
 async function synthesizeWithFallback(
   prompt: string,
   voiceId: string,
