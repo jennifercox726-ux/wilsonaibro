@@ -15,6 +15,8 @@ const GOOGLE_FALLBACK_VOICES = [
   { name: "en-GB-Wavenet-D", gender: "MALE" },
   { name: "en-GB-Standard-D", gender: "MALE" },
 ] as const;
+const EDGE_TTS_TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4";
+const EDGE_TTS_VOICE = "en-GB-RyanNeural";
 
 interface TTSRequestBody {
   prompt?: string;
@@ -25,7 +27,7 @@ interface TTSRequestBody {
 
 interface AudioResult {
   audioBytes: Uint8Array;
-  provider: "elevenlabs" | "google";
+  provider: "elevenlabs" | "google" | "edge";
   fallbackReason?: string;
 }
 
