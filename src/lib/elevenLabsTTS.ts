@@ -18,6 +18,97 @@ export type SpeakResult = "ok" | "blocked" | "error";
 const SILENT_WAV_DATA_URL =
   "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
 
+/**
+ * Last-resort browser TTS fallback. Used when ElevenLabs is offline, rate
+ * limited, or otherwise unreachable. Picks a British male voice when one is
+ * available (matches the "Wilson" tone), otherwise the platform default.
+ */
+function pickFallbackVoice(): SpeechSynthesisVoice | null {
+  if (typeof window === "undefined" || !window.speechSynthesis) return null;
+  const voices = window.speechSynthesis.getVoices();
+  if (!voices.length) return null;
+  const preferOrder = [
+    /en-GB.*Ryan/i,
+    /Ryan/i,
+    /Daniel/i,
+    /Google UK English Male/i,
+    /en-GB.*Male/i,
+    /en-GB/i,
+    /en[-_]US.*Male/i,
+    /en/i,
+  ];
+  for (const re of preferOrder) {
+    const match = voices.find((v) => re.test(`${v.name} ${v.lang}`));
+    if (match) return match;
+  }
+  return voices[0];
+}
+
+let fallbackUtter: SpeechSynthesisUtterance | null = null;
+
+function stopFallbackTTS(): void {
+  if (typeof window === "undefined" || !window.speechSynthesis) return;
+  try {
+    window.speechSynthesis.cancel();
+  } catch {
+    /* noop */
+  }
+  fallbackUtter = null;
+}
+
+async function speakWithBrowserTTS(text: string, signal: AbortSignal): Promise<SpeakResult> {
+  if (typeof window === "undefined" || !window.speechSynthesis) return "error";
+  return new Promise<SpeakResult>((resolve) => {
+    try {
+      window.speechSynthesis.cancel();
+      // Some browsers populate voices async — wait briefly if empty.
+      const start = () => {
+        const utter = new SpeechSynthesisUtterance(text);
+        const voice = pickFallbackVoice();
+        if (voice) utter.voice = voice;
+        utter.lang = voice?.lang || "en-GB";
+        utter.rate = 1.0;
+        utter.pitch = 1.0;
+        utter.volume = 1.0;
+        fallbackUtter = utter;
+        let settled = false;
+        const done = (r: SpeakResult) => {
+          if (settled) return;
+          settled = true;
+          signal.removeEventListener("abort", onAbort);
+          resolve(r);
+        };
+        const onAbort = () => {
+          try { window.speechSynthesis.cancel(); } catch { /* noop */ }
+          done("error");
+        };
+        utter.onend = () => done("ok");
+        utter.onerror = () => done("error");
+        signal.addEventListener("abort", onAbort, { once: true });
+        try {
+          window.speechSynthesis.speak(utter);
+        } catch {
+          done("error");
+        }
+      };
+      if (window.speechSynthesis.getVoices().length === 0) {
+        const onVoices = () => {
+          window.speechSynthesis.removeEventListener("voiceschanged", onVoices);
+          start();
+        };
+        window.speechSynthesis.addEventListener("voiceschanged", onVoices);
+        // Don't wait forever — start anyway after 250ms
+        setTimeout(start, 250);
+      } else {
+        start();
+      }
+    } catch {
+      resolve("error");
+    }
+  });
+}
+
+
 function configureAudioElement(audio: HTMLAudioElement): HTMLAudioElement {
   audio.crossOrigin = "anonymous";
   audio.preload = "auto";
