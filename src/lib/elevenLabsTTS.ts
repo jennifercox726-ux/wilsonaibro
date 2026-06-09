@@ -343,7 +343,14 @@ export async function speakWithElevenLabs(text: string): Promise<SpeakResult> {
     const chunkRequests: Promise<string | null>[] = chunks.map((_, i) => fetchChunk(i));
 
     const firstUrl = await chunkRequests[0];
-    if (!firstUrl) return "error";
+    if (!firstUrl) {
+      // ElevenLabs unreachable / failed — fall back to browser TTS so Wilson
+      // still speaks. This keeps the cloned-voice as primary but guarantees
+      // a voice will always come through.
+      if (reqId !== currentRequestId || abort.signal.aborted) return "error";
+      console.info("[elevenlabs] primary TTS failed, falling back to browser speech synthesis");
+      return await speakWithBrowserTTS(clean, abort.signal);
+    }
     if (reqId !== currentRequestId || abort.signal.aborted) return "error";
 
     // Sequential playback — always reuse the same unlocked element
