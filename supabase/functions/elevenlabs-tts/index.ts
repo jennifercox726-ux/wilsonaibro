@@ -297,10 +297,19 @@ async function synthesizeWithFallback(
     }
 
     const googleApiKey = Deno.env.get("GOOGLE_TTS_API_KEY");
-    if (!googleApiKey) throw err;
+    if (!googleApiKey) {
+      const audioBytes = await synthesizeWithGoogleTranslate(prompt);
+      return { audioBytes, provider: "translate", fallbackReason };
+    }
 
-    const audioBytes = await synthesizeWithGoogle(prompt, googleApiKey);
-    return { audioBytes, provider: "google", fallbackReason };
+    try {
+      const audioBytes = await synthesizeWithGoogle(prompt, googleApiKey);
+      return { audioBytes, provider: "google", fallbackReason };
+    } catch (googleErr) {
+      console.warn("Google fallback TTS failed:", messageFromUnknown(googleErr));
+      const audioBytes = await synthesizeWithGoogleTranslate(prompt);
+      return { audioBytes, provider: "translate", fallbackReason };
+    }
   }
 }
 
