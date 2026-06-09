@@ -17,6 +17,7 @@ const GOOGLE_FALLBACK_VOICES = [
 ] as const;
 const EDGE_TTS_TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4";
 const EDGE_TTS_VOICE = "en-GB-RyanNeural";
+const EDGE_TTS_GEC_VERSION = "1-143.0.3650.80";
 
 interface TTSRequestBody {
   prompt?: string;
@@ -136,6 +137,19 @@ function buildEdgeSsml(text: string): string {
   return `<speak version='1.0' xml:lang='en-GB'><voice name='${EDGE_TTS_VOICE}'><prosody rate='-5%' pitch='-4%'>${escaped}</prosody></voice></speak>`;
 }
 
+async function generateSecMsGec(trustedClientToken: string): Promise<string> {
+  const secondsSinceUnixEpoch = Math.floor(Date.now() / 1000);
+  const secondsSinceWindowsEpoch = secondsSinceUnixEpoch + 11644473600;
+  const roundedSeconds = secondsSinceWindowsEpoch - (secondsSinceWindowsEpoch % 300);
+  const windowsTicks = roundedSeconds * 10_000_000;
+  const data = new TextEncoder().encode(`${windowsTicks}${trustedClientToken}`);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("")
+    .toUpperCase();
+}
+
 function getEdgeTtsEndpoint(): { endpoint: string; trustedClientToken: string } {
   return {
     endpoint: "wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1",
@@ -145,8 +159,11 @@ function getEdgeTtsEndpoint(): { endpoint: string; trustedClientToken: string } 
 
 async function synthesizeWithEdge(prompt: string): Promise<Uint8Array> {
   const { endpoint, trustedClientToken } = getEdgeTtsEndpoint();
+  const secMsGec = await generateSecMsGec(trustedClientToken);
   const url = new URL(endpoint);
   url.searchParams.set("TrustedClientToken", trustedClientToken);
+  url.searchParams.set("Sec-MS-GEC", secMsGec);
+  url.searchParams.set("Sec-MS-GEC-Version", EDGE_TTS_GEC_VERSION);
   url.searchParams.set("ConnectionId", crypto.randomUUID().replace(/-/g, ""));
 
   const ws = new WebSocket(url.toString());
