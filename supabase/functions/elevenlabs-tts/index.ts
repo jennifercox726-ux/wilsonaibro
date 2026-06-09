@@ -200,66 +200,35 @@ Deno.serve(async (req: Request) => {
   const nextText = body.nextText?.slice(0, 800);
 
   try {
-    // Synthesize speech directly. We skip the /v1/voices pre-check because
-    // many API keys are scoped to text_to_speech only and don't have voices_read.
-    const ttsRes = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
-      {
-        method: "POST",
-        headers: {
-          "xi-api-key": elevenLabsApiKey,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          text: prompt,
-          model_id: MODEL_ID,
-          ...(previousText ? { previous_text: previousText } : {}),
-          ...(nextText ? { next_text: nextText } : {}),
-          voice_settings: {
-            stability: 0.45,
-            similarity_boost: 0.8,
-            style: 0.55,
-            use_speaker_boost: true,
-            speed: 0.95,
-          },
-        }),
-      },
+    const audio = await synthesizeWithFallback(
+      prompt,
+      voiceId,
+      elevenLabsApiKey,
+      previousText,
+      nextText,
     );
 
-    if (!ttsRes.ok) {
-      const errBody = await ttsRes.text();
-      return new Response(
-        JSON.stringify({
-          error: `ElevenLabs TTS failed [${ttsRes.status}]`,
-          details: errBody,
-        }),
-        {
-          status: ttsRes.status,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    const audioBuffer = await ttsRes.arrayBuffer();
-
     if (req.headers.get("accept")?.includes("audio/mpeg")) {
-      return new Response(audioBuffer, {
+      return new Response(audio.audioBytes, {
         status: 200,
         headers: {
           ...corsHeaders,
           "Content-Type": "audio/mpeg",
           "Cache-Control": "no-store",
+          "X-TTS-Provider": audio.provider,
+          ...(audio.fallbackReason ? { "X-TTS-Fallback": "google" } : {}),
         },
       });
     }
 
-    const base64 = base64Encode(audioBuffer);
+    const base64 = base64Encode(audio.audioBytes);
 
     return new Response(
       JSON.stringify({
         audioUrl: `data:audio/mpeg;base64,${base64}`,
         contentType: "audio/mpeg",
-        provider: "elevenlabs",
+        provider: audio.provider,
+        fallbackReason: audio.fallbackReason ?? null,
         requestId: null,
       }),
       {
@@ -268,7 +237,7 @@ Deno.serve(async (req: Request) => {
       },
     );
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
+    const message = messageFromUnknown(err);
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
