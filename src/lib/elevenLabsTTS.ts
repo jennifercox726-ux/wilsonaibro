@@ -231,6 +231,7 @@ function chunkTextForTTS(text: string, target = 600, max = 2500): string[] {
 
 export function stopElevenLabs(): void {
   currentRequestId++;
+  stopFallbackTTS();
 
   if (currentAbort) {
     try {
