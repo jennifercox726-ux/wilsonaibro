@@ -28,7 +28,7 @@ interface TTSRequestBody {
 
 interface AudioResult {
   audioBytes: Uint8Array;
-  provider: "elevenlabs" | "google" | "edge";
+  provider: "elevenlabs" | "google" | "edge" | "translate";
   fallbackReason?: string;
 }
 
@@ -124,6 +124,44 @@ async function synthesizeWithGoogle(prompt: string, apiKey: string): Promise<Uin
   }
 
   throw new Error(lastError);
+}
+
+async function synthesizeWithGoogleTranslate(prompt: string): Promise<Uint8Array> {
+  const parts = prompt.match(/.{1,180}(?:\s|$)/g)?.map((part) => part.trim()).filter(Boolean) ?? [prompt];
+  const chunks: Uint8Array[] = [];
+  let totalLength = 0;
+
+  for (const part of parts) {
+    const url = new URL("https://translate.google.com/translate_tts");
+    url.searchParams.set("ie", "UTF-8");
+    url.searchParams.set("tl", "en-GB");
+    url.searchParams.set("client", "tw-ob");
+    url.searchParams.set("q", part);
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        "User-Agent": "Mozilla/5.0 AppleWebKit/537.36 Chrome/120.0 Safari/537.36",
+        "Referer": "https://translate.google.com/",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Translate TTS failed [${response.status}]`);
+    }
+
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (!bytes.length) throw new Error("Translate TTS returned no audio");
+    chunks.push(bytes);
+    totalLength += bytes.length;
+  }
+
+  const merged = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return merged;
 }
 
 function buildEdgeSsml(text: string): string {
