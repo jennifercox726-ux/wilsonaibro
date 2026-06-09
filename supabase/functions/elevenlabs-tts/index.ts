@@ -250,6 +250,13 @@ async function synthesizeWithFallback(
     const fallbackReason = messageFromUnknown(err).slice(0, 500);
     console.warn("Primary cloned voice failed; using server fallback TTS:", fallbackReason);
 
+    try {
+      const audioBytes = await synthesizeWithEdge(prompt);
+      return { audioBytes, provider: "edge", fallbackReason };
+    } catch (edgeErr) {
+      console.warn("Edge fallback TTS failed:", messageFromUnknown(edgeErr));
+    }
+
     const googleApiKey = Deno.env.get("GOOGLE_TTS_API_KEY");
     if (!googleApiKey) throw err;
 
