@@ -136,31 +136,15 @@ function buildEdgeSsml(text: string): string {
   return `<speak version='1.0' xml:lang='en-GB'><voice name='${EDGE_TTS_VOICE}'><prosody rate='-5%' pitch='-4%'>${escaped}</prosody></voice></speak>`;
 }
 
-async function getEdgeTtsEndpoint(): Promise<{ endpoint: string; trustedClientToken: string }> {
-  const response = await fetch(
-    `https://dev.microsofttranslator.com/apps/endpoint?api-version=1.0&client=edge&trustedclienttoken=${EDGE_TTS_TOKEN}`,
-    { headers: { "User-Agent": "Mozilla/5.0" } },
-  );
-
-  if (!response.ok) {
-    throw new Error(`Edge TTS endpoint failed [${response.status}]`);
-  }
-
-  const payload = await response.json() as {
-    r?: string;
-    t?: string;
-    endpoint?: string;
-    trustedClientToken?: string;
+function getEdgeTtsEndpoint(): { endpoint: string; trustedClientToken: string } {
+  return {
+    endpoint: "wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1",
+    trustedClientToken: EDGE_TTS_TOKEN,
   };
-
-  const endpoint = payload.endpoint || payload.r;
-  const trustedClientToken = payload.trustedClientToken || payload.t || EDGE_TTS_TOKEN;
-  if (!endpoint) throw new Error("Edge TTS endpoint missing");
-  return { endpoint, trustedClientToken };
 }
 
 async function synthesizeWithEdge(prompt: string): Promise<Uint8Array> {
-  const { endpoint, trustedClientToken } = await getEdgeTtsEndpoint();
+  const { endpoint, trustedClientToken } = getEdgeTtsEndpoint();
   const url = new URL(endpoint);
   url.searchParams.set("TrustedClientToken", trustedClientToken);
   url.searchParams.set("ConnectionId", crypto.randomUUID().replace(/-/g, ""));
