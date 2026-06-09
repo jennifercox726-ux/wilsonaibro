@@ -387,7 +387,8 @@ export async function speakWithElevenLabs(text: string): Promise<SpeakResult> {
           return i > 0 ? "ok" : "blocked";
         }
         console.warn("[elevenlabs] audio.play() rejected:", err);
-        return i > 0 ? "ok" : "error";
+        if (i === 0) return await speakWithBrowserTTS(clean, abort.signal);
+        return "ok";
       }
       if (reqId !== currentRequestId || abort.signal.aborted) {
         onAbort();
