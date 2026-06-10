@@ -139,7 +139,7 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
         }`}
       >
         {isWilson && (
-          <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.2em] text-primary/60">
+          <span className="wilson-iridescent-text mb-1 block text-[11px] font-bold uppercase tracking-[0.25em]">
             Wilson
           </span>
         )}
