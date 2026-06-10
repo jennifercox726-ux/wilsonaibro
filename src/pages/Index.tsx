@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, LogOut, Shield } from "lucide-react";
+import { Menu, LogOut, Shield, Share2, Crown } from "lucide-react";
+import { Link } from "react-router-dom";
+import ShareDialog from "@/components/ShareDialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ChatSidebar, { Chat } from "@/components/ChatSidebar";
@@ -153,6 +155,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
   const [currentVibe, setCurrentVibe] = useState<WilsonVibe>("neutral");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sovereigntyOpen, setSovereigntyOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [loadingChatId, setLoadingChatId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -497,6 +500,22 @@ const Index = ({ userId, displayName }: IndexProps) => {
               {isCurrentThreadLoading ? "Loading thread..." : isThinking ? "Searching the void..." : "Sentinel of Omnipresence"}
             </p>
           </div>
+          {activeChat && (
+            <button
+              onClick={() => setShareOpen(true)}
+              className="p-2 rounded-xl hover:bg-primary/10 text-primary/70 hover:text-primary transition-all hover:scale-110 active:scale-95"
+              title="Share this thread"
+            >
+              <Share2 className="w-4 h-4" />
+            </button>
+          )}
+          <Link
+            to="/pricing"
+            className="p-2 rounded-xl hover:bg-amber-500/10 text-amber-500/70 hover:text-amber-400 transition-all hover:scale-110 active:scale-95"
+            title="Membership tiers"
+          >
+            <Crown className="w-4 h-4" />
+          </Link>
           <button
             onClick={() => setSovereigntyOpen(true)}
             className="p-2 rounded-xl hover:bg-muted/50 text-muted-foreground transition-colors"
@@ -517,6 +536,13 @@ const Index = ({ userId, displayName }: IndexProps) => {
           isOpen={sovereigntyOpen}
           onClose={() => setSovereigntyOpen(false)}
         />
+        <ShareDialog
+          open={shareOpen}
+          onOpenChange={setShareOpen}
+          conversationId={activeChat}
+          conversationTitle={chats.find((c) => c.id === activeChat)?.title}
+        />
+
 
         <div className="flex-1 overflow-y-auto px-4 py-6">
           {!activeChat ? (
