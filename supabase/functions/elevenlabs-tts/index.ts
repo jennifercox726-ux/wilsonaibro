@@ -24,6 +24,7 @@ interface TTSRequestBody {
   voiceId?: string;
   previousText?: string;
   nextText?: string;
+  simulateNoCredits?: boolean;
 }
 
 interface AudioResult {
