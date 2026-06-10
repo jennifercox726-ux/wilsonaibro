@@ -154,7 +154,7 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
             {isWilson && (
               <button
                 onClick={handleSpeak}
-                className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-primary transition-colors hover:bg-primary/20"
+                className="wilson-iridescent-btn flex items-center gap-1 rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider"
                 title={isActive ? "Stop" : "Play voice"}
                 aria-label={isActive ? "Stop voice" : "Play voice"}
               >
