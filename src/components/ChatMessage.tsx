@@ -134,7 +134,7 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
     >
       {isWilson && <WilsonOrb size="sm" />}
       <div
-        className={`relative max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3 ${
+        className={`relative max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/10 ${
           isWilson ? "thought-block-wilson" : "thought-block"
         }`}
       >
