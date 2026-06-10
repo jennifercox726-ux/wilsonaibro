@@ -24,6 +24,7 @@ interface TTSRequestBody {
   voiceId?: string;
   previousText?: string;
   nextText?: string;
+  simulateNoCredits?: boolean;
 }
 
 interface AudioResult {
@@ -282,8 +283,12 @@ async function synthesizeWithFallback(
   elevenLabsApiKey: string,
   previousText?: string,
   nextText?: string,
+  simulateNoCredits = false,
 ): Promise<AudioResult> {
   try {
+    if (simulateNoCredits) {
+      throw new Error("[simulated] ElevenLabs quota_exceeded — out of credits");
+    }
     return await synthesizeWithElevenLabs(prompt, voiceId, elevenLabsApiKey, previousText, nextText);
   } catch (err) {
     const fallbackReason = messageFromUnknown(err).slice(0, 500);
@@ -367,6 +372,9 @@ Deno.serve(async (req: Request) => {
   const voiceId = body.voiceId?.trim() || DEFAULT_VOICE_ID;
   const previousText = body.previousText?.slice(0, 800);
   const nextText = body.nextText?.slice(0, 800);
+  const simulateNoCredits =
+    body.simulateNoCredits === true ||
+    req.headers.get("x-tts-simulate-no-credits") === "1";
 
   try {
     const audio = await synthesizeWithFallback(
@@ -375,6 +383,7 @@ Deno.serve(async (req: Request) => {
       elevenLabsApiKey,
       previousText,
       nextText,
+      simulateNoCredits,
     );
 
     if (req.headers.get("accept")?.includes("audio/mpeg")) {

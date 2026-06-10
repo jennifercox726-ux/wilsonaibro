@@ -156,12 +156,27 @@ export async function generateElevenLabsAudio(
   const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`;
   const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
+  // Test mode: force the server to skip ElevenLabs and exercise the
+  // fallback chain. Triggered by `?ttsTest=nocredits` in the URL or by
+  // setting `localStorage.wilsonTTSSimulateNoCredits = "1"`.
+  let simulateNoCredits = false;
+  try {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("ttsTest") === "nocredits") simulateNoCredits = true;
+      if (window.localStorage?.getItem("wilsonTTSSimulateNoCredits") === "1") {
+        simulateNoCredits = true;
+      }
+    }
+  } catch { /* noop */ }
+
   const response = await fetch(functionUrl, {
     method: "POST",
     signal,
     headers: {
       "Content-Type": "application/json",
       Accept: "audio/mpeg",
+      ...(simulateNoCredits ? { "x-tts-simulate-no-credits": "1" } : {}),
       ...(publishableKey
         ? {
             apikey: publishableKey,
@@ -173,6 +188,7 @@ export async function generateElevenLabsAudio(
       prompt,
       ...(context?.previousText ? { previousText: context.previousText } : {}),
       ...(context?.nextText ? { nextText: context.nextText } : {}),
+      ...(simulateNoCredits ? { simulateNoCredits: true } : {}),
     }),
   });
 
