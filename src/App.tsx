@@ -11,6 +11,8 @@ import Auth from "./pages/Auth.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import Analytics from "./pages/Analytics.tsx";
 import ConfirmDispatch from "./pages/ConfirmDispatch.tsx";
+import SharedThread from "./pages/SharedThread.tsx";
+import Pricing from "./pages/Pricing.tsx";
 import BackgroundDebugOverlay from "./components/BackgroundDebugOverlay";
 
 const queryClient = new QueryClient();
@@ -87,6 +89,8 @@ const App = () => {
                 }
               />
               <Route path="/confirm-dispatch" element={<ConfirmDispatch />} />
+              <Route path="/share/:token" element={<SharedThread />} />
+              <Route path="/pricing" element={<Pricing />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </main>
