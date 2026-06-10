@@ -18,6 +18,8 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          is_public: boolean
+          share_token: string | null
           title: string
           updated_at: string
           user_id: string
@@ -25,6 +27,8 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          is_public?: boolean
+          share_token?: string | null
           title?: string
           updated_at?: string
           user_id: string
@@ -32,6 +36,8 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          is_public?: boolean
+          share_token?: string | null
           title?: string
           updated_at?: string
           user_id?: string
@@ -339,6 +345,7 @@ export type Database = {
           emotional_vibe: string | null
           first_seen_at: string
           id: string
+          membership_tier: string
           referral_source: string | null
           updated_at: string
           user_id: string
@@ -350,6 +357,7 @@ export type Database = {
           emotional_vibe?: string | null
           first_seen_at?: string
           id?: string
+          membership_tier?: string
           referral_source?: string | null
           updated_at?: string
           user_id: string
@@ -361,6 +369,7 @@ export type Database = {
           emotional_vibe?: string | null
           first_seen_at?: string
           id?: string
+          membership_tier?: string
           referral_source?: string | null
           updated_at?: string
           user_id?: string
