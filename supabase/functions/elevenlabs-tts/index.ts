@@ -372,6 +372,9 @@ Deno.serve(async (req: Request) => {
   const voiceId = body.voiceId?.trim() || DEFAULT_VOICE_ID;
   const previousText = body.previousText?.slice(0, 800);
   const nextText = body.nextText?.slice(0, 800);
+  const simulateNoCredits =
+    body.simulateNoCredits === true ||
+    req.headers.get("x-tts-simulate-no-credits") === "1";
 
   try {
     const audio = await synthesizeWithFallback(
@@ -380,6 +383,7 @@ Deno.serve(async (req: Request) => {
       elevenLabsApiKey,
       previousText,
       nextText,
+      simulateNoCredits,
     );
 
     if (req.headers.get("accept")?.includes("audio/mpeg")) {
