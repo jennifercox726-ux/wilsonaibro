@@ -659,3 +659,61 @@ body.wilson-speaking::before {
   .wilson-orb-ripple { animation: none !important; }
 }
 
+
+/* Iridescent breathing — used for Wilson label + Play button to feel alive */
+@keyframes wilson-iridescent-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes wilson-breathe-glow {
+  0%, 100% { box-shadow: 0 0 8px hsl(var(--primary) / 0.35), 0 0 18px hsl(var(--accent) / 0.25), inset 0 0 6px hsl(var(--secondary) / 0.25); transform: scale(1); }
+  50%      { box-shadow: 0 0 16px hsl(var(--primary) / 0.65), 0 0 36px hsl(var(--accent) / 0.5),  inset 0 0 10px hsl(var(--secondary) / 0.45); transform: scale(1.04); }
+}
+@keyframes wilson-breathe-text {
+  0%, 100% { text-shadow: 0 0 6px hsl(var(--primary) / 0.5),  0 0 12px hsl(var(--accent) / 0.3); opacity: 0.95; }
+  50%      { text-shadow: 0 0 12px hsl(var(--primary) / 0.85), 0 0 24px hsl(var(--accent) / 0.6); opacity: 1; }
+}
+
+.wilson-iridescent-text {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--primary)) 0%,
+    hsl(var(--secondary)) 25%,
+    hsl(var(--accent)) 50%,
+    hsl(var(--secondary)) 75%,
+    hsl(var(--primary)) 100%
+  );
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation:
+    wilson-iridescent-shift 6s ease-in-out infinite,
+    wilson-breathe-text 3.6s ease-in-out infinite;
+}
+
+.wilson-iridescent-btn {
+  position: relative;
+  color: hsl(var(--primary-foreground));
+  background: linear-gradient(
+    90deg,
+    hsl(var(--primary)) 0%,
+    hsl(var(--secondary)) 33%,
+    hsl(var(--accent)) 66%,
+    hsl(var(--primary)) 100%
+  );
+  background-size: 220% 220%;
+  border: 1px solid hsl(var(--primary) / 0.55);
+  animation:
+    wilson-iridescent-shift 5s ease-in-out infinite,
+    wilson-breathe-glow 3.2s ease-in-out infinite;
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+.wilson-iridescent-btn:hover { filter: brightness(1.15) saturate(1.2); transform: scale(1.06); }
+.wilson-iridescent-btn:active { transform: scale(0.97); }
+
+@media (prefers-reduced-motion: reduce) {
+  .wilson-iridescent-text,
+  .wilson-iridescent-btn { animation: none !important; }
+}
