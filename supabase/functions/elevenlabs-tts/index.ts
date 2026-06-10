@@ -283,8 +283,12 @@ async function synthesizeWithFallback(
   elevenLabsApiKey: string,
   previousText?: string,
   nextText?: string,
+  simulateNoCredits = false,
 ): Promise<AudioResult> {
   try {
+    if (simulateNoCredits) {
+      throw new Error("[simulated] ElevenLabs quota_exceeded — out of credits");
+    }
     return await synthesizeWithElevenLabs(prompt, voiceId, elevenLabsApiKey, previousText, nextText);
   } catch (err) {
     const fallbackReason = messageFromUnknown(err).slice(0, 500);
