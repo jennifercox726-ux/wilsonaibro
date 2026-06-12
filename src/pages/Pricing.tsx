@@ -91,13 +91,28 @@ const Pricing = () => {
     })();
   }, []);
 
-  const handleUpgrade = (tier: Tier) => {
-    if (tier === currentTier) return;
-    if (tier === "free") return;
-    toast.info("Payments unlock soon — enable Stripe in the next step.", {
-      description: `${tier === "pro" ? "Sovereign" : "Architect"} tier checkout is being prepared.`,
+  const handleUpgrade = async (tier: Tier) => {
+    if (tier === currentTier || tier === "free") return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error("Sign in first to ascend.");
+      navigate("/auth");
+      return;
+    }
+    toast.loading("Opening the gates...", { id: "checkout" });
+    const { data, error } = await supabase.functions.invoke("stripe-checkout", {
+      body: { tier },
     });
+    toast.dismiss("checkout");
+    if (error || !data?.url) {
+      toast.error("Checkout unavailable", {
+        description: error?.message ?? "Stripe keys may not be configured yet.",
+      });
+      return;
+    }
+    window.location.href = data.url;
   };
+
 
   return (
     <div className="min-h-screen bg-transparent">
