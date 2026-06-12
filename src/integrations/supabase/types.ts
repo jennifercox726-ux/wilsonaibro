@@ -347,6 +347,8 @@ export type Database = {
           id: string
           membership_tier: string
           referral_source: string | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
           updated_at: string
           user_id: string
         }
@@ -359,6 +361,8 @@ export type Database = {
           id?: string
           membership_tier?: string
           referral_source?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
           updated_at?: string
           user_id: string
         }
@@ -371,6 +375,8 @@ export type Database = {
           id?: string
           membership_tier?: string
           referral_source?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
           updated_at?: string
           user_id?: string
         }
