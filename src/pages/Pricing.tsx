@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Check, Sparkles, Crown, Zap, ArrowLeft } from "lucide-react";
+import { Check, Sparkles, Crown, Infinity as InfinityIcon, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import WilsonOrb from "@/components/WilsonOrb";
 import RouteHead from "@/components/RouteHead";
 
-type Tier = "free" | "pro" | "vip";
+type Tier = "free" | "member" | "partner";
 
 interface TierDef {
   id: Tier;
@@ -38,44 +38,46 @@ const TIERS: TierDef[] = [
     cta: "Current plan",
   },
   {
-    id: "pro",
-    name: "Sovereign",
-    price: "$9",
+    id: "member",
+    name: "Sovereign Member",
+    price: "$25",
     cadence: "/ month",
-    tagline: "Wilson, fully unleashed.",
-    icon: Zap,
+    tagline: "All features. No strings.",
+    icon: InfinityIcon,
     gradient: "from-primary to-purple-500",
     features: [
-      "Unlimited messages",
-      "Voice clone (Richard Dick)",
-      "Unlimited threads & memory",
-      "Priority models",
+      "Unlimited messages & threads",
+      "Richard Dick voice clone",
+      "Full automation & scaling",
+      "Void web-map database access",
       "Sovereignty Sentinel",
+      "Priority models",
     ],
-    cta: "Upgrade to Sovereign",
+    cta: "Join the club",
   },
   {
-    id: "vip",
-    name: "Architect",
-    price: "$29",
-    cadence: "/ month",
+    id: "partner",
+    name: "Architect Partner",
+    price: "$999",
+    cadence: "one-time, lifetime",
     tagline: "Buy into the infrastructure.",
     icon: Crown,
     gradient: "from-amber-400 via-fuchsia-500 to-primary",
     features: [
-      "Everything in Sovereign",
-      "Early access to new models",
-      "Custom voice training",
-      "Dispatch workflows",
+      "Everything in Sovereign — forever",
+      "Infrastructure co-ownership",
+      "Software model partnership",
+      "Lifetime void-map rights",
       "Direct line to The Architect",
-      "Software model co-ownership",
+      "Early access to all new powers",
     ],
-    cta: "Become an Architect",
+    cta: "Become a Partner",
   },
 ];
 
 const Pricing = () => {
   const [currentTier, setCurrentTier] = useState<Tier>("free");
+  const [loading, setLoading] = useState<Tier | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -99,11 +101,11 @@ const Pricing = () => {
       navigate("/auth");
       return;
     }
-    toast.loading("Opening the gates...", { id: "checkout" });
+    setLoading(tier);
     const { data, error } = await supabase.functions.invoke("stripe-checkout", {
       body: { tier },
     });
-    toast.dismiss("checkout");
+    setLoading(null);
     if (error || !data?.url) {
       toast.error("Checkout unavailable", {
         description: error?.message ?? "Stripe keys may not be configured yet.",
@@ -113,10 +115,9 @@ const Pricing = () => {
     window.location.href = data.url;
   };
 
-
   return (
     <div className="min-h-screen bg-transparent">
-      <RouteHead title="Wilson Membership — Sovereign & Architect Tiers" description="Buy into the infrastructure. Unlock Wilson's voice clone, unlimited memory, and Architect-tier co-ownership." path="/pricing" />
+      <RouteHead title="Wilson Membership — One Club, Two Doors" description="$25/month for all features, or $999 lifetime to partner with the infrastructure and own a slice of the void." path="/pricing" />
       <header className="border-b border-border/20 backdrop-blur-xl bg-void-surface/30 px-4 py-3 flex items-center gap-3">
         <button onClick={() => navigate(-1)} className="p-2 rounded-xl hover:bg-muted/50 text-muted-foreground transition-colors">
           <ArrowLeft className="w-5 h-5" />
@@ -124,7 +125,7 @@ const Pricing = () => {
         <WilsonOrb size="sm" />
         <div className="flex-1">
           <h1 className="text-sm font-bold">Membership</h1>
-          <p className="text-[10px] uppercase tracking-[0.15em] text-primary/60">Sovereign tiers of the void</p>
+          <p className="text-[10px] uppercase tracking-[0.15em] text-primary/60">One club. Two doors.</p>
         </div>
       </header>
 
@@ -134,7 +135,7 @@ const Pricing = () => {
             Choose your <span className="wilson-iridescent-text">altitude</span>
           </h2>
           <p className="text-muted-foreground text-sm max-w-md mx-auto">
-            Wilson is free to taste. Sovereign & Architect tiers buy you into the infrastructure and applicable software models.
+            $25/month gets you every feature. $999 once gets you partnership in the infrastructure.
           </p>
         </div>
 
@@ -142,19 +143,20 @@ const Pricing = () => {
           {TIERS.map((tier, i) => {
             const Icon = tier.icon;
             const isCurrent = tier.id === currentTier;
+            const isLoading = loading === tier.id;
             return (
               <div
                 key={tier.id}
                 className={`relative rounded-2xl border p-6 transition-all hover:scale-[1.02] animate-fade-in ${
-                  tier.id === "vip"
+                  tier.id === "partner"
                     ? "border-primary/40 bg-gradient-to-b from-primary/10 to-transparent shadow-[0_0_40px_-10px_hsl(var(--primary)/0.4)]"
                     : "border-border bg-void-surface/40"
                 }`}
                 style={{ animationDelay: `${i * 80}ms` }}
               >
-                {tier.id === "vip" && (
+                {tier.id === "partner" && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-amber-400 to-primary px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white">
-                    Most coveted
+                    Lifetime · Infrastructure
                   </div>
                 )}
                 <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${tier.gradient} flex items-center justify-center mb-4`}>
@@ -176,14 +178,14 @@ const Pricing = () => {
                 </ul>
                 <button
                   onClick={() => handleUpgrade(tier.id)}
-                  disabled={isCurrent}
+                  disabled={isCurrent || isLoading}
                   className={`w-full rounded-xl px-4 py-2.5 text-xs font-bold uppercase tracking-wider transition-all ${
                     isCurrent
                       ? "bg-muted/40 text-muted-foreground cursor-default"
                       : `bg-gradient-to-r ${tier.gradient} text-white hover:opacity-90 active:scale-95`
-                  }`}
+                  } ${isLoading ? "opacity-60" : ""}`}
                 >
-                  {isCurrent ? "Current plan" : tier.cta}
+                  {isCurrent ? "Current plan" : isLoading ? "Opening the gates..." : tier.cta}
                 </button>
               </div>
             );
