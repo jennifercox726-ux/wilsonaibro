@@ -141,6 +141,7 @@ const VoidMap = () => {
   return (
     <div className="h-screen w-screen flex flex-col bg-background text-foreground">
       <RouteHead
+        path="/void-map"
         title="Void Map · Live Starlink + NASA Earth"
         description="Real-time Starlink constellation positions over NASA GIBS daily satellite imagery — the Sovereign void-map."
       />
