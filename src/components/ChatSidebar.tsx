@@ -1,5 +1,6 @@
+import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, MessageSquare, Trash2, X } from "lucide-react";
+import { Plus, MessageSquare, Trash2, X, Search, Bookmark } from "lucide-react";
 
 export interface Chat {
   id: string;
@@ -13,6 +14,7 @@ interface ChatSidebarProps {
   onSelectChat: (id: string) => void;
   onNewChat: () => void;
   onDeleteChat: (id: string) => void;
+  onOpenSnippets: () => void;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -23,12 +25,20 @@ const ChatSidebar = ({
   onSelectChat,
   onNewChat,
   onDeleteChat,
+  onOpenSnippets,
   isOpen,
   onClose,
 }: ChatSidebarProps) => {
+  const [query, setQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return chats;
+    return chats.filter((c) => c.title.toLowerCase().includes(q));
+  }, [chats, query]);
+
   return (
     <>
-      {/* Overlay on mobile */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -48,7 +58,6 @@ const ChatSidebar = ({
         className="fixed left-0 top-0 bottom-0 w-[260px] z-50 flex flex-col border-r border-border/30 bg-void-surface/95"
         style={{ backdropFilter: "blur(24px)" }}
       >
-        {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border/20">
           <span className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
             Neural Threads
@@ -70,10 +79,40 @@ const ChatSidebar = ({
           </div>
         </div>
 
+        {/* Search */}
+        <div className="px-3 pt-3">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/60" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search threads..."
+              className="w-full pl-8 pr-3 py-2 text-xs rounded-lg bg-background/40 border border-border/30 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/40"
+            />
+          </div>
+        </div>
+
+        {/* Saved snippets shortcut */}
+        <div className="px-3 pt-2 pb-1">
+          <button
+            onClick={onOpenSnippets}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold uppercase tracking-wider text-primary/80 hover:text-primary bg-primary/5 hover:bg-primary/10 border border-primary/15 transition-all"
+          >
+            <Bookmark className="w-3.5 h-3.5" />
+            Favorites & Snippets
+          </button>
+        </div>
+
         {/* Chat list */}
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
+          {filtered.length === 0 && query.trim() && (
+            <div className="px-3 py-4 text-center text-[11px] text-muted-foreground/60">
+              No threads match "{query}"
+            </div>
+          )}
           <AnimatePresence>
-            {chats.map((chat) => (
+            {filtered.map((chat) => (
               <motion.button
                 key={chat.id}
                 layout
@@ -103,7 +142,6 @@ const ChatSidebar = ({
           </AnimatePresence>
         </div>
 
-        {/* Footer */}
         <div className="p-4 border-t border-border/20">
           <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/40 text-center">
             The Neural Void • Wilson v1
