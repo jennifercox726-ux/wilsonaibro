@@ -156,6 +156,33 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
           <div className="flex items-center gap-1">
             {isWilson && (
               <button
+                onClick={async () => {
+                  if (saving || saved) return;
+                  setSaving(true);
+                  const { error } = await supabase.from("saved_snippets").insert({
+                    content: cleanContent,
+                    user_id: (await supabase.auth.getUser()).data.user?.id,
+                  });
+                  setSaving(false);
+                  if (error) {
+                    toast.error("Couldn't save snippet");
+                  } else {
+                    setSaved(true);
+                    toast.success("Saved to your favorites ✨");
+                  }
+                }}
+                className="rounded-lg p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-muted/50 hover:text-primary group-hover:opacity-100"
+                title={saved ? "Saved" : "Save snippet"}
+              >
+                {saved ? (
+                  <BookmarkCheck className="h-3.5 w-3.5 text-primary" />
+                ) : (
+                  <Bookmark className="h-3.5 w-3.5" />
+                )}
+              </button>
+            )}
+            {isWilson && (
+              <button
                 onClick={handleSpeak}
                 className="wilson-iridescent-btn flex items-center gap-1 rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider"
                 title={isActive ? "Stop" : "Play voice"}
