@@ -12,6 +12,7 @@ import WilsonOrb, { WilsonVibe } from "@/components/WilsonOrb";
 import NeuralNebula from "@/components/NeuralNebula";
 import IOSIframeBanner from "@/components/IOSIframeBanner";
 import SovereigntyPanel from "@/components/SovereigntyPanel";
+import SavedSnippetsPanel from "@/components/SavedSnippetsPanel";
 import { speakWithElevenLabs, stopElevenLabs } from "@/lib/elevenLabsTTS";
 import RouteHead from "@/components/RouteHead";
 import { useReferral } from "@/hooks/useReferral";
