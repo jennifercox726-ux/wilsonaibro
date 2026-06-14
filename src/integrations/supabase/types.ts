@@ -423,6 +423,41 @@ export type Database = {
           },
         ]
       }
+      saved_snippets: {
+        Row: {
+          content: string
+          conversation_id: string | null
+          created_at: string
+          id: string
+          note: string | null
+          user_id: string
+        }
+        Insert: {
+          content: string
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          user_id: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_snippets_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sovereignty_sentinels: {
         Row: {
           created_at: string
