@@ -12,6 +12,7 @@ import WilsonOrb, { WilsonVibe } from "@/components/WilsonOrb";
 import NeuralNebula from "@/components/NeuralNebula";
 import IOSIframeBanner from "@/components/IOSIframeBanner";
 import SovereigntyPanel from "@/components/SovereigntyPanel";
+import SavedSnippetsPanel from "@/components/SavedSnippetsPanel";
 import { speakWithElevenLabs, stopElevenLabs } from "@/lib/elevenLabsTTS";
 import RouteHead from "@/components/RouteHead";
 import { useReferral } from "@/hooks/useReferral";
@@ -156,6 +157,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sovereigntyOpen, setSovereigntyOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [snippetsOpen, setSnippetsOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [loadingChatId, setLoadingChatId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -481,9 +483,11 @@ const Index = ({ userId, displayName }: IndexProps) => {
         onSelectChat={handleSelectChat}
         onNewChat={createNewChat}
         onDeleteChat={handleDeleteChat}
+        onOpenSnippets={() => setSnippetsOpen(true)}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
+      <SavedSnippetsPanel isOpen={snippetsOpen} onClose={() => setSnippetsOpen(false)} />
 
       <div className="flex-1 flex flex-col min-w-0">
         <header className="flex items-center gap-3 px-4 py-3 border-b border-border/20 bg-void-surface/30 backdrop-blur-xl">

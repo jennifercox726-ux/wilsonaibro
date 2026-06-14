@@ -1,8 +1,9 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Copy, Check, Volume2, Square, Loader2 } from "lucide-react";
+import { Copy, Check, Volume2, Square, Loader2, Bookmark, BookmarkCheck } from "lucide-react";
 import { toast } from "sonner";
 import { markdownToHtml } from "@/lib/simpleMarkdown";
+import { supabase } from "@/integrations/supabase/client";
 import {
   speakWithElevenLabs,
   stopElevenLabs,
@@ -33,6 +34,8 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
   const [copied, setCopied] = useState(false);
   const [loadingVoice, setLoadingVoice] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const requestedRef = useRef(false);
 
   const cleanContent = useMemo(
@@ -151,6 +154,33 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
             {message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </span>
           <div className="flex items-center gap-1">
+            {isWilson && (
+              <button
+                onClick={async () => {
+                  if (saving || saved) return;
+                  setSaving(true);
+                  const { error } = await supabase.from("saved_snippets").insert({
+                    content: cleanContent,
+                    user_id: (await supabase.auth.getUser()).data.user?.id,
+                  });
+                  setSaving(false);
+                  if (error) {
+                    toast.error("Couldn't save snippet");
+                  } else {
+                    setSaved(true);
+                    toast.success("Saved to your favorites ✨");
+                  }
+                }}
+                className="rounded-lg p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-muted/50 hover:text-primary group-hover:opacity-100"
+                title={saved ? "Saved" : "Save snippet"}
+              >
+                {saved ? (
+                  <BookmarkCheck className="h-3.5 w-3.5 text-primary" />
+                ) : (
+                  <Bookmark className="h-3.5 w-3.5" />
+                )}
+              </button>
+            )}
             {isWilson && (
               <button
                 onClick={handleSpeak}
