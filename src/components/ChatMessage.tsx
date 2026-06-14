@@ -1,8 +1,9 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Copy, Check, Volume2, Square, Loader2 } from "lucide-react";
+import { Copy, Check, Volume2, Square, Loader2, Bookmark, BookmarkCheck } from "lucide-react";
 import { toast } from "sonner";
 import { markdownToHtml } from "@/lib/simpleMarkdown";
+import { supabase } from "@/integrations/supabase/client";
 import {
   speakWithElevenLabs,
   stopElevenLabs,
