@@ -34,6 +34,8 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
   const [copied, setCopied] = useState(false);
   const [loadingVoice, setLoadingVoice] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const requestedRef = useRef(false);
 
   const cleanContent = useMemo(
