@@ -483,9 +483,11 @@ const Index = ({ userId, displayName }: IndexProps) => {
         onSelectChat={handleSelectChat}
         onNewChat={createNewChat}
         onDeleteChat={handleDeleteChat}
+        onOpenSnippets={() => setSnippetsOpen(true)}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
+      <SavedSnippetsPanel isOpen={snippetsOpen} onClose={() => setSnippetsOpen(false)} />
 
       <div className="flex-1 flex flex-col min-w-0">
         <header className="flex items-center gap-3 px-4 py-3 border-b border-border/20 bg-void-surface/30 backdrop-blur-xl">
