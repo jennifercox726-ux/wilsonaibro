@@ -157,6 +157,7 @@ const Index = ({ userId, displayName }: IndexProps) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sovereigntyOpen, setSovereigntyOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [snippetsOpen, setSnippetsOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [loadingChatId, setLoadingChatId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
