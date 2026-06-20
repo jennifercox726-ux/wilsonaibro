@@ -1,4 +1,62 @@
 import { encode as base64Encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
+const CACHE_BUCKET = "tts-cache";
+const CACHE_SIGNED_URL_TTL = 60 * 60 * 24 * 365; // 1 year
+
+const supabaseAdmin = (() => {
+  const url = Deno.env.get("SUPABASE_URL");
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !key) return null;
+  return createClient(url, key, { auth: { persistSession: false } });
+})();
+
+async function sha256Hex(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function getCachedAudioUrl(cacheKey: string): Promise<string | null> {
+  if (!supabaseAdmin) return null;
+  try {
+    const path = `${cacheKey}.mp3`;
+    const { data, error } = await supabaseAdmin.storage
+      .from(CACHE_BUCKET)
+      .createSignedUrl(path, CACHE_SIGNED_URL_TTL);
+    if (error || !data?.signedUrl) return null;
+    // Verify the object actually exists (createSignedUrl can succeed for missing files in some cases)
+    const head = await fetch(data.signedUrl, { method: "HEAD" });
+    if (!head.ok) return null;
+    return data.signedUrl;
+  } catch {
+    return null;
+  }
+}
+
+async function putCachedAudio(cacheKey: string, bytes: Uint8Array): Promise<string | null> {
+  if (!supabaseAdmin) return null;
+  try {
+    const path = `${cacheKey}.mp3`;
+    const { error } = await supabaseAdmin.storage
+      .from(CACHE_BUCKET)
+      .upload(path, bytes, { contentType: "audio/mpeg", upsert: true });
+    if (error) {
+      console.warn("TTS cache upload failed:", error.message);
+      return null;
+    }
+    const { data } = await supabaseAdmin.storage
+      .from(CACHE_BUCKET)
+      .createSignedUrl(path, CACHE_SIGNED_URL_TTL);
+    return data?.signedUrl ?? null;
+  } catch (err) {
+    console.warn("TTS cache upload threw:", err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -422,6 +480,36 @@ Deno.serve(async (req: Request) => {
     body.simulateNoCredits === true ||
     req.headers.get("x-tts-simulate-no-credits") === "1";
 
+  // Cache key based on the inputs that actually affect output
+  const cacheKey = await sha256Hex(
+    JSON.stringify({ v: 2, voiceId, model: MODEL_ID, prompt, previousText, nextText }),
+  );
+  const wantsBinary = req.headers.get("accept")?.includes("audio/mpeg");
+
+  // 1) Cache hit — return immediately, no provider call, no quota burn
+  if (!simulateNoCredits && !wantsBinary) {
+    const cachedUrl = await getCachedAudioUrl(cacheKey);
+    if (cachedUrl) {
+      return new Response(
+        JSON.stringify({
+          audioUrl: cachedUrl,
+          contentType: "audio/mpeg",
+          provider: "cache",
+          fallbackReason: null,
+          requestId: null,
+        }),
+        {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+            "X-TTS-Cache": "hit",
+          },
+        },
+      );
+    }
+  }
+
   try {
     const audio = await synthesizeWithFallback(
       prompt,
@@ -432,7 +520,13 @@ Deno.serve(async (req: Request) => {
       simulateNoCredits,
     );
 
-    if (req.headers.get("accept")?.includes("audio/mpeg")) {
+    // 2) Persist to cache so next identical request is free
+    let cachedUrl: string | null = null;
+    if (audio.provider === "elevenlabs") {
+      cachedUrl = await putCachedAudio(cacheKey, audio.audioBytes);
+    }
+
+    if (wantsBinary) {
       return new Response(audio.audioBytes, {
         status: 200,
         headers: {
@@ -440,16 +534,16 @@ Deno.serve(async (req: Request) => {
           "Content-Type": "audio/mpeg",
           "Cache-Control": "no-store",
           "X-TTS-Provider": audio.provider,
-          ...(audio.fallbackReason ? { "X-TTS-Fallback": "google" } : {}),
+          ...(audio.fallbackReason ? { "X-TTS-Fallback": audio.provider } : {}),
         },
       });
     }
 
-    const base64 = base64Encode(audio.audioBytes);
+    const audioUrl = cachedUrl ?? `data:audio/mpeg;base64,${base64Encode(audio.audioBytes)}`;
 
     return new Response(
       JSON.stringify({
-        audioUrl: `data:audio/mpeg;base64,${base64}`,
+        audioUrl,
         contentType: "audio/mpeg",
         provider: audio.provider,
         fallbackReason: audio.fallbackReason ?? null,
@@ -457,7 +551,11 @@ Deno.serve(async (req: Request) => {
       }),
       {
         status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+          "X-TTS-Cache": "miss",
+        },
       },
     );
   } catch (err: unknown) {
