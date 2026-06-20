@@ -46,6 +46,28 @@ function messageFromUnknown(err: unknown): string {
   return err instanceof Error ? err.message : "Unknown error";
 }
 
+// Cap concurrent ElevenLabs calls below the account's 4-concurrent ceiling.
+const MAX_CONCURRENT_ELEVENLABS = 3;
+let elevenLabsInFlight = 0;
+const elevenLabsQueue: Array<() => void> = [];
+
+async function acquireElevenLabsSlot(): Promise<void> {
+  if (elevenLabsInFlight < MAX_CONCURRENT_ELEVENLABS) {
+    elevenLabsInFlight++;
+    return;
+  }
+  await new Promise<void>((resolve) => elevenLabsQueue.push(resolve));
+  elevenLabsInFlight++;
+}
+
+function releaseElevenLabsSlot(): void {
+  elevenLabsInFlight--;
+  const next = elevenLabsQueue.shift();
+  if (next) next();
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 async function synthesizeWithElevenLabs(
   prompt: string,
   voiceId: string,
@@ -53,39 +75,61 @@ async function synthesizeWithElevenLabs(
   previousText?: string,
   nextText?: string,
 ): Promise<AudioResult> {
-  const ttsRes = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
-    {
-      method: "POST",
-      headers: {
-        "xi-api-key": elevenLabsApiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        text: prompt,
-        model_id: MODEL_ID,
-        ...(previousText ? { previous_text: previousText } : {}),
-        ...(nextText ? { next_text: nextText } : {}),
-        voice_settings: {
-          stability: 0.45,
-          similarity_boost: 0.8,
-          style: 0.55,
-          use_speaker_boost: true,
-          speed: 0.95,
+  await acquireElevenLabsSlot();
+  try {
+    const maxAttempts = 5;
+    let lastErr = "";
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const ttsRes = await fetch(
+        `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
+        {
+          method: "POST",
+          headers: {
+            "xi-api-key": elevenLabsApiKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            text: prompt,
+            model_id: MODEL_ID,
+            ...(previousText ? { previous_text: previousText } : {}),
+            ...(nextText ? { next_text: nextText } : {}),
+            voice_settings: {
+              stability: 0.45,
+              similarity_boost: 0.8,
+              style: 0.55,
+              use_speaker_boost: true,
+              speed: 0.95,
+            },
+          }),
         },
-      }),
-    },
-  );
+      );
 
-  if (!ttsRes.ok) {
-    const errBody = await ttsRes.text().catch(() => "");
-    throw new Error(`ElevenLabs TTS failed [${ttsRes.status}] ${errBody}`.trim());
+      if (ttsRes.ok) {
+        return {
+          audioBytes: new Uint8Array(await ttsRes.arrayBuffer()),
+          provider: "elevenlabs",
+        };
+      }
+
+      const errBody = await ttsRes.text().catch(() => "");
+      lastErr = `ElevenLabs TTS failed [${ttsRes.status}] ${errBody}`.trim();
+
+      // Retry on 429 (concurrent / rate limit) and 5xx transient errors
+      const retriable =
+        ttsRes.status === 429 ||
+        (ttsRes.status >= 500 && ttsRes.status < 600);
+      if (!retriable || attempt === maxAttempts) {
+        throw new Error(lastErr);
+      }
+      // Exponential backoff with jitter: 400ms, 800ms, 1600ms, 3200ms
+      const delay = 400 * 2 ** (attempt - 1) + Math.floor(Math.random() * 250);
+      console.warn(`ElevenLabs ${ttsRes.status}, retrying in ${delay}ms (attempt ${attempt}/${maxAttempts})`);
+      await sleep(delay);
+    }
+    throw new Error(lastErr || "ElevenLabs TTS failed");
+  } finally {
+    releaseElevenLabsSlot();
   }
-
-  return {
-    audioBytes: new Uint8Array(await ttsRes.arrayBuffer()),
-    provider: "elevenlabs",
-  };
 }
 
 async function synthesizeWithGoogle(prompt: string, apiKey: string): Promise<Uint8Array> {
