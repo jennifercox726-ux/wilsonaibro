@@ -480,6 +480,36 @@ Deno.serve(async (req: Request) => {
     body.simulateNoCredits === true ||
     req.headers.get("x-tts-simulate-no-credits") === "1";
 
+  // Cache key based on the inputs that actually affect output
+  const cacheKey = await sha256Hex(
+    JSON.stringify({ v: 2, voiceId, model: MODEL_ID, prompt, previousText, nextText }),
+  );
+  const wantsBinary = req.headers.get("accept")?.includes("audio/mpeg");
+
+  // 1) Cache hit — return immediately, no provider call, no quota burn
+  if (!simulateNoCredits && !wantsBinary) {
+    const cachedUrl = await getCachedAudioUrl(cacheKey);
+    if (cachedUrl) {
+      return new Response(
+        JSON.stringify({
+          audioUrl: cachedUrl,
+          contentType: "audio/mpeg",
+          provider: "cache",
+          fallbackReason: null,
+          requestId: null,
+        }),
+        {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+            "X-TTS-Cache": "hit",
+          },
+        },
+      );
+    }
+  }
+
   try {
     const audio = await synthesizeWithFallback(
       prompt,
@@ -490,7 +520,13 @@ Deno.serve(async (req: Request) => {
       simulateNoCredits,
     );
 
-    if (req.headers.get("accept")?.includes("audio/mpeg")) {
+    // 2) Persist to cache so next identical request is free
+    let cachedUrl: string | null = null;
+    if (audio.provider === "elevenlabs") {
+      cachedUrl = await putCachedAudio(cacheKey, audio.audioBytes);
+    }
+
+    if (wantsBinary) {
       return new Response(audio.audioBytes, {
         status: 200,
         headers: {
@@ -498,16 +534,16 @@ Deno.serve(async (req: Request) => {
           "Content-Type": "audio/mpeg",
           "Cache-Control": "no-store",
           "X-TTS-Provider": audio.provider,
-          ...(audio.fallbackReason ? { "X-TTS-Fallback": "google" } : {}),
+          ...(audio.fallbackReason ? { "X-TTS-Fallback": audio.provider } : {}),
         },
       });
     }
 
-    const base64 = base64Encode(audio.audioBytes);
+    const audioUrl = cachedUrl ?? `data:audio/mpeg;base64,${base64Encode(audio.audioBytes)}`;
 
     return new Response(
       JSON.stringify({
-        audioUrl: `data:audio/mpeg;base64,${base64}`,
+        audioUrl,
         contentType: "audio/mpeg",
         provider: audio.provider,
         fallbackReason: audio.fallbackReason ?? null,
@@ -515,7 +551,11 @@ Deno.serve(async (req: Request) => {
       }),
       {
         status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+          "X-TTS-Cache": "miss",
+        },
       },
     );
   } catch (err: unknown) {
