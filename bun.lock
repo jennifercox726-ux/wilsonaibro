@@ -59,7 +59,7 @@
         "react-resizable-panels": "^2.1.9",
         "react-router-dom": "^6.30.4",
         "recharts": "^2.15.4",
-        "satellite.js": "^7.0.1",
+        "satellite.js": "5.0.0",
         "sonner": "^1.7.4",
         "tailwind-merge": "^2.6.0",
         "tailwindcss-animate": "^1.0.7",
@@ -1187,7 +1187,7 @@
 
     "safer-buffer": ["safer-buffer@2.1.2", "", {}, "sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg=="],
 
-    "satellite.js": ["satellite.js@7.0.1", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/satellite.js/-/satellite.js-7.0.1.tgz", {}, "sha512-43hMdoom4miUvwX7FkroaHGq4JHIFQRNcUx570xD9KkZjsVssoWxHp8uk6KwDm+lmrW6GTuP2+G4PwvtHfr62A=="],
+    "satellite.js": ["satellite.js@5.0.0", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/satellite.js/-/satellite.js-5.0.0.tgz", {}, "sha512-ie3yiJ2LJAJIhVUKdYhgp7V0btXKAMImDjRnuaNfJGl8rjwP2HwVIh4HLFcpiXYEiYwXc5fqh5+yZqCe6KIwWw=="],
 
     "saxes": ["saxes@6.0.0", "", { "dependencies": { "xmlchars": "^2.2.0" } }, "sha512-xAg7SOnEhrm5zI3puOOKyy1OMcMlIJZYNJY7xLBwSze0UjhPLnWfj2GF2EpT0jmzaJKIWKHLsaSSajf35bcYnA=="],
 
