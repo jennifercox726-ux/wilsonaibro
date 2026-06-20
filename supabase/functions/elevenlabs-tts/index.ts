@@ -7,7 +7,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const DEFAULT_VOICE_ID = "nuUdpqJIinrhTtBwCJ3Q";
+const DEFAULT_VOICE_ID = "ZFJFHgy1XbVhPAFkHsip";
 const MODEL_ID = "eleven_turbo_v2_5";
 const GOOGLE_FALLBACK_VOICES = [
   { name: "en-GB-Neural2-D", gender: "MALE" },
