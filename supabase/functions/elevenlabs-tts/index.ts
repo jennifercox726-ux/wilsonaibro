@@ -330,7 +330,9 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  const elevenLabsApiKey = Deno.env.get("ELEVENLABS_API_KEY");
+  // Prefer the manually-managed key (new account) over the connector-synced key (old account, out of credits)
+  const elevenLabsApiKey =
+    Deno.env.get("ELEVENLABS_MANUAL_API_KEY") ?? Deno.env.get("ELEVENLABS_API_KEY");
   if (!elevenLabsApiKey) {
     return new Response(
       JSON.stringify({ error: "ELEVENLABS_API_KEY is not configured" }),
