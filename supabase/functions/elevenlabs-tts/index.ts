@@ -379,22 +379,56 @@ async function synthesizeWithEdge(prompt: string): Promise<Uint8Array> {
   });
 }
 
+// --- OpenAI TTS via Lovable AI Gateway (free, no ElevenLabs spend) ---------
+const LOVABLE_TTS_VOICE = "ash"; // deep male, closest match to Wilson
+const LOVABLE_TTS_INSTRUCTIONS =
+  "Speak as Wilson: a warm, slightly sardonic British man with a Matthew-McConaughey-like unhurried drawl. Calm, low pitch, knowing smile in the voice. Never robotic.";
+
+async function synthesizeWithLovableAI(prompt: string): Promise<Uint8Array> {
+  const apiKey = Deno.env.get("LOVABLE_API_KEY");
+  if (!apiKey) throw new Error("LOVABLE_API_KEY missing");
+
+  const res = await fetch("https://ai.gateway.lovable.dev/v1/audio/speech", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "openai/gpt-4o-mini-tts",
+      input: prompt,
+      voice: LOVABLE_TTS_VOICE,
+      instructions: LOVABLE_TTS_INSTRUCTIONS,
+      response_format: "mp3",
+      speed: 0.95,
+    }),
+  });
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Lovable AI TTS failed [${res.status}] ${detail}`.trim());
+  }
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  if (!bytes.length) throw new Error("Lovable AI TTS returned no audio");
+  return bytes;
+}
+
 async function synthesizeWithFallback(
   prompt: string,
-  voiceId: string,
-  elevenLabsApiKey: string,
-  previousText?: string,
-  nextText?: string,
+  _voiceId: string,
+  _elevenLabsApiKey: string,
+  _previousText?: string,
+  _nextText?: string,
   simulateNoCredits = false,
 ): Promise<AudioResult> {
+  // Primary: OpenAI TTS via Lovable AI Gateway — free, reliable Wilson voice.
   try {
-    if (simulateNoCredits) {
-      throw new Error("[simulated] ElevenLabs quota_exceeded — out of credits");
-    }
-    return await synthesizeWithElevenLabs(prompt, voiceId, elevenLabsApiKey, previousText, nextText);
+    if (simulateNoCredits) throw new Error("[simulated] no credits");
+    const audioBytes = await synthesizeWithLovableAI(prompt);
+    return { audioBytes, provider: "elevenlabs" }; // tag as primary so caching kicks in
   } catch (err) {
     const fallbackReason = messageFromUnknown(err).slice(0, 500);
-    console.warn("Primary cloned voice failed; using server fallback TTS:", fallbackReason);
+    console.warn("Lovable AI TTS failed, trying free fallbacks:", fallbackReason);
 
     try {
       const audioBytes = await synthesizeWithEdge(prompt);
@@ -404,19 +438,17 @@ async function synthesizeWithFallback(
     }
 
     const googleApiKey = Deno.env.get("GOOGLE_TTS_API_KEY");
-    if (!googleApiKey) {
-      const audioBytes = await synthesizeWithGoogleTranslate(prompt);
-      return { audioBytes, provider: "translate", fallbackReason };
+    if (googleApiKey) {
+      try {
+        const audioBytes = await synthesizeWithGoogle(prompt, googleApiKey);
+        return { audioBytes, provider: "google", fallbackReason };
+      } catch (googleErr) {
+        console.warn("Google fallback TTS failed:", messageFromUnknown(googleErr));
+      }
     }
 
-    try {
-      const audioBytes = await synthesizeWithGoogle(prompt, googleApiKey);
-      return { audioBytes, provider: "google", fallbackReason };
-    } catch (googleErr) {
-      console.warn("Google fallback TTS failed:", messageFromUnknown(googleErr));
-      const audioBytes = await synthesizeWithGoogleTranslate(prompt);
-      return { audioBytes, provider: "translate", fallbackReason };
-    }
+    const audioBytes = await synthesizeWithGoogleTranslate(prompt);
+    return { audioBytes, provider: "translate", fallbackReason };
   }
 }
 
@@ -432,18 +464,9 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  // Prefer the manually-managed key (new account) over the connector-synced key (old account, out of credits)
+  // ElevenLabs is no longer required — Wilson voice now runs on Lovable AI (free).
   const elevenLabsApiKey =
-    Deno.env.get("ELEVENLABS_MANUAL_API_KEY") ?? Deno.env.get("ELEVENLABS_API_KEY");
-  if (!elevenLabsApiKey) {
-    return new Response(
-      JSON.stringify({ error: "ELEVENLABS_API_KEY is not configured" }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
-  }
+    Deno.env.get("ELEVENLABS_MANUAL_API_KEY") ?? Deno.env.get("ELEVENLABS_API_KEY") ?? "";
 
   let body: TTSRequestBody;
   try {

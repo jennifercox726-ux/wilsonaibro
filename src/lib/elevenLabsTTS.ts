@@ -180,8 +180,9 @@ export async function generateElevenLabsAudio(
   signal?: AbortSignal,
   context?: { previousText?: string; nextText?: string },
 ): Promise<ElevenLabsResult> {
+  // Cooldown disabled — backend now uses free Lovable AI TTS, no quota to protect.
   if (isElevenLabsInCooldown()) {
-    throw new Error("ElevenLabs in self-heal cooldown");
+    clearTTSCooldown();
   }
 
   const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`;
