@@ -165,6 +165,7 @@ const DispatcherSection = ({ userId }: DispatcherSectionProps) => {
 
   return (
     <div className="space-y-3">
+      <YoloToggle userId={userId} />
       <div className="flex items-center justify-between">
         <p className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
           Dispatcher Workflows ({workflows.length})
