@@ -32,10 +32,10 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        # Use `npm install` (not `npm ci`) so the build still succeeds when
-        # package.json and package-lock.json drift — Lovable regenerates the
-        # lockfile on its side and `npm ci` would otherwise hard-fail.
-        run: npm install --no-audit --no-fund
+        # `--legacy-peer-deps` because lovable-tagger pins vite <8 while the
+        # project tracks the latest vite; npm 7+ refuses that combo otherwise.
+        # `npm install` (not `ci`) tolerates lockfile drift from Lovable sync.
+        run: npm install --legacy-peer-deps --no-audit --no-fund
 
       - name: Lint
         run: npm run lint
