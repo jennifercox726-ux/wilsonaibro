@@ -635,6 +635,24 @@ export type Database = {
         }
         Relationships: []
       }
+      yolo_mode: {
+        Row: {
+          engaged_at: string
+          expires_at: string
+          user_id: string
+        }
+        Insert: {
+          engaged_at?: string
+          expires_at: string
+          user_id: string
+        }
+        Update: {
+          engaged_at?: string
+          expires_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
