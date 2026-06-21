@@ -141,9 +141,20 @@ Deno.serve(async (req) => {
 
   // Auto-tier OR test fire OR manual on auto-tier → fire now
   // Manual on confirm-tier → also fire now (user is the owner, they can override their own confirm gate)
-  // sentinel_auto on confirm-tier → open confirmation window
+  // sentinel_auto on confirm-tier → open confirmation window — UNLESS YOLO mode is active
+  let yoloActive = false;
+  {
+    const { data: yolo } = await admin
+      .from("yolo_mode")
+      .select("expires_at")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (yolo && new Date(yolo.expires_at).getTime() > Date.now()) {
+      yoloActive = true;
+    }
+  }
   const shouldOpenConfirmation =
-    body.trigger_source === "sentinel_auto" && wf.tier === "confirm";
+    body.trigger_source === "sentinel_auto" && wf.tier === "confirm" && !yoloActive;
 
   if (shouldOpenConfirmation) {
     // Load sentinels
