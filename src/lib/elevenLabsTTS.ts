@@ -148,11 +148,42 @@ function stripForSpeech(text: string): string {
     .trim();
 }
 
+// --- Self-healing TTS cooldown ---------------------------------------------
+// When ElevenLabs returns 429 / 402 / "no credits", skip it for 10 minutes
+// and let the browser-TTS fallback handle playback. Auto-recovers.
+const TTS_COOLDOWN_KEY = "wilsonTTSCooldownUntil";
+const TTS_COOLDOWN_MS = 10 * 60 * 1000;
+
+function getTTSCooldownUntil(): number {
+  try {
+    const v = window.localStorage?.getItem(TTS_COOLDOWN_KEY);
+    return v ? parseInt(v, 10) || 0 : 0;
+  } catch { return 0; }
+}
+export function isElevenLabsInCooldown(): boolean {
+  return Date.now() < getTTSCooldownUntil();
+}
+function triggerTTSCooldown(reason: string): void {
+  try {
+    const until = Date.now() + TTS_COOLDOWN_MS;
+    window.localStorage?.setItem(TTS_COOLDOWN_KEY, String(until));
+    console.warn(`[elevenlabs] cooldown engaged for 10min (${reason}) — using free fallback`);
+    window.dispatchEvent(new CustomEvent("wilson:tts-cooldown", { detail: { until, reason } }));
+  } catch { /* noop */ }
+}
+export function clearTTSCooldown(): void {
+  try { window.localStorage?.removeItem(TTS_COOLDOWN_KEY); } catch { /* noop */ }
+}
+
 export async function generateElevenLabsAudio(
   prompt: string,
   signal?: AbortSignal,
   context?: { previousText?: string; nextText?: string },
 ): Promise<ElevenLabsResult> {
+  if (isElevenLabsInCooldown()) {
+    throw new Error("ElevenLabs in self-heal cooldown");
+  }
+
   const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`;
   const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
@@ -198,6 +229,13 @@ export async function generateElevenLabsAudio(
 
   if (!response.ok) {
     const details = await response.text().catch(() => "");
+    if (
+      response.status === 429 ||
+      response.status === 402 ||
+      /no[_\s-]?credits|quota|rate.?limit|insufficient/i.test(details)
+    ) {
+      triggerTTSCooldown(`status ${response.status}`);
+    }
     throw new Error(details || `ElevenLabs TTS failed [${response.status}]`);
   }
 
