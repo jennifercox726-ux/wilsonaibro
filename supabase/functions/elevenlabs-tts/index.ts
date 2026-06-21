@@ -506,7 +506,7 @@ Deno.serve(async (req: Request) => {
 
   // Cache key based on the inputs that actually affect output
   const cacheKey = await sha256Hex(
-    JSON.stringify({ v: 2, voiceId, model: MODEL_ID, prompt, previousText, nextText }),
+    JSON.stringify({ v: 3, voiceId, model: MODEL_ID, prompt, previousText, nextText, ttsVoice: LOVABLE_TTS_VOICE, ttsSpeed: LOVABLE_TTS_SPEED, ttsInstr: LOVABLE_TTS_INSTRUCTIONS }),
   );
   const wantsBinary = req.headers.get("accept")?.includes("audio/mpeg");
 
