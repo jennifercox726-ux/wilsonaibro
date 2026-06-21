@@ -380,9 +380,10 @@ async function synthesizeWithEdge(prompt: string): Promise<Uint8Array> {
 }
 
 // --- OpenAI TTS via Lovable AI Gateway (free, no ElevenLabs spend) ---------
-const LOVABLE_TTS_VOICE = "ash"; // deep male, closest match to Wilson
+const LOVABLE_TTS_VOICE = "echo"; // young, bright, characterful
 const LOVABLE_TTS_INSTRUCTIONS =
-  "Speak as Wilson: a warm, slightly sardonic British man with a Matthew-McConaughey-like unhurried drawl. Calm, low pitch, knowing smile in the voice. Never robotic.";
+  "Speak like a small, fast-talking French chef from a Pixar animated film: bright, eager, slightly nasal young male voice with a warm Parisian accent. High energy, quick clipped delivery, expressive and enthusiastic, never robotic. Roll the Rs lightly. Smile while you talk.";
+const LOVABLE_TTS_SPEED = 1.25;
 
 async function synthesizeWithLovableAI(prompt: string): Promise<Uint8Array> {
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
@@ -400,7 +401,7 @@ async function synthesizeWithLovableAI(prompt: string): Promise<Uint8Array> {
       voice: LOVABLE_TTS_VOICE,
       instructions: LOVABLE_TTS_INSTRUCTIONS,
       response_format: "mp3",
-      speed: 0.95,
+      speed: LOVABLE_TTS_SPEED,
     }),
   });
 
@@ -505,7 +506,7 @@ Deno.serve(async (req: Request) => {
 
   // Cache key based on the inputs that actually affect output
   const cacheKey = await sha256Hex(
-    JSON.stringify({ v: 2, voiceId, model: MODEL_ID, prompt, previousText, nextText }),
+    JSON.stringify({ v: 3, voiceId, model: MODEL_ID, prompt, previousText, nextText, ttsVoice: LOVABLE_TTS_VOICE, ttsSpeed: LOVABLE_TTS_SPEED, ttsInstr: LOVABLE_TTS_INSTRUCTIONS }),
   );
   const wantsBinary = req.headers.get("accept")?.includes("audio/mpeg");
 
