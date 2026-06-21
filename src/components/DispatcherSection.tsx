@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Plus, Trash2, Power, Zap, ShieldAlert, History, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import YoloToggle from "./YoloToggle";
 
 interface Workflow {
   id: string;
