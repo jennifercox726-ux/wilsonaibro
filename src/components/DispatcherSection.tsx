@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Plus, Trash2, Power, Zap, ShieldAlert, History, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import YoloToggle from "./YoloToggle";
 
 interface Workflow {
   id: string;
@@ -164,6 +165,7 @@ const DispatcherSection = ({ userId }: DispatcherSectionProps) => {
 
   return (
     <div className="space-y-3">
+      <YoloToggle userId={userId} />
       <div className="flex items-center justify-between">
         <p className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
           Dispatcher Workflows ({workflows.length})
