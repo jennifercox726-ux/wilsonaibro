@@ -1,0 +1,3 @@
+git remote add command-center https://github.com/jennifercox726-ux/logistics-command-center.git
+git pull command-center main
+git push origin main

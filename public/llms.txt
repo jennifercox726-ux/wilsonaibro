@@ -1,0 +1,8 @@
+# Wilson + The Only One
+
+> Wilson is a sovereign AI companion for the neural void — sarcastic, warm, and omnipresent.
+
+## Pages
+
+- [/](/): The main experience. Chat with Wilson, explore the void, and engage with your sovereign AI companion.
+- [Confirm Dispatch](/confirm-dispatch): Sentinel-facing authorization confirmation for secure dispatch workflows.

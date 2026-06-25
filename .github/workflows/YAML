@@ -1,0 +1,20 @@
+name: Wilson Sentinel Execution
+on:
+  workflow_dispatch: # This lets YOU press a button to run it!
+
+jobs:
+  deploy_notice:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Use Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '16'
+      - name: Install dependencies
+        run: npm install nodemailer dotenv
+      - name: Run Sovereignty Script
+        env:
+          MAIL_USER: ${{ secrets.MAIL_USER }}
+          MAIL_PASS: ${{ secrets.MAIL_PASS }}
+        run: node investigation_trigger.js
