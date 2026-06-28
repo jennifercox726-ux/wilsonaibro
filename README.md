@@ -1,11 +1,10 @@
-<img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" />
 <div align="center">
 
 # Wilson + The Only One
 
 <img src="https://img.shields.io/badge/status-active-3CF2FF?style=for-the-badge" />
-<img src="https://img.shields.io/badge/AI-thinking%20system-8A5CFF?style=for-the-badge" />
-<img src="https://img.shields.io/badge/focus-idea%20→%20structure%20→%20action-111827?style=for-the-badge" />
+<img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" />
+<img src="https://img.shields.io/badge/dual%20license-commercial%20available-8A5CFF?style=for-the-badge" />
 
 <br/><br/>
 
@@ -23,9 +22,9 @@ Wilson + The Only One is an AI system that transforms ideas into structured thin
 
 Wilson is not a chatbot.
 
-It is a **thinking workspace** designed to sit between intention and execution — turning unclear ideas into structured paths forward.
+It is a **thinking system** designed to sit between intention and execution — turning unclear ideas into structured paths forward.
 
-You don’t just ask it questions.
+You don’t just ask questions.
 
 You enter ideas.  
 Wilson returns structure.
@@ -67,3 +66,12 @@ Wilson exists to compress the gap between:
 ---
 
 ## 🧩 How it works
+
+```text id="q7v2mp"
+You: enter an idea or problem
+
+Wilson:
+- interprets intent
+- breaks it into structure
+- provides options and paths
+- suggests next action
