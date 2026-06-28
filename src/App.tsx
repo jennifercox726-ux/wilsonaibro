@@ -55,9 +55,7 @@ const App = () => {
         <BrowserRouter>
           <Routes>
 
-            {/* =========================
-                ROOT ENTRY
-            ========================= */}
+            {/* ROOT */}
             <Route
               path="/"
               element={
@@ -69,17 +67,10 @@ const App = () => {
               }
             />
 
-            {/* =========================
-                AUTH (optional explicit route)
-            ========================= */}
-            <Route
-              path="/auth"
-              element={<Auth onAuth={() => {}} />}
-            />
+            {/* AUTH */}
+            <Route path="/auth" element={<Auth onAuth={() => {}} />} />
 
-            {/* =========================
-                MAIN CHAT (WILSON CORE)
-            ========================= */}
+            {/* MAIN CHAT (WILSON CORE) */}
             <Route
               path="/chat"
               element={
@@ -94,9 +85,22 @@ const App = () => {
               }
             />
 
-            {/* =========================
-                PUBLIC ROUTES
-            ========================= */}
+            {/* 🔥 FIXED: VOID ROUTE ADDED */}
+            <Route
+              path="/void"
+              element={
+                session ? (
+                  <Index
+                    userId={session.user.id}
+                    displayName={session.user.user_metadata?.display_name}
+                  />
+                ) : (
+                  <Navigate to="/" replace />
+                )
+              }
+            />
+
+            {/* PUBLIC ROUTES */}
             <Route
               path="/analytics"
               element={
@@ -113,9 +117,7 @@ const App = () => {
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/void-map" element={<VoidMap />} />
 
-            {/* =========================
-                FALLBACK
-            ========================= */}
+            {/* FALLBACK */}
             <Route path="*" element={<NotFound />} />
 
           </Routes>
