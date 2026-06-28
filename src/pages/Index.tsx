@@ -3,59 +3,107 @@ import { useState } from "react";
 export default function Index() {
   const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const sendMessage = async () => {
-    if (!input) return;
+    if (!input || loading) return;
 
     const userMessage = input;
     setInput("");
 
-    setMessages((prev) => [...prev, { role: "user", text: userMessage }]);
+    // Add user message instantly
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", text: userMessage },
+    ]);
 
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer YOUR_OPENAI_API_KEY`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: "You are Wilson, an AI inside an app." },
-          { role: "user", content: userMessage },
-        ],
-      }),
-    });
+    setLoading(true);
 
-    const data = await res.json();
+    try {
+      const res = await fetch("https://chatgpt-api.shn.hk/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-3.5-turbo",
+          messages: [
+            {
+              role: "system",
+              content: "You are Wilson, an AI inside a web app.",
+            },
+            {
+              role: "user",
+              content: userMessage,
+            },
+          ],
+        }),
+      });
 
-    const reply =
-      data?.choices?.[0]?.message?.content || "Wilson is silent.";
+      const data = await res.json();
 
-    setMessages((prev) => [...prev, { role: "ai", text: reply }]);
+      const reply =
+        data?.choices?.[0]?.message?.content || "Wilson is silent.";
+
+      setMessages((prev) => [
+        ...prev,
+        { role: "ai", text: reply },
+      ]);
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        { role: "ai", text: "Error: Wilson connection failed." },
+      ]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div style={{ padding: 20, color: "white", background: "#111", height: "100vh" }}>
+    <div
+      style={{
+        padding: 20,
+        color: "white",
+        background: "#111",
+        height: "100vh",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
       <h2>Wilson Online</h2>
 
-      <div style={{ height: 400, overflow: "auto", border: "1px solid #333", padding: 10 }}>
+      {/* Messages */}
+      <div
+        style={{
+          flex: 1,
+          overflow: "auto",
+          border: "1px solid #333",
+          padding: 10,
+          marginBottom: 10,
+        }}
+      >
         {messages.map((m, i) => (
           <div key={i} style={{ marginBottom: 8 }}>
             <b>{m.role}:</b> {m.text}
           </div>
         ))}
+
+        {loading && (
+          <div style={{ opacity: 0.7 }}>Wilson is thinking...</div>
+        )}
       </div>
 
-      <div style={{ marginTop: 10 }}>
+      {/* Input */}
+      <div style={{ display: "flex", gap: 8 }}>
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Talk to Wilson..."
-          style={{ padding: 8, width: "70%" }}
+          style={{ padding: 10, flex: 1 }}
+          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
         />
 
-        <button onClick={sendMessage} style={{ padding: 8 }}>
+        <button onClick={sendMessage} style={{ padding: 10 }}>
           Send
         </button>
       </div>
