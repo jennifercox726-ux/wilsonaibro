@@ -1,3 +1,4 @@
+<img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" />
 <div align="center">
 
 # Wilson + The Only One
