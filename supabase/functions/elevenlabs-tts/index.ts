@@ -379,17 +379,17 @@ async function synthesizeWithEdge(prompt: string): Promise<Uint8Array> {
   });
 }
 
-// --- OpenAI TTS via Lovable AI Gateway (free, no ElevenLabs spend) ---------
-const LOVABLE_TTS_VOICE = "echo"; // young, bright, characterful
+// --- OpenAI TTS via Vercel AI Gateway (no ElevenLabs spend) ----------------
+const LOVABLE_TTS_VOICE = "ash"; // grounded, natural adult male
 const LOVABLE_TTS_INSTRUCTIONS =
-  "Speak like a small, fast-talking French chef from a Pixar animated film: bright, eager, slightly nasal young male voice with a warm Parisian accent. High energy, quick clipped delivery, expressive and enthusiastic, never robotic. Roll the Rs lightly. Smile while you talk.";
-const LOVABLE_TTS_SPEED = 1.25;
+  "Speak like a friendly, upbeat, and trustworthy professional man in his 30s. Warm, confident, and energetic with a genuine smile in your voice. Natural conversational pacing, clear articulation, and an approachable, can-do attitude. Sound like a real person who is happy to help, never robotic or monotone.";
+const LOVABLE_TTS_SPEED = 1.08;
 
 async function synthesizeWithLovableAI(prompt: string): Promise<Uint8Array> {
-  const apiKey = Deno.env.get("LOVABLE_API_KEY");
-  if (!apiKey) throw new Error("LOVABLE_API_KEY missing");
+  const apiKey = Deno.env.get("AI_GATEWAY_API_KEY");
+  if (!apiKey) throw new Error("AI_GATEWAY_API_KEY missing");
 
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/audio/speech", {
+  const res = await fetch("https://ai-gateway.vercel.sh/v1/audio/speech", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
