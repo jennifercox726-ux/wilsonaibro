@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
     if (!priceId) throw new Error(`Missing price ID env var: ${cfg.priceEnv}`);
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2024-11-20.acacia" });
-    const origin = req.headers.get("origin") ?? "https://wilsonaibro.lovable.app";
+    const origin = req.headers.get("origin") ?? "https://wilsonaibro.vercel.app";
 
     const session = await stripe.checkout.sessions.create({
       mode: cfg.mode,

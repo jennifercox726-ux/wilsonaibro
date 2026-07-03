@@ -1,4 +1,4 @@
-// src/lib/aiGateway.ts - Sovereign AI Router (bypasses Lovable/Supabase gateway completely)
+// src/lib/aiGateway.ts - Sovereign AI Router (direct provider calls)
 import { toast } from "sonner";
 
 const PROVIDERS = {

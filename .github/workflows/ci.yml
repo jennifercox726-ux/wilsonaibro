@@ -32,10 +32,7 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        # `--legacy-peer-deps` because lovable-tagger pins vite <8 while the
-        # project tracks the latest vite; npm 7+ refuses that combo otherwise.
-        # `npm install` (not `ci`) tolerates lockfile drift from Lovable sync.
-        run: npm install --legacy-peer-deps --no-audit --no-fund
+        run: npm install --no-audit --no-fund
 
       - name: Lint
         run: npm run lint

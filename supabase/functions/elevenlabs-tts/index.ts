@@ -380,12 +380,12 @@ async function synthesizeWithEdge(prompt: string): Promise<Uint8Array> {
 }
 
 // --- OpenAI TTS via Vercel AI Gateway (no ElevenLabs spend) ----------------
-const LOVABLE_TTS_VOICE = "ash"; // grounded, natural adult male
-const LOVABLE_TTS_INSTRUCTIONS =
+const GATEWAY_TTS_VOICE = "ash"; // grounded, natural adult male
+const GATEWAY_TTS_INSTRUCTIONS =
   "Speak like a friendly, upbeat, and trustworthy professional man in his 30s. Warm, confident, and energetic with a genuine smile in your voice. Natural conversational pacing, clear articulation, and an approachable, can-do attitude. Sound like a real person who is happy to help, never robotic or monotone.";
-const LOVABLE_TTS_SPEED = 1.08;
+const GATEWAY_TTS_SPEED = 1.08;
 
-async function synthesizeWithLovableAI(prompt: string): Promise<Uint8Array> {
+async function synthesizeWithGateway(prompt: string): Promise<Uint8Array> {
   const apiKey = Deno.env.get("AI_GATEWAY_API_KEY");
   if (!apiKey) throw new Error("AI_GATEWAY_API_KEY missing");
 
@@ -398,19 +398,19 @@ async function synthesizeWithLovableAI(prompt: string): Promise<Uint8Array> {
     body: JSON.stringify({
       model: "openai/gpt-4o-mini-tts",
       input: prompt,
-      voice: LOVABLE_TTS_VOICE,
-      instructions: LOVABLE_TTS_INSTRUCTIONS,
+      voice: GATEWAY_TTS_VOICE,
+      instructions: GATEWAY_TTS_INSTRUCTIONS,
       response_format: "mp3",
-      speed: LOVABLE_TTS_SPEED,
+      speed: GATEWAY_TTS_SPEED,
     }),
   });
 
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    throw new Error(`Lovable AI TTS failed [${res.status}] ${detail}`.trim());
+    throw new Error(`AI Gateway TTS failed [${res.status}] ${detail}`.trim());
   }
   const bytes = new Uint8Array(await res.arrayBuffer());
-  if (!bytes.length) throw new Error("Lovable AI TTS returned no audio");
+  if (!bytes.length) throw new Error("AI Gateway TTS returned no audio");
   return bytes;
 }
 
@@ -422,14 +422,14 @@ async function synthesizeWithFallback(
   _nextText?: string,
   simulateNoCredits = false,
 ): Promise<AudioResult> {
-  // Primary: OpenAI TTS via Lovable AI Gateway — free, reliable Wilson voice.
+  // Primary: OpenAI TTS via Vercel AI Gateway — reliable Wilson voice.
   try {
     if (simulateNoCredits) throw new Error("[simulated] no credits");
-    const audioBytes = await synthesizeWithLovableAI(prompt);
+    const audioBytes = await synthesizeWithGateway(prompt);
     return { audioBytes, provider: "elevenlabs" }; // tag as primary so caching kicks in
   } catch (err) {
     const fallbackReason = messageFromUnknown(err).slice(0, 500);
-    console.warn("Lovable AI TTS failed, trying free fallbacks:", fallbackReason);
+    console.warn("AI Gateway TTS failed, trying free fallbacks:", fallbackReason);
 
     try {
       const audioBytes = await synthesizeWithEdge(prompt);
@@ -465,7 +465,7 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  // ElevenLabs is no longer required — Wilson voice now runs on Lovable AI (free).
+  // ElevenLabs is no longer required — Wilson voice now runs on the Vercel AI Gateway.
   const elevenLabsApiKey =
     Deno.env.get("ELEVENLABS_MANUAL_API_KEY") ?? Deno.env.get("ELEVENLABS_API_KEY") ?? "";
 
@@ -506,7 +506,7 @@ Deno.serve(async (req: Request) => {
 
   // Cache key based on the inputs that actually affect output
   const cacheKey = await sha256Hex(
-    JSON.stringify({ v: 3, voiceId, model: MODEL_ID, prompt, previousText, nextText, ttsVoice: LOVABLE_TTS_VOICE, ttsSpeed: LOVABLE_TTS_SPEED, ttsInstr: LOVABLE_TTS_INSTRUCTIONS }),
+    JSON.stringify({ v: 3, voiceId, model: MODEL_ID, prompt, previousText, nextText, ttsVoice: GATEWAY_TTS_VOICE, ttsSpeed: GATEWAY_TTS_SPEED, ttsInstr: GATEWAY_TTS_INSTRUCTIONS }),
   );
   const wantsBinary = req.headers.get("accept")?.includes("audio/mpeg");
 

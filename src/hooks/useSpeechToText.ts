@@ -44,7 +44,7 @@ export const useSpeechToText = (options: UseSpeechToTextOptions = {}) => {
       return;
     }
 
-    // iOS Safari refuses mic inside cross-origin iframes (which the Lovable
+    // iOS Safari refuses mic inside cross-origin iframes (which the
     // preview is). Detect and warn before we silently fail.
     if (isIOS && window.self !== window.top) {
       setError(

@@ -180,7 +180,7 @@ export async function generateElevenLabsAudio(
   signal?: AbortSignal,
   context?: { previousText?: string; nextText?: string },
 ): Promise<ElevenLabsResult> {
-  // Cooldown disabled — backend now uses free Lovable AI TTS, no quota to protect.
+  // Cooldown disabled — backend now uses AI Gateway TTS, no quota to protect.
   if (isElevenLabsInCooldown()) {
     clearTTSCooldown();
   }

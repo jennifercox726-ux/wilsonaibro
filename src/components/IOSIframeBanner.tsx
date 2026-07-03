@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ExternalLink, X } from "lucide-react";
 
-const PUBLISHED_URL = "https://wilsonaibro.lovable.app";
+const PUBLISHED_URL = "https://wilsonaibro.vercel.app";
 const DISMISS_KEY = "wilson_ios_iframe_banner_dismissed";
 
 const isIOS =

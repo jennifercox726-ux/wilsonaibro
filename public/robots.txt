@@ -13,4 +13,4 @@ Allow: /
 User-agent: *
 Allow: /
 
-Sitemap: https://wilsonaibro.lovable.app/sitemap.xml
+Sitemap: https://wilsonaibro.vercel.app/sitemap.xml

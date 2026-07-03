@@ -1,6 +1,6 @@
 import { Helmet } from "react-helmet-async";
 
-const SITE = "https://wilsonaibro.lovable.app";
+const SITE = "https://wilsonaibro.vercel.app";
 
 interface RouteHeadProps {
   title: string;
