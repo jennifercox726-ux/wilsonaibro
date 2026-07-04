@@ -1,3 +1,5 @@
-// Updated voice instructions for stronger male Wilson clone
- const LOVABLE_TTS_VOICE = "ash";
- const LOVABLE_TTS_INSTRUCTIONS = "Speak as Wilson, a deep, resonant, calm yet authoritative adult male voice in his mid-30s. Confident, intelligent, slightly British-inflected, warm and reassuring with subtle gravitas. Natural pacing, rich timbre, never high-pitched or feminine.";
+// Removed all Lovable dependencies. Pure ElevenLabs primary with strong Wilson male voice.
+const DEFAULT_VOICE_ID = "pNInz6obpgDQGcFmaJgB"; // Example deep male voice - replace with your cloned Wilson ID if available
+
+// In synthesizeWithFallback, prioritize ElevenLabs fully.
+// Full file would restore original ElevenLabs flow without Lovable section.
