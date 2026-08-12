@@ -1,1 +1,433 @@
-/* Enhanced glassmorphic iridescent styles added */ .glass-morphic { backdrop-filter: blur(30px) saturate(180%); background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 8px 32px rgba(0,0,0,0.3); } .iridescent-glow { animation: iridescent-shift 15s ease infinite; } @keyframes iridescent-shift { 0% { filter: hue-rotate(0deg) brightness(1); } 50% { filter: hue-rotate(60deg) brightness(1.1); } 100% { filter: hue-rotate(0deg) brightness(1); } }
+@import "@fontsource/syne/400.css";
+@import "@fontsource/syne/700.css";
+@import "@fontsource/syne/800.css";
+@import "@fontsource/jetbrains-mono/400.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   WILSON + THE ONLY ONE — Design System
+   All colours are HSL tokens. Never hardcode colours in JSX.
+   ============================================================ */
+
+@layer base {
+  :root {
+    /* Void core */
+    --void: 250 45% 4%;
+    --void-surface: 250 40% 7%;
+    --void-elevated: 250 36% 11%;
+
+    --background: 250 45% 4%;
+    --foreground: 240 20% 96%;
+
+    --card: 250 40% 7%;
+    --card-foreground: 240 20% 96%;
+
+    --popover: 250 42% 8%;
+    --popover-foreground: 240 20% 96%;
+
+    /* Neon accents */
+    --neon-cyan: 187 92% 60%;
+    --neon-magenta: 315 90% 65%;
+    --neon-violet: 268 88% 68%;
+    --neon-aurora: 158 78% 55%;
+
+    --primary: 268 88% 68%;
+    --primary-foreground: 250 45% 6%;
+
+    --secondary: 250 30% 15%;
+    --secondary-foreground: 240 20% 96%;
+
+    --accent: 187 92% 60%;
+    --accent-foreground: 250 45% 6%;
+
+    --muted: 250 25% 16%;
+    --muted-foreground: 245 15% 68%;
+
+    --destructive: 358 78% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --warning: 38 92% 58%;
+    --warning-foreground: 250 45% 6%;
+
+    --border: 250 30% 20%;
+    --input: 250 30% 18%;
+    --ring: 268 88% 68%;
+
+    --radius: 1rem;
+
+    /* Sidebar */
+    --sidebar-background: 250 42% 6%;
+    --sidebar-foreground: 240 18% 90%;
+    --sidebar-primary: 268 88% 68%;
+    --sidebar-primary-foreground: 250 45% 6%;
+    --sidebar-accent: 250 30% 14%;
+    --sidebar-accent-foreground: 240 20% 96%;
+    --sidebar-border: 250 30% 18%;
+    --sidebar-ring: 187 92% 60%;
+
+    /* Orb defaults */
+    --wilson-vibe-hue: 290;
+    --wilson-amp-scale: 1;
+    --wilson-amp-glow: 0.35;
+    --wilson-amp-hue: 0deg;
+    --wilson-amp-aberration: 0px;
+    --wilson-parallax-x: 0px;
+    --wilson-parallax-y: 0px;
+  }
+
+  /* Single dark identity — .light is a graceful degradation only. */
+  .light {
+    --background: 240 30% 97%;
+    --foreground: 250 45% 8%;
+    --card: 0 0% 100%;
+    --card-foreground: 250 45% 8%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 250 45% 8%;
+    --muted: 240 20% 92%;
+    --muted-foreground: 250 12% 40%;
+    --border: 245 20% 86%;
+    --input: 245 20% 86%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: hsl(var(--neon-violet) / 0.35);
+    color: hsl(var(--foreground));
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--neon-violet) / 0.6);
+  }
+}
+
+/* ============================================================
+   Backgrounds
+   ============================================================ */
+@layer components {
+  .aurora-bg {
+    position: relative;
+    background-color: hsl(var(--void));
+    background-image:
+      radial-gradient(60rem 40rem at 12% -10%, hsl(var(--neon-violet) / 0.22), transparent 60%),
+      radial-gradient(50rem 36rem at 92% 8%, hsl(var(--neon-cyan) / 0.16), transparent 60%),
+      radial-gradient(46rem 34rem at 50% 108%, hsl(var(--neon-magenta) / 0.16), transparent 62%);
+    background-attachment: fixed;
+    transition: filter 600ms ease;
+  }
+
+  .glass,
+  .glassmorphic,
+  .glass-morphic {
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
+    backdrop-filter: blur(30px) saturate(180%);
+    background: hsl(var(--foreground) / 0.05);
+    border: 1px solid hsl(var(--foreground) / 0.1);
+    box-shadow: 0 8px 32px hsl(var(--void) / 0.5);
+  }
+}
+
+@layer utilities {
+  .animation-delay-2000 {
+    animation-delay: 2s;
+  }
+  .animation-delay-4000 {
+    animation-delay: 4s;
+  }
+  .text-glow {
+    text-shadow: 0 0 18px hsl(var(--neon-violet) / 0.55);
+  }
+}
+
+/* Body brightens a touch while Wilson speaks */
+body.wilson-speaking .aurora-bg {
+  filter: brightness(1.08) saturate(1.12);
+}
+
+/* ============================================================
+   Iridescent / breathing (Wilson label + play button)
+   ============================================================ */
+@keyframes wilson-iridescent-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes wilson-breathe-glow {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(var(--neon-violet) / 0.35); transform: scale(1); }
+  50% { box-shadow: 0 0 22px 4px hsl(var(--neon-cyan) / 0.35); transform: scale(1.04); }
+}
+
+@keyframes wilson-breathe-text {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+
+@keyframes iridescent-shift {
+  0% { filter: hue-rotate(0deg) brightness(1); }
+  50% { filter: hue-rotate(60deg) brightness(1.1); }
+  100% { filter: hue-rotate(0deg) brightness(1); }
+}
+
+.iridescent-glow {
+  animation: iridescent-shift 15s ease infinite;
+}
+
+.wilson-iridescent-text {
+  background-image: linear-gradient(
+    100deg,
+    hsl(var(--neon-cyan)),
+    hsl(var(--neon-violet)),
+    hsl(var(--neon-magenta)),
+    hsl(var(--neon-aurora)),
+    hsl(var(--neon-cyan))
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: wilson-iridescent-shift 8s ease-in-out infinite,
+    wilson-breathe-text 3.4s ease-in-out infinite;
+}
+
+.wilson-iridescent-btn {
+  background-image: linear-gradient(
+    100deg,
+    hsl(var(--neon-cyan) / 0.28),
+    hsl(var(--neon-violet) / 0.28),
+    hsl(var(--neon-magenta) / 0.28),
+    hsl(var(--neon-cyan) / 0.28)
+  );
+  background-size: 300% 100%;
+  border: 1px solid hsl(var(--neon-violet) / 0.5);
+  animation: wilson-iridescent-shift 8s ease-in-out infinite,
+    wilson-breathe-glow 3.4s ease-in-out infinite;
+}
+
+/* ============================================================
+   Wilson Orb
+   ============================================================ */
+@keyframes wilson-orb-float-kf {
+  0%, 100% { transform: translate3d(var(--wilson-parallax-x), calc(var(--wilson-parallax-y) - 2px), 0); }
+  50% { transform: translate3d(var(--wilson-parallax-x), calc(var(--wilson-parallax-y) + 4px), 0); }
+}
+
+@keyframes wilson-orb-sonar-kf {
+  from { transform: scale(0.6); opacity: 0.8; }
+  to { transform: scale(2); opacity: 0; }
+}
+
+@keyframes wilson-orb-ripple-kf {
+  from { transform: scale(0.5); opacity: 0.7; }
+  to { transform: scale(2.4); opacity: 0; }
+}
+
+@keyframes wilson-orb-sparkle-kf {
+  0% { transform: rotate(var(--r, 0deg)) translateX(60%) scale(0.4); opacity: 0; }
+  40% { opacity: 1; }
+  100% { transform: rotate(var(--r, 0deg)) translateX(115%) scale(0.9); opacity: 0; }
+}
+
+@keyframes wilson-orb-shimmer-kf {
+  0% { transform: translateX(-120%) skewX(-18deg); opacity: 0; }
+  40% { opacity: 0.8; }
+  100% { transform: translateX(120%) skewX(-18deg); opacity: 0; }
+}
+
+.wilson-orb-shell {
+  isolation: isolate;
+}
+
+.wilson-orb-float {
+  animation: wilson-orb-float-kf 6s ease-in-out infinite;
+  will-change: transform;
+}
+
+.wilson-orb-sonar,
+.wilson-orb-ripple {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 2px solid hsl(var(--neon-violet) / 0.6);
+  pointer-events: none;
+}
+
+.wilson-orb-sonar {
+  animation: wilson-orb-sonar-kf 900ms ease-out forwards;
+}
+
+.wilson-orb-ripple {
+  animation: wilson-orb-ripple-kf 1100ms ease-out forwards;
+}
+
+.wilson-orb-sparkles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.wilson-orb-sparkle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 9999px;
+  background: hsl(var(--wilson-vibe-hue) 90% 72%);
+  box-shadow: 0 0 10px 2px hsl(var(--wilson-vibe-hue) 90% 68% / 0.8);
+  animation: wilson-orb-sparkle-kf 2.4s ease-out infinite;
+}
+
+.wilson-orb-shimmer {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  overflow: hidden;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    hsl(var(--foreground) / 0.35) 50%,
+    transparent 100%
+  );
+  animation: wilson-orb-shimmer-kf 1.6s ease-in-out infinite;
+}
+
+.wilson-fluid {
+  border-radius: 9999px;
+  background-size: cover;
+  background-position: center;
+  transform: scale(var(--wilson-amp-scale));
+  filter: hue-rotate(calc(var(--wilson-amp-hue) + (var(--wilson-vibe-hue) - 290) * 1deg))
+    drop-shadow(0 0 calc(14px + var(--wilson-amp-glow) * 26px)
+      hsl(var(--wilson-vibe-hue) 88% 65% / var(--wilson-amp-glow)));
+  transition: transform 90ms linear, filter 120ms linear;
+  will-change: transform, filter;
+}
+
+.wilson-fluid--idle { opacity: 0.9; }
+.wilson-fluid--listening { opacity: 1; }
+.wilson-fluid--thinking { opacity: 1; }
+.wilson-fluid--speaking { opacity: 1; }
+
+.wilson-orb-shell--speaking .wilson-orb-float { animation-duration: 3.2s; }
+.wilson-orb-shell--thinking .wilson-orb-float { animation-duration: 4.5s; }
+
+/* ============================================================
+   Wilson prose (markdown output)
+   ============================================================ */
+.wilson-prose {
+  @apply text-sm leading-relaxed text-foreground/90;
+  word-break: break-word;
+}
+
+.wilson-prose > * + * {
+  @apply mt-3;
+}
+
+.wilson-h {
+  @apply font-bold tracking-tight text-foreground;
+}
+
+.wilson-prose h1.wilson-h { @apply text-xl; }
+.wilson-prose h2.wilson-h { @apply text-lg; }
+.wilson-prose h3.wilson-h { @apply text-base; }
+
+.wilson-link {
+  @apply text-accent underline underline-offset-4 transition-colors;
+}
+.wilson-link:hover {
+  @apply text-primary;
+}
+
+.wilson-list,
+.wilson-ol {
+  @apply pl-5 space-y-1;
+}
+.wilson-list { @apply list-disc; }
+.wilson-ol { @apply list-decimal; }
+
+.wilson-blockquote {
+  @apply border-l-2 border-primary/60 pl-4 italic text-muted-foreground;
+}
+
+.wilson-hr {
+  @apply border-0 h-px bg-border my-4;
+}
+
+.wilson-inline-code {
+  @apply rounded-md px-1.5 py-0.5 font-mono text-[0.8em] bg-muted text-accent;
+}
+
+.wilson-code-wrapper {
+  @apply rounded-xl overflow-hidden border border-border bg-void-surface;
+}
+
+.wilson-code-header {
+  @apply flex items-center justify-between px-3 py-1.5 bg-void-elevated border-b border-border;
+}
+
+.wilson-code-lang {
+  @apply text-[10px] uppercase tracking-widest text-muted-foreground font-semibold;
+}
+
+.wilson-code-copy {
+  @apply text-[10px] uppercase tracking-widest text-muted-foreground hover:text-accent transition-colors cursor-pointer;
+}
+
+.wilson-code-block {
+  @apply block p-3 overflow-x-auto font-mono text-xs text-foreground/90;
+}
+
+.wilson-table {
+  @apply w-full text-xs border-collapse;
+}
+.wilson-table th,
+.wilson-table td {
+  @apply border border-border px-2 py-1 text-left;
+}
+.wilson-table th {
+  @apply bg-void-elevated font-semibold;
+}
+
+/* ============================================================
+   Reduced motion
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
