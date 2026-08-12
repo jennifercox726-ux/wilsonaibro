@@ -53,6 +53,7 @@ const App = () => {
         <BackgroundDebugOverlay />
 
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <main>
           <Routes>
 
             {/* ROOT */}
