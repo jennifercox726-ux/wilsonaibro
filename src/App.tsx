@@ -52,7 +52,8 @@ const App = () => {
         <Sonner />
         <BackgroundDebugOverlay />
 
-        <BrowserRouter>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <main>
           <Routes>
 
             {/* ROOT */}
@@ -121,6 +122,7 @@ const App = () => {
             <Route path="*" element={<NotFound />} />
 
           </Routes>
+          </main>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
