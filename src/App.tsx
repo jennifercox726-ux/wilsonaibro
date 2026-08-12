@@ -52,7 +52,7 @@ const App = () => {
         <Sonner />
         <BackgroundDebugOverlay />
 
-        <BrowserRouter>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
 
             {/* ROOT */}
