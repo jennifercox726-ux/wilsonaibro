@@ -14,16 +14,468 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      conversations: {
+        Row: {
+          created_at: string
+          id: string
+          is_public: boolean
+          share_token: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_public?: boolean
+          share_token?: string | null
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_public?: boolean
+          share_token?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      dispatch_confirmations: {
+        Row: {
+          consumed_at: string | null
+          created_at: string
+          dispatch_log_id: string
+          expires_at: string
+          id: string
+          sentinel_id: string
+          token: string
+          user_id: string
+        }
+        Insert: {
+          consumed_at?: string | null
+          created_at?: string
+          dispatch_log_id: string
+          expires_at: string
+          id?: string
+          sentinel_id: string
+          token: string
+          user_id: string
+        }
+        Update: {
+          consumed_at?: string | null
+          created_at?: string
+          dispatch_log_id?: string
+          expires_at?: string
+          id?: string
+          sentinel_id?: string
+          token?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dispatch_confirmations_dispatch_log_id_fkey"
+            columns: ["dispatch_log_id"]
+            isOneToOne: false
+            referencedRelation: "dispatch_log"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispatch_confirmations_sentinel_id_fkey"
+            columns: ["sentinel_id"]
+            isOneToOne: false
+            referencedRelation: "sovereignty_sentinels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dispatch_log: {
+        Row: {
+          confirmed_by_sentinel_id: string | null
+          created_at: string
+          dispatched_at: string | null
+          error_message: string | null
+          github_response: string | null
+          github_status_code: number | null
+          id: string
+          inputs: Json
+          status: Database["public"]["Enums"]["dispatch_status"]
+          trigger_source: Database["public"]["Enums"]["dispatch_trigger_source"]
+          updated_at: string
+          user_id: string
+          workflow_id: string
+        }
+        Insert: {
+          confirmed_by_sentinel_id?: string | null
+          created_at?: string
+          dispatched_at?: string | null
+          error_message?: string | null
+          github_response?: string | null
+          github_status_code?: number | null
+          id?: string
+          inputs?: Json
+          status: Database["public"]["Enums"]["dispatch_status"]
+          trigger_source: Database["public"]["Enums"]["dispatch_trigger_source"]
+          updated_at?: string
+          user_id: string
+          workflow_id: string
+        }
+        Update: {
+          confirmed_by_sentinel_id?: string | null
+          created_at?: string
+          dispatched_at?: string | null
+          error_message?: string | null
+          github_response?: string | null
+          github_status_code?: number | null
+          id?: string
+          inputs?: Json
+          status?: Database["public"]["Enums"]["dispatch_status"]
+          trigger_source?: Database["public"]["Enums"]["dispatch_trigger_source"]
+          updated_at?: string
+          user_id?: string
+          workflow_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dispatch_log_confirmed_by_sentinel_id_fkey"
+            columns: ["confirmed_by_sentinel_id"]
+            isOneToOne: false
+            referencedRelation: "sovereignty_sentinels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispatch_log_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "dispatch_workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dispatch_workflows: {
+        Row: {
+          armed: boolean
+          created_at: string
+          description: string | null
+          display_name: string
+          id: string
+          ref: string
+          tier: Database["public"]["Enums"]["dispatch_tier"]
+          updated_at: string
+          user_id: string
+          workflow_file: string
+        }
+        Insert: {
+          armed?: boolean
+          created_at?: string
+          description?: string | null
+          display_name: string
+          id?: string
+          ref?: string
+          tier?: Database["public"]["Enums"]["dispatch_tier"]
+          updated_at?: string
+          user_id: string
+          workflow_file: string
+        }
+        Update: {
+          armed?: boolean
+          created_at?: string
+          description?: string | null
+          display_name?: string
+          id?: string
+          ref?: string
+          tier?: Database["public"]["Enums"]["dispatch_tier"]
+          updated_at?: string
+          user_id?: string
+          workflow_file?: string
+        }
+        Relationships: []
+      }
+      messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          role: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          role: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          core_dream: string | null
+          created_at: string
+          display_name: string | null
+          emotional_vibe: string | null
+          first_seen_at: string
+          id: string
+          membership_tier: string
+          referral_source: string | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          core_dream?: string | null
+          created_at?: string
+          display_name?: string | null
+          emotional_vibe?: string | null
+          first_seen_at?: string
+          id?: string
+          membership_tier?: string
+          referral_source?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          core_dream?: string | null
+          created_at?: string
+          display_name?: string | null
+          emotional_vibe?: string | null
+          first_seen_at?: string
+          id?: string
+          membership_tier?: string
+          referral_source?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      query_logs: {
+        Row: {
+          conversation_id: string | null
+          created_at: string
+          id: string
+          query_length: number
+          query_text: string
+          response_length: number | null
+          response_time_ms: number | null
+          user_id: string
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          query_length?: number
+          query_text: string
+          response_length?: number | null
+          response_time_ms?: number | null
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          query_length?: number
+          query_text?: string
+          response_length?: number | null
+          response_time_ms?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "query_logs_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saved_snippets: {
+        Row: {
+          content: string
+          conversation_id: string | null
+          created_at: string
+          id: string
+          note: string | null
+          user_id: string
+        }
+        Insert: {
+          content: string
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          user_id: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_snippets_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sovereignty_sentinels: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          name: string
+          notified_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          notified_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          notified_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      sovereignty_status: {
+        Row: {
+          check_in_window_hours: number
+          created_at: string
+          id: string
+          last_ping: string
+          protocol_triggered: boolean
+          triggered_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          check_in_window_hours?: number
+          created_at?: string
+          id?: string
+          last_ping?: string
+          protocol_triggered?: boolean
+          triggered_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          check_in_window_hours?: number
+          created_at?: string
+          id?: string
+          last_ping?: string
+          protocol_triggered?: boolean
+          triggered_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      yolo_mode: {
+        Row: {
+          engaged_at: string
+          expires_at: string
+          user_id: string
+        }
+        Insert: {
+          engaged_at?: string
+          expires_at: string
+          user_id: string
+        }
+        Update: {
+          engaged_at?: string
+          expires_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "user"
+      dispatch_status:
+        | "pending_confirmation"
+        | "dispatched"
+        | "failed"
+        | "expired"
+        | "cancelled"
+      dispatch_tier: "auto" | "confirm"
+      dispatch_trigger_source:
+        | "manual"
+        | "test_fire"
+        | "sentinel_auto"
+        | "sentinel_confirmed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +602,22 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "user"],
+      dispatch_status: [
+        "pending_confirmation",
+        "dispatched",
+        "failed",
+        "expired",
+        "cancelled",
+      ],
+      dispatch_tier: ["auto", "confirm"],
+      dispatch_trigger_source: [
+        "manual",
+        "test_fire",
+        "sentinel_auto",
+        "sentinel_confirmed",
+      ],
+    },
   },
 } as const
